@@ -10,10 +10,7 @@ export default function WordsScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[
-          styles.contentContainer,
-          Platform.OS !== 'ios' && styles.contentContainerWithTabBar
-        ]}
+        contentContainerStyle={styles.contentContainer}
       >
         <View style={styles.header}>
           <Text style={commonStyles.title}>Words</Text>
@@ -243,9 +240,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 20,
     paddingTop: Platform.OS === 'android' ? 48 : 20,
-  },
-  contentContainerWithTabBar: {
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   header: {
     marginBottom: 20,
