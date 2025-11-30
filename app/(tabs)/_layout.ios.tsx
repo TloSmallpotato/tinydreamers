@@ -7,11 +7,13 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { usePathname } from 'expo-router';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 interface TabItem {
   name: string;
   iosIcon: string;
   androidIcon: string;
+  materialIcon?: keyof typeof MaterialIcons.glyphMap;
   iconDefault?: any;
   iconSelected?: any;
   isAddButton?: boolean;
@@ -22,6 +24,7 @@ const tabs: TabItem[] = [
     name: 'books',
     iosIcon: 'book.fill',
     androidIcon: 'menu-book',
+    materialIcon: 'menu-book',
     iconDefault: require('@/assets/images/5394d9a9-b46e-435c-8381-1e06e62059f8.png'),
     iconSelected: require('@/assets/images/640e4c19-40a7-4c3c-bd67-4c40276bd1e2.png'),
   },
@@ -29,6 +32,7 @@ const tabs: TabItem[] = [
     name: 'words',
     iosIcon: 'text.bubble.fill',
     androidIcon: 'chat-bubble',
+    materialIcon: 'chat-bubble',
     iconDefault: require('@/assets/images/c7a4fdc1-6d22-4745-8d41-27e5b82049df.png'),
     iconSelected: require('@/assets/images/ed71be58-8504-4a3d-b8b9-cd852db940c7.png'),
   },
@@ -36,17 +40,20 @@ const tabs: TabItem[] = [
     name: 'add',
     iosIcon: 'plus',
     androidIcon: 'add',
+    materialIcon: 'add',
     isAddButton: true,
   },
   {
     name: 'play',
     iosIcon: 'play.circle.fill',
     androidIcon: 'sports-esports',
+    materialIcon: 'sports-esports',
   },
   {
     name: 'profile',
     iosIcon: 'face.smiling.fill',
     androidIcon: 'mood',
+    materialIcon: 'mood',
     iconDefault: require('@/assets/images/2db3fc89-f490-4700-9943-eebd88408478.png'),
     iconSelected: require('@/assets/images/508559d4-267e-4940-bad5-54ef683fdc4d.png'),
   },
@@ -178,12 +185,7 @@ function CustomTabBar() {
                   onPress={() => handleAddPress(index)}
                   activeOpacity={0.8}
                 >
-                  <IconSymbol
-                    ios_icon_name={tab.iosIcon}
-                    android_material_icon_name={tab.androidIcon}
-                    size={28}
-                    color={colors.backgroundAlt}
-                  />
+                  <MaterialIcons name="add" size={28} color={colors.backgroundAlt} />
                 </TouchableOpacity>
               </Animated.View>
             );
