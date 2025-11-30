@@ -4,7 +4,6 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
-import { useBottomSheetState } from '@/contexts/BottomSheetContext';
 
 interface Child {
   id: string;
@@ -23,7 +22,6 @@ interface ChildSelectorBottomSheetProps {
 const ChildSelectorBottomSheet = forwardRef<BottomSheet, ChildSelectorBottomSheetProps>(
   ({ childrenList, selectedChildId, onSelectChild, onAddChild }, ref) => {
     const snapPoints = useMemo(() => ['50%', '75%'], []);
-    const { openBottomSheet, closeBottomSheet } = useBottomSheetState();
 
     const renderBackdrop = (props: any) => (
       <BottomSheetBackdrop
@@ -44,13 +42,6 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheet, ChildSelectorBottomShee
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
         style={styles.bottomSheet}
-        onChange={(index) => {
-          if (index >= 0) {
-            openBottomSheet();
-          } else {
-            closeBottomSheet();
-          }
-        }}
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Select Child</Text>

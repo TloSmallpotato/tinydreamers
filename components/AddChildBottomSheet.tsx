@@ -4,7 +4,6 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'r
 import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors } from '@/styles/commonStyles';
-import { useBottomSheetState } from '@/contexts/BottomSheetContext';
 
 interface AddChildBottomSheetProps {
   onAddChild: (name: string, birthDate: Date) => void;
@@ -16,7 +15,6 @@ const AddChildBottomSheet = forwardRef<BottomSheet, AddChildBottomSheetProps>(
     const [name, setName] = useState('');
     const [birthDate, setBirthDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
-    const { openBottomSheet, closeBottomSheet } = useBottomSheetState();
 
     const renderBackdrop = (props: any) => (
       <BottomSheetBackdrop
@@ -53,13 +51,6 @@ const AddChildBottomSheet = forwardRef<BottomSheet, AddChildBottomSheetProps>(
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
         style={styles.bottomSheet}
-        onChange={(index) => {
-          if (index >= 0) {
-            openBottomSheet();
-          } else {
-            closeBottomSheet();
-          }
-        }}
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Add New Child</Text>

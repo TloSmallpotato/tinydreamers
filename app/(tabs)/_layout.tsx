@@ -1,13 +1,12 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Stack, Redirect, usePathname } from 'expo-router';
+import { Stack, useRouter, usePathname } from 'expo-router';
 import { View, TouchableOpacity, StyleSheet, Platform, Animated, Image } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Alert } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useBottomSheetState } from '@/contexts/BottomSheetContext';
 
 interface TabItem {
   name: string;
@@ -67,14 +66,14 @@ const tabs: TabItem[] = [
   },
 ];
 
-function CustomTabBar({ onNavigate }: { onNavigate: (route: string) => void }) {
+function CustomTabBar() {
+  const router = useRouter();
   const pathname = usePathname();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [showCamera, setShowCamera] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const cameraRef = useRef<CameraView>(null);
-  const { isBottomSheetOpen } = useBottomSheetState();
 
   const scaleAnims = useRef(
     tabs.map(() => new Animated.Value(1))
@@ -102,8 +101,8 @@ function CustomTabBar({ onNavigate }: { onNavigate: (route: string) => void }) {
 
   const activeTab = getActiveTab();
 
-  // Hide tab bar on settings page OR when bottom sheet is open
-  const shouldShowTabBar = !pathname.includes('/settings') && !isBottomSheetOpen;
+  // Hide tab bar on settings page
+  const shouldShowTabBar = !pathname.includes('/settings');
 
   const handleTabPress = async (tab: TabItem, index: number) => {
     console.log('Tab pressed:', tab.name);
@@ -149,7 +148,7 @@ function CustomTabBar({ onNavigate }: { onNavigate: (route: string) => void }) {
       setShowCamera(true);
     } else {
       console.log('Navigating to:', tab.route);
-      onNavigate(tab.route);
+      router.push(tab.route as any);
     }
   };
 
@@ -313,42 +312,17 @@ function CustomTabBar({ onNavigate }: { onNavigate: (route: string) => void }) {
 }
 
 export default function TabLayout() {
+  const router = useRouter();
   const pathname = usePathname();
-  const [navigationTarget, setNavigationTarget] = useState<string | null>(null);
 
-  // Check if we should redirect to profile
-  const shouldRedirectToProfile = pathname === '/(tabs)' || pathname === '/';
-
-  console.log('TabLayout - Current pathname:', pathname);
-  console.log('TabLayout - Should redirect to profile:', shouldRedirectToProfile);
-
-  // Handle navigation from CustomTabBar
-  const handleNavigate = (route: string) => {
-    console.log('Navigation requested to:', route);
-    setNavigationTarget(route);
-  };
-
-  // Clear navigation target after redirect
+  // Redirect to profile if on root tabs path
   useEffect(() => {
-    if (navigationTarget) {
-      const timer = setTimeout(() => {
-        setNavigationTarget(null);
-      }, 100);
-      return () => clearTimeout(timer);
+    console.log('Current pathname:', pathname);
+    if (pathname === '/(tabs)' || pathname === '/') {
+      console.log('Redirecting to profile from tabs root');
+      router.replace('/(tabs)/profile');
     }
-  }, [navigationTarget]);
-
-  // Use Redirect component instead of useEffect with router.replace
-  if (shouldRedirectToProfile) {
-    console.log('Redirecting to profile page');
-    return <Redirect href="/(tabs)/profile" />;
-  }
-
-  // Handle navigation from tab bar
-  if (navigationTarget) {
-    console.log('Redirecting to:', navigationTarget);
-    return <Redirect href={navigationTarget as any} />;
-  }
+  }, [pathname, router]);
 
   return (
     <>
@@ -357,14 +331,15 @@ export default function TabLayout() {
           headerShown: false,
           animation: 'none',
         }}
+        initialRouteName="profile"
       >
-        <Stack.Screen name="profile" />
         <Stack.Screen name="books" />
         <Stack.Screen name="words" />
         <Stack.Screen name="play" />
+        <Stack.Screen name="profile" />
         <Stack.Screen name="settings" />
       </Stack>
-      <CustomTabBar onNavigate={handleNavigate} />
+      <CustomTabBar />
     </>
   );
 }
