@@ -1,11 +1,38 @@
 
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'expo-router';
 
 export default function ProfileScreen() {
+  const { user, signOut } = useAuth();
+  const router = useRouter();
+
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            console.log('Signing out user');
+            await signOut();
+            router.replace('/(auth)/login');
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -16,15 +43,21 @@ export default function ProfileScreen() {
         >
           <View style={styles.header}>
             <Text style={styles.appTitle}>Tiny Dreamers</Text>
-            <TouchableOpacity style={styles.settingsButton}>
+            <TouchableOpacity style={styles.settingsButton} onPress={handleSignOut}>
               <IconSymbol 
-                ios_icon_name="gearshape.fill" 
-                android_material_icon_name="settings" 
+                ios_icon_name="rectangle.portrait.and.arrow.right" 
+                android_material_icon_name="logout" 
                 size={24} 
                 color={colors.primary} 
               />
             </TouchableOpacity>
           </View>
+
+          {user && (
+            <View style={styles.userInfo}>
+              <Text style={styles.userEmail}>{user.email}</Text>
+            </View>
+          )}
 
           <View style={styles.profileSection}>
             <View style={styles.avatarPlaceholder} />
@@ -184,7 +217,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 12,
   },
   appTitle: {
     fontSize: 20,
@@ -198,8 +231,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 2,
+  },
+  userInfo: {
+    marginBottom: 12,
+  },
+  userEmail: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   profileSection: {
     alignItems: 'center',
@@ -265,7 +309,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     minHeight: 100,
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
     elevation: 3,
   },
   statNumber: {
