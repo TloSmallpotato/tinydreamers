@@ -117,7 +117,7 @@ function CustomTabBar() {
     ]).start();
 
     if (tab.isAddButton) {
-      console.log('Add button pressed - opening camera instantly');
+      console.log('Add button pressed - opening camera');
       // Handle Add button - open camera for video recording
       if (!cameraPermission) {
         console.log('Camera permission not loaded yet');
@@ -146,23 +146,19 @@ function CustomTabBar() {
     }
   };
 
-  // Start recording as soon as camera is ready and visible
-  const handleCameraReady = async () => {
-    console.log('Camera is ready');
-    if (showCamera && !isRecording && cameraRef.current) {
+  const startRecording = async () => {
+    if (cameraRef.current && !isRecording) {
       try {
-        console.log('Starting video recording immediately');
+        console.log('Starting video recording');
         setIsRecording(true);
         const video = await cameraRef.current.recordAsync({
-          maxDuration: 60,
+          maxDuration: 300, // 5 minutes max
         });
         console.log('Video recorded:', video);
-        setShowCamera(false);
         setIsRecording(false);
         Alert.alert('Video Recorded', 'Your video has been saved!');
       } catch (error) {
         console.error('Error recording video:', error);
-        setShowCamera(false);
         setIsRecording(false);
         Alert.alert('Error', 'Failed to record video');
       }
@@ -173,9 +169,16 @@ function CustomTabBar() {
     if (cameraRef.current && isRecording) {
       console.log('Stopping video recording');
       cameraRef.current.stopRecording();
+      setIsRecording(false);
+    }
+  };
+
+  const closeCamera = () => {
+    console.log('Closing camera');
+    if (isRecording) {
+      stopRecording();
     }
     setShowCamera(false);
-    setIsRecording(false);
   };
 
   return (
@@ -188,14 +191,28 @@ function CustomTabBar() {
             style={StyleSheet.absoluteFill} 
             mode="video"
             facing="back"
-            onCameraReady={handleCameraReady}
           />
           <View style={styles.cameraControls}>
+            {!isRecording ? (
+              <TouchableOpacity 
+                style={styles.recordButton}
+                onPress={startRecording}
+              >
+                <View style={styles.recordButtonInner} />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={styles.stopButton}
+                onPress={stopRecording}
+              >
+                <View style={styles.stopButtonInner} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity 
-              style={styles.stopButton}
-              onPress={stopRecording}
+              style={styles.closeButton}
+              onPress={closeCamera}
             >
-              <View style={styles.stopButtonInner} />
+              <MaterialIcons name="close" size={32} color={colors.backgroundAlt} />
             </TouchableOpacity>
           </View>
         </View>
@@ -261,6 +278,18 @@ function CustomTabBar() {
 }
 
 export default function TabLayout() {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Redirect to profile if on root tabs path
+  useEffect(() => {
+    console.log('Current pathname:', pathname);
+    if (pathname === '/(tabs)' || pathname === '/') {
+      console.log('Redirecting to profile from tabs root');
+      router.replace('/(tabs)/profile');
+    }
+  }, [pathname, router]);
+
   return (
     <>
       <Stack
@@ -268,6 +297,7 @@ export default function TabLayout() {
           headerShown: false,
           animation: 'none',
         }}
+        initialRouteName="profile"
       >
         <Stack.Screen name="books" />
         <Stack.Screen name="words" />
@@ -343,6 +373,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 2000,
   },
+  recordButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.backgroundAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: colors.secondary,
+  },
+  recordButtonInner: {
+    width: 56,
+    height: 56,
+    backgroundColor: colors.secondary,
+    borderRadius: 28,
+  },
   stopButton: {
     width: 72,
     height: 72,
@@ -358,5 +404,16 @@ const styles = StyleSheet.create({
     height: 32,
     backgroundColor: colors.secondary,
     borderRadius: 4,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: -200,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

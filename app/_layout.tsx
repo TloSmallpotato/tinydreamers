@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments, usePathname } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -13,6 +13,7 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const segments = useSegments();
+  const pathname = usePathname();
 
   const [fontsLoaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -26,11 +27,17 @@ export default function RootLayout() {
 
   useEffect(() => {
     // Redirect to profile on app start
-    if (fontsLoaded && segments.length === 0) {
-      console.log('Redirecting to profile on app start');
-      router.replace('/(tabs)/profile');
+    if (fontsLoaded) {
+      console.log('Current pathname:', pathname);
+      console.log('Current segments:', segments);
+      
+      // If we're at the root or tabs root, redirect to profile
+      if (segments.length === 0 || pathname === '/' || pathname === '/(tabs)') {
+        console.log('Redirecting to profile on app start');
+        router.replace('/(tabs)/profile');
+      }
     }
-  }, [fontsLoaded, segments]);
+  }, [fontsLoaded, pathname, segments, router]);
 
   if (!fontsLoaded) {
     return null;
