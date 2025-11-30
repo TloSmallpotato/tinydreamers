@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, Platform, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -31,8 +31,6 @@ interface GroupedWords {
 export default function WordsScreen() {
   const { selectedChild } = useChild();
   const [words, setWords] = useState<Word[]>([]);
-  const [filteredWords, setFilteredWords] = useState<Word[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
 
@@ -48,7 +46,6 @@ export default function WordsScreen() {
   const fetchWords = async () => {
     if (!selectedChild) {
       setWords([]);
-      setFilteredWords([]);
       setLoading(false);
       return;
     }
@@ -70,7 +67,6 @@ export default function WordsScreen() {
 
       console.log('Fetched words:', data?.length || 0);
       setWords(data || []);
-      setFilteredWords(data || []);
     } catch (error) {
       console.error('Error in fetchWords:', error);
       Alert.alert('Error', 'Failed to load words');
@@ -78,17 +74,6 @@ export default function WordsScreen() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (searchQuery.trim()) {
-      const filtered = words.filter((word) =>
-        word.word.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredWords(filtered);
-    } else {
-      setFilteredWords(words);
-    }
-  }, [searchQuery, words]);
 
   const groupWordsByLetter = (wordsList: Word[]): GroupedWords => {
     const grouped: GroupedWords = {};
@@ -155,7 +140,7 @@ export default function WordsScreen() {
     Alert.alert('Camera', 'Camera functionality will be integrated');
   };
 
-  const groupedWords = groupWordsByLetter(filteredWords);
+  const groupedWords = groupWordsByLetter(words);
   const sortedLetters = Object.keys(groupedWords).sort();
 
   return (
@@ -177,22 +162,7 @@ export default function WordsScreen() {
             </View>
           </View>
 
-          <View style={styles.searchRow}>
-            <View style={[commonStyles.searchBar, { flex: 1 }]}>
-              <IconSymbol 
-                ios_icon_name="magnifyingglass" 
-                android_material_icon_name="search" 
-                size={20} 
-                color={colors.primary} 
-              />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search a word"
-                placeholderTextColor={colors.primary}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
+          <View style={styles.addButtonContainer}>
             <TouchableOpacity style={styles.addButton} onPress={handleOpenAddWord}>
               <IconSymbol 
                 ios_icon_name="plus" 
@@ -207,7 +177,7 @@ export default function WordsScreen() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>Loading words...</Text>
             </View>
-          ) : filteredWords.length === 0 ? (
+          ) : words.length === 0 ? (
             <View style={styles.emptyState}>
               <IconSymbol
                 ios_icon_name="text.bubble"
@@ -215,11 +185,9 @@ export default function WordsScreen() {
                 size={64}
                 color={colors.textSecondary}
               />
-              <Text style={styles.emptyText}>
-                {searchQuery ? 'No words found' : 'No words yet'}
-              </Text>
+              <Text style={styles.emptyText}>No words yet</Text>
               <Text style={styles.emptySubtext}>
-                {searchQuery ? 'Try a different search' : 'Tap the + button to add your first word'}
+                Tap the + button to add your first word
               </Text>
             </View>
           ) : (
@@ -336,17 +304,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  addButtonContainer: {
+    alignItems: 'flex-end',
     marginBottom: 20,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: colors.primary,
   },
   addButton: {
     backgroundColor: colors.buttonBlue,

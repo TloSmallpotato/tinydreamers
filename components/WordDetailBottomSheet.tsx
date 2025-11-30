@@ -135,6 +135,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheet, WordDetailBottomSheetProps
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
         onClose={onClose}
+        style={styles.bottomSheet}
       >
         <BottomSheetView style={styles.contentContainer}>
           <View style={[styles.wordHeader, { backgroundColor: word.color }]}>
@@ -249,6 +250,9 @@ const WordDetailBottomSheet = forwardRef<BottomSheet, WordDetailBottomSheetProps
 );
 
 const styles = StyleSheet.create({
+  bottomSheet: {
+    zIndex: 10000,
+  },
   bottomSheetBackground: {
     backgroundColor: colors.backgroundAlt,
     borderTopLeftRadius: 24,

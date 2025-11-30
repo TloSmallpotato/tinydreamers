@@ -8,20 +8,129 @@ interface AddWordBottomSheetProps {
   onAddWord: (word: string, emoji: string, color: string) => void;
 }
 
-const EMOJI_OPTIONS = ['🍎', '🥯', '🍌', '🚗', '🐶', '🐱', '🏠', '⚽', '🎨', '📚', '🌟', '❤️'];
 const COLOR_OPTIONS = [
-  { name: 'Pink', value: colors.cardPink },
-  { name: 'Purple', value: colors.cardPurple },
-  { name: 'Yellow', value: colors.cardYellow },
-  { name: 'Orange', value: colors.cardOrange },
+  colors.cardPink,
+  colors.cardPurple,
+  colors.cardYellow,
+  colors.cardOrange,
 ];
+
+// Simple emoji mapping based on common words
+const getEmojiForWord = (word: string): string => {
+  const lowerWord = word.toLowerCase().trim();
+  
+  // Common word to emoji mappings
+  const emojiMap: { [key: string]: string } = {
+    // Food & Drink
+    'apple': '🍎', 'banana': '🍌', 'orange': '🍊', 'grape': '🍇', 'watermelon': '🍉',
+    'strawberry': '🍓', 'cherry': '🍒', 'peach': '🍑', 'pineapple': '🍍', 'kiwi': '🥝',
+    'bread': '🍞', 'cheese': '🧀', 'meat': '🍖', 'pizza': '🍕', 'burger': '🍔',
+    'fries': '🍟', 'hotdog': '🌭', 'taco': '🌮', 'burrito': '🌯', 'sandwich': '🥪',
+    'milk': '🥛', 'water': '💧', 'juice': '🧃', 'coffee': '☕', 'tea': '🍵',
+    'cake': '🍰', 'cookie': '🍪', 'candy': '🍬', 'chocolate': '🍫', 'ice cream': '🍦',
+    'egg': '🥚', 'carrot': '🥕', 'corn': '🌽', 'potato': '🥔', 'tomato': '🍅',
+    
+    // Animals
+    'dog': '🐶', 'cat': '🐱', 'mouse': '🐭', 'hamster': '🐹', 'rabbit': '🐰',
+    'fox': '🦊', 'bear': '🐻', 'panda': '🐼', 'koala': '🐨', 'tiger': '🐯',
+    'lion': '🦁', 'cow': '🐮', 'pig': '🐷', 'frog': '🐸', 'monkey': '🐵',
+    'chicken': '🐔', 'bird': '🐦', 'penguin': '🐧', 'duck': '🦆', 'owl': '🦉',
+    'fish': '🐟', 'whale': '🐋', 'dolphin': '🐬', 'shark': '🦈', 'octopus': '🐙',
+    'butterfly': '🦋', 'bee': '🐝', 'ladybug': '🐞', 'snail': '🐌', 'turtle': '🐢',
+    'elephant': '🐘', 'giraffe': '🦒', 'zebra': '🦓', 'horse': '🐴', 'unicorn': '🦄',
+    
+    // Transportation
+    'car': '🚗', 'bus': '🚌', 'train': '🚂', 'plane': '✈️', 'boat': '⛵',
+    'bike': '🚲', 'motorcycle': '🏍️', 'truck': '🚚', 'taxi': '🚕', 'ambulance': '🚑',
+    'fire truck': '🚒', 'police': '🚓', 'helicopter': '🚁', 'rocket': '🚀', 'ship': '🚢',
+    
+    // Nature
+    'tree': '🌳', 'flower': '🌸', 'rose': '🌹', 'sunflower': '🌻', 'tulip': '🌷',
+    'sun': '☀️', 'moon': '🌙', 'star': '⭐', 'cloud': '☁️', 'rain': '🌧️',
+    'snow': '❄️', 'fire': '🔥', 'water': '💧', 'wind': '💨', 'rainbow': '🌈',
+    'mountain': '⛰️', 'beach': '🏖️', 'ocean': '🌊', 'leaf': '🍃', 'plant': '🌱',
+    
+    // Objects
+    'ball': '⚽', 'book': '📚', 'pen': '✏️', 'pencil': '✏️', 'crayon': '🖍️',
+    'phone': '📱', 'computer': '💻', 'tv': '📺', 'camera': '📷', 'watch': '⌚',
+    'clock': '🕐', 'key': '🔑', 'door': '🚪', 'window': '🪟', 'chair': '🪑',
+    'table': '🪑', 'bed': '🛏️', 'lamp': '💡', 'gift': '🎁', 'balloon': '🎈',
+    'toy': '🧸', 'puzzle': '🧩', 'game': '🎮', 'music': '🎵', 'guitar': '🎸',
+    'drum': '🥁', 'trumpet': '🎺', 'violin': '🎻', 'piano': '🎹', 'microphone': '🎤',
+    
+    // Places
+    'home': '🏠', 'house': '🏠', 'school': '🏫', 'hospital': '🏥', 'store': '🏪',
+    'park': '🏞️', 'playground': '🛝', 'beach': '🏖️', 'castle': '🏰', 'church': '⛪',
+    
+    // Body Parts
+    'hand': '✋', 'foot': '🦶', 'eye': '👁️', 'ear': '👂', 'nose': '👃',
+    'mouth': '👄', 'teeth': '🦷', 'hair': '💇', 'heart': '❤️', 'brain': '🧠',
+    
+    // Clothing
+    'shirt': '👕', 'pants': '👖', 'dress': '👗', 'shoe': '👞', 'hat': '🎩',
+    'sock': '🧦', 'glove': '🧤', 'coat': '🧥', 'scarf': '🧣', 'glasses': '👓',
+    
+    // Actions & Emotions
+    'happy': '😊', 'sad': '😢', 'love': '❤️', 'laugh': '😂', 'cry': '😭',
+    'sleep': '😴', 'eat': '🍽️', 'drink': '🥤', 'play': '🎮', 'run': '🏃',
+    'walk': '🚶', 'jump': '🦘', 'dance': '💃', 'sing': '🎤', 'read': '📖',
+    
+    // Colors
+    'red': '🔴', 'blue': '🔵', 'green': '🟢', 'yellow': '🟡', 'orange': '🟠',
+    'purple': '🟣', 'pink': '🩷', 'brown': '🟤', 'black': '⚫', 'white': '⚪',
+    
+    // Numbers
+    'one': '1️⃣', 'two': '2️⃣', 'three': '3️⃣', 'four': '4️⃣', 'five': '5️⃣',
+    'six': '6️⃣', 'seven': '7️⃣', 'eight': '8️⃣', 'nine': '9️⃣', 'ten': '🔟',
+    
+    // Family
+    'mom': '👩', 'dad': '👨', 'baby': '👶', 'boy': '👦', 'girl': '👧',
+    'grandma': '👵', 'grandpa': '👴', 'family': '👨‍👩‍👧‍👦', 'brother': '👦', 'sister': '👧',
+    
+    // Weather
+    'sunny': '☀️', 'cloudy': '☁️', 'rainy': '🌧️', 'snowy': '❄️', 'windy': '💨',
+    'storm': '⛈️', 'thunder': '⚡', 'hot': '🔥', 'cold': '🧊', 'warm': '🌡️',
+    
+    // Time
+    'morning': '🌅', 'day': '☀️', 'night': '🌙', 'evening': '🌆', 'today': '📅',
+    'tomorrow': '📆', 'yesterday': '📅', 'time': '⏰', 'hour': '🕐', 'minute': '⏱️',
+  };
+  
+  // Check for exact match
+  if (emojiMap[lowerWord]) {
+    return emojiMap[lowerWord];
+  }
+  
+  // Check for partial matches
+  for (const [key, emoji] of Object.entries(emojiMap)) {
+    if (lowerWord.includes(key) || key.includes(lowerWord)) {
+      return emoji;
+    }
+  }
+  
+  // Default emoji based on first letter
+  const firstChar = lowerWord.charAt(0);
+  const defaultEmojis: { [key: string]: string } = {
+    'a': '🍎', 'b': '🎈', 'c': '🐱', 'd': '🐶', 'e': '🥚',
+    'f': '🌸', 'g': '🎁', 'h': '🏠', 'i': '🍦', 'j': '🧃',
+    'k': '🔑', 'l': '💡', 'm': '🎵', 'n': '🌙', 'o': '🍊',
+    'p': '🎨', 'q': '👑', 'r': '🌈', 's': '⭐', 't': '🌳',
+    'u': '☂️', 'v': '🎻', 'w': '🌊', 'x': '❌', 'y': '🟡',
+    'z': '🦓',
+  };
+  
+  return defaultEmojis[firstChar] || '⭐';
+};
+
+const getColorForLetter = (letter: string): string => {
+  const letterIndex = letter.toUpperCase().charCodeAt(0) - 65; // A=0, B=1, etc.
+  return COLOR_OPTIONS[letterIndex % COLOR_OPTIONS.length];
+};
 
 const AddWordBottomSheet = forwardRef<BottomSheet, AddWordBottomSheetProps>(
   ({ onAddWord }, ref) => {
-    const snapPoints = useMemo(() => ['75%'], []);
+    const snapPoints = useMemo(() => ['40%'], []);
     const [word, setWord] = useState('');
-    const [selectedEmoji, setSelectedEmoji] = useState('🍎');
-    const [selectedColor, setSelectedColor] = useState(colors.cardPink);
 
     const renderBackdrop = (props: any) => (
       <BottomSheetBackdrop
@@ -34,10 +143,13 @@ const AddWordBottomSheet = forwardRef<BottomSheet, AddWordBottomSheetProps>(
 
     const handleAdd = () => {
       if (word.trim()) {
-        onAddWord(word.trim(), selectedEmoji, selectedColor);
+        const trimmedWord = word.trim();
+        const firstLetter = trimmedWord.charAt(0).toUpperCase();
+        const emoji = getEmojiForWord(trimmedWord);
+        const color = getColorForLetter(firstLetter);
+        
+        onAddWord(trimmedWord, emoji, color);
         setWord('');
-        setSelectedEmoji('🍎');
-        setSelectedColor(colors.cardPink);
       }
     };
 
@@ -50,6 +162,7 @@ const AddWordBottomSheet = forwardRef<BottomSheet, AddWordBottomSheetProps>(
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
+        style={styles.bottomSheet}
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Add New Word</Text>
@@ -64,41 +177,6 @@ const AddWordBottomSheet = forwardRef<BottomSheet, AddWordBottomSheetProps>(
               placeholderTextColor={colors.textSecondary}
               autoCapitalize="words"
             />
-
-            <Text style={styles.label}>Choose Emoji</Text>
-            <View style={styles.emojiGrid}>
-              {EMOJI_OPTIONS.map((emoji, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.emojiButton,
-                    selectedEmoji === emoji && styles.emojiButtonSelected,
-                  ]}
-                  onPress={() => setSelectedEmoji(emoji)}
-                >
-                  <Text style={styles.emojiText}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>Choose Color</Text>
-            <View style={styles.colorGrid}>
-              {COLOR_OPTIONS.map((colorOption, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.colorButton,
-                    { backgroundColor: colorOption.value },
-                    selectedColor === colorOption.value && styles.colorButtonSelected,
-                  ]}
-                  onPress={() => setSelectedColor(colorOption.value)}
-                >
-                  {selectedColor === colorOption.value && (
-                    <Text style={styles.checkmark}>✓</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
           </ScrollView>
 
           <TouchableOpacity
@@ -115,6 +193,9 @@ const AddWordBottomSheet = forwardRef<BottomSheet, AddWordBottomSheetProps>(
 );
 
 const styles = StyleSheet.create({
+  bottomSheet: {
+    zIndex: 10000,
+  },
   bottomSheetBackground: {
     backgroundColor: colors.backgroundAlt,
     borderTopLeftRadius: 24,
@@ -155,52 +236,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
     marginBottom: 20,
-  },
-  emojiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 20,
-  },
-  emojiButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  emojiButtonSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.backgroundAlt,
-  },
-  emojiText: {
-    fontSize: 28,
-  },
-  colorGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 20,
-  },
-  colorButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: 'transparent',
-  },
-  colorButtonSelected: {
-    borderColor: colors.primary,
-  },
-  checkmark: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.backgroundAlt,
   },
   addButton: {
     backgroundColor: colors.buttonBlue,

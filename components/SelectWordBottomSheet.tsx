@@ -59,6 +59,7 @@ const SelectWordBottomSheet = forwardRef<BottomSheet, SelectWordBottomSheetProps
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
         onClose={onClose}
+        style={styles.bottomSheet}
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Select a Word</Text>
@@ -116,6 +117,9 @@ const SelectWordBottomSheet = forwardRef<BottomSheet, SelectWordBottomSheetProps
 );
 
 const styles = StyleSheet.create({
+  bottomSheet: {
+    zIndex: 10000,
+  },
   bottomSheetBackground: {
     backgroundColor: colors.backgroundAlt,
     borderTopLeftRadius: 24,
