@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ChildProvider } from '@/contexts/ChildContext';
 
@@ -46,18 +47,20 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <ChildProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-            <Stack.Screen name="formsheet" options={{ presentation: 'formSheet' }} />
-            <Stack.Screen name="transparent-modal" options={{ presentation: 'transparentModal' }} />
-          </Stack>
-          <StatusBar style="auto" />
-        </ThemeProvider>
-      </ChildProvider>
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <ChildProvider>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="formsheet" options={{ presentation: 'formSheet' }} />
+              <Stack.Screen name="transparent-modal" options={{ presentation: 'transparentModal' }} />
+            </Stack>
+            <StatusBar style="auto" />
+          </ThemeProvider>
+        </ChildProvider>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
