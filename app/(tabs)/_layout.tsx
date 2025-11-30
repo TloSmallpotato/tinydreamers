@@ -7,7 +7,6 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Alert } from 'react-native';
-import { BlurView } from 'expo-blur';
 
 interface TabItem {
   name: string;
@@ -169,47 +168,22 @@ function CustomTabBar() {
 
   return (
     <SafeAreaView style={styles.tabBarContainer} edges={['bottom']}>
-      <BlurView intensity={80} tint="light" style={styles.blurContainer}>
-        <View style={styles.tabBar}>
-          {tabs.map((tab, index) => {
-            const isActive = activeTab === tab.name;
-            const isAddButton = tab.isAddButton;
+      <View style={[styles.tabBar, { height: 72 }]}>
+        {tabs.map((tab, index) => {
+          const isActive = activeTab === tab.name;
+          const isAddButton = tab.isAddButton;
 
-            if (isAddButton) {
-              return (
-                <Animated.View 
-                  key={index}
-                  style={[
-                    styles.addButtonContainer,
-                    { transform: [{ scale: scaleAnims[index] }] }
-                  ]}
-                >
-                  <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => handleTabPress(tab, index)}
-                    activeOpacity={0.8}
-                  >
-                    <IconSymbol
-                      ios_icon_name={tab.iosIcon}
-                      android_material_icon_name={tab.androidIcon}
-                      size={28}
-                      color={colors.backgroundAlt}
-                    />
-                  </TouchableOpacity>
-                </Animated.View>
-              );
-            }
-
+          if (isAddButton) {
             return (
               <Animated.View 
                 key={index}
-                style={{ transform: [{ scale: scaleAnims[index] }] }}
+                style={[
+                  styles.addButtonContainer,
+                  { transform: [{ scale: scaleAnims[index] }] }
+                ]}
               >
                 <TouchableOpacity
-                  style={[
-                    styles.tabButton,
-                    isActive && styles.tabButtonActive,
-                  ]}
+                  style={styles.addButton}
                   onPress={() => handleTabPress(tab, index)}
                   activeOpacity={0.8}
                 >
@@ -217,14 +191,37 @@ function CustomTabBar() {
                     ios_icon_name={tab.iosIcon}
                     android_material_icon_name={tab.androidIcon}
                     size={28}
-                    color={isActive ? colors.backgroundAlt : colors.textSecondary}
+                    color={colors.backgroundAlt}
                   />
                 </TouchableOpacity>
               </Animated.View>
             );
-          })}
-        </View>
-      </BlurView>
+          }
+
+          return (
+            <Animated.View 
+              key={index}
+              style={{ transform: [{ scale: scaleAnims[index] }] }}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.tabButton,
+                  isActive && styles.tabButtonActive,
+                ]}
+                onPress={() => handleTabPress(tab, index)}
+                activeOpacity={0.8}
+              >
+                <IconSymbol
+                  ios_icon_name={tab.iosIcon}
+                  android_material_icon_name={tab.androidIcon}
+                  size={24}
+                  color={isActive ? colors.tabIconActive : colors.tabIconInactive}
+                />
+              </TouchableOpacity>
+            </Animated.View>
+          );
+        })}
+      </View>
     </SafeAreaView>
   );
 }
@@ -255,21 +252,19 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'transparent',
-    zIndex: 1000,
-  },
-  blurContainer: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 40,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
   },
   tabBar: {
     flexDirection: 'row',
-    height: 80,
+    backgroundColor: colors.tabInactive,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    borderRadius: 32,
+    paddingVertical: 8,
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'space-around',
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
+    elevation: 8,
   },
   tabButton: {
     width: 56,
@@ -278,14 +273,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
-    zIndex: 10,
   },
   tabButtonActive: {
     backgroundColor: colors.tabActive,
   },
   addButtonContainer: {
-    marginTop: -32,
-    zIndex: 1001,
+    marginTop: -24,
   },
   addButton: {
     width: 64,
@@ -297,7 +290,7 @@ const styles = StyleSheet.create({
     boxShadow: '0px 6px 16px rgba(61, 63, 181, 0.4)',
     elevation: 12,
     borderWidth: 4,
-    borderColor: colors.backgroundAlt,
+    borderColor: colors.background,
   },
   cameraControls: {
     position: 'absolute',
@@ -306,7 +299,6 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     paddingBottom: 40,
-    zIndex: 2000,
   },
   stopButton: {
     width: 72,
