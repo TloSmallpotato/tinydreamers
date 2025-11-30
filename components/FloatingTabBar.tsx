@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   View,
@@ -8,7 +9,6 @@ import {
   Dimensions,
 } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@react-navigation/native';
@@ -155,7 +155,7 @@ export default function FloatingTabBar({
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+    <View style={styles.safeArea}>
       <View style={[
         styles.container,
         {
@@ -205,7 +205,7 @@ export default function FloatingTabBar({
           </View>
         </BlurView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
