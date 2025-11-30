@@ -27,7 +27,7 @@ const tabs: TabItem[] = [
     iosIcon: 'book.fill',
     androidIcon: 'menu-book',
     materialIcon: 'menu-book',
-    iconDefault: require('@/assets/images/5394d9a9-b46e-435c-8381-1e06e62059f8.png'),
+    iconDefault: require('@/assets/images/40292f0c-5084-4da7-ab7e-20e42bbb8555.png'),
     iconSelected: require('@/assets/images/640e4c19-40a7-4c3c-bd67-4c40276bd1e2.png'),
   },
   {
@@ -36,7 +36,7 @@ const tabs: TabItem[] = [
     iosIcon: 'text.bubble.fill',
     androidIcon: 'chat-bubble',
     materialIcon: 'chat-bubble',
-    iconDefault: require('@/assets/images/c7a4fdc1-6d22-4745-8d41-27e5b82049df.png'),
+    iconDefault: require('@/assets/images/0d5c36da-89bf-42a5-b21a-859a42fe4580.png'),
     iconSelected: require('@/assets/images/ed71be58-8504-4a3d-b8b9-cd852db940c7.png'),
   },
   {
@@ -53,6 +53,8 @@ const tabs: TabItem[] = [
     iosIcon: 'play.circle.fill',
     androidIcon: 'sports-esports',
     materialIcon: 'sports-esports',
+    iconDefault: require('@/assets/images/a52345f9-68c2-478b-9403-dc23d3ed0aee.png'),
+    iconSelected: require('@/assets/images/640e4c19-40a7-4c3c-bd67-4c40276bd1e2.png'),
   },
   {
     name: 'profile',
@@ -60,7 +62,7 @@ const tabs: TabItem[] = [
     iosIcon: 'face.smiling.fill',
     androidIcon: 'mood',
     materialIcon: 'mood',
-    iconDefault: require('@/assets/images/2db3fc89-f490-4700-9943-eebd88408478.png'),
+    iconDefault: require('@/assets/images/14d63ac9-4651-4542-8f2a-76f9f54f4436.png'),
     iconSelected: require('@/assets/images/508559d4-267e-4940-bad5-54ef683fdc4d.png'),
   },
 ];
