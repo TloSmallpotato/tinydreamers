@@ -73,22 +73,29 @@ function CustomTabBar() {
   const [showCamera, setShowCamera] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
   const scaleAnims = useRef(
     tabs.map(() => new Animated.Value(1))
   ).current;
 
-  // Pre-request camera permissions on mount
+  // Pre-request camera permissions and pre-mount camera
   useEffect(() => {
-    const requestPermissions = async () => {
+    const initCamera = async () => {
       if (cameraPermission && !cameraPermission.granted) {
         console.log('Pre-requesting camera permission');
         await requestCameraPermission();
       }
+      
+      // Pre-mount camera in background after permission is granted
+      if (cameraPermission?.granted && !cameraActive) {
+        console.log('Pre-mounting camera in background');
+        setCameraActive(true);
+      }
     };
-    requestPermissions();
-  }, [cameraPermission, requestCameraPermission]);
+    initCamera();
+  }, [cameraPermission, requestCameraPermission, cameraActive]);
 
   const getActiveTab = () => {
     if (pathname.includes('/books')) return 'books';
@@ -137,10 +144,13 @@ function CustomTabBar() {
           );
           return;
         }
+        // After granting permission, activate camera
+        setCameraActive(true);
+        // Wait a bit for camera to initialize
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      console.log('Opening camera for video recording');
-      setIsCameraReady(false); // Reset camera ready state
+      console.log('Opening camera for video recording, camera ready:', isCameraReady);
       setShowCamera(true);
     } else {
       console.log('Navigating to:', tab.route);
@@ -186,31 +196,40 @@ function CustomTabBar() {
       stopRecording();
     }
     setShowCamera(false);
-    setIsCameraReady(false);
   };
 
   return (
     <>
-      {/* Only mount camera when showCamera is true */}
-      {showCamera && cameraPermission?.granted && (
-        <View style={[StyleSheet.absoluteFill, { zIndex: 2000 }]}>
+      {/* Pre-mount camera in background when permission is granted */}
+      {cameraActive && cameraPermission?.granted && (
+        <View 
+          style={[
+            StyleSheet.absoluteFill, 
+            { 
+              zIndex: showCamera ? 2000 : -1,
+              opacity: showCamera ? 1 : 0,
+            }
+          ]}
+          pointerEvents={showCamera ? 'auto' : 'none'}
+        >
           <CameraView 
             ref={cameraRef}
             style={StyleSheet.absoluteFill} 
             mode="video"
             facing="back"
             onCameraReady={handleCameraReady}
+            active={true}
           />
           
-          {/* Show loading indicator while camera initializes */}
-          {!isCameraReady && (
+          {/* Show loading indicator while camera initializes and is visible */}
+          {showCamera && !isCameraReady && (
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={colors.secondary} />
             </View>
           )}
 
-          {/* Only show controls when camera is ready */}
-          {isCameraReady && (
+          {/* Only show controls when camera is visible and ready */}
+          {showCamera && isCameraReady && (
             <View style={styles.cameraControls}>
               {!isRecording ? (
                 <TouchableOpacity 
