@@ -138,8 +138,8 @@ function CustomTabBar() {
   }
 
   return (
-    <SafeAreaView style={styles.tabBarContainer} edges={['bottom']}>
-      <View style={styles.tabBar}>
+    <SafeAreaView style={styles.tabBarContainer} edges={['bottom']} pointerEvents="box-none">
+      <View style={styles.tabBar} pointerEvents="box-none">
         {tabs.map((tab, index) => {
           if (tab.isAddButton) {
             return (
@@ -149,6 +149,7 @@ function CustomTabBar() {
                   styles.addButtonContainer,
                   { transform: [{ scale: scaleAnims[index] }] }
                 ]}
+                pointerEvents="box-none"
               >
                 <TouchableOpacity
                   style={styles.addButton}
@@ -166,7 +167,7 @@ function CustomTabBar() {
             );
           }
 
-          return <View key={index} style={{ width: 56 }} />;
+          return <View key={index} style={{ width: 56 }} pointerEvents="none" />;
         })}
       </View>
     </SafeAreaView>
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'transparent',
-    pointerEvents: 'box-none',
+    zIndex: 1000,
   },
   tabBar: {
     flexDirection: 'row',
@@ -228,6 +229,7 @@ const styles = StyleSheet.create({
   },
   addButtonContainer: {
     marginTop: -24,
+    zIndex: 1001,
   },
   addButton: {
     width: 64,
@@ -248,6 +250,7 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     paddingBottom: 40,
+    zIndex: 2000,
   },
   stopButton: {
     width: 72,

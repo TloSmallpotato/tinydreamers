@@ -168,7 +168,7 @@ function CustomTabBar() {
 
   return (
     <SafeAreaView style={styles.tabBarContainer} edges={['bottom']}>
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { height: 72 }]}>
         {tabs.map((tab, index) => {
           const isActive = activeTab === tab.name;
           const isAddButton = tab.isAddButton;
