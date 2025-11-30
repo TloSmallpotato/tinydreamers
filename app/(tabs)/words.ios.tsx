@@ -1,11 +1,163 @@
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { useChild } from '@/contexts/ChildContext';
+import { supabase } from '@/app/integrations/supabase/client';
+import AddWordBottomSheet from '@/components/AddWordBottomSheet';
+import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
+import BottomSheet from '@gorhom/bottom-sheet';
+import { useFocusEffect } from '@react-navigation/native';
+
+interface Word {
+  id: string;
+  child_id: string;
+  word: string;
+  emoji: string;
+  color: string;
+  is_spoken: boolean;
+  is_recognised: boolean;
+  is_recorded: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface GroupedWords {
+  [letter: string]: Word[];
+}
 
 export default function WordsScreen() {
+  const { selectedChild } = useChild();
+  const [words, setWords] = useState<Word[]>([]);
+  const [filteredWords, setFilteredWords] = useState<Word[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [selectedWord, setSelectedWord] = useState<Word | null>(null);
+
+  const addWordSheetRef = useRef<BottomSheet>(null);
+  const wordDetailSheetRef = useRef<BottomSheet>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchWords();
+    }, [selectedChild])
+  );
+
+  const fetchWords = async () => {
+    if (!selectedChild) {
+      setWords([]);
+      setFilteredWords([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      console.log('Fetching words for child:', selectedChild.id);
+      
+      const { data, error } = await supabase
+        .from('words')
+        .select('*')
+        .eq('child_id', selectedChild.id)
+        .order('word', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching words:', error);
+        throw error;
+      }
+
+      console.log('Fetched words:', data?.length || 0);
+      setWords(data || []);
+      setFilteredWords(data || []);
+    } catch (error) {
+      console.error('Error in fetchWords:', error);
+      Alert.alert('Error', 'Failed to load words');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      const filtered = words.filter((word) =>
+        word.word.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredWords(filtered);
+    } else {
+      setFilteredWords(words);
+    }
+  }, [searchQuery, words]);
+
+  const groupWordsByLetter = (wordsList: Word[]): GroupedWords => {
+    const grouped: GroupedWords = {};
+    
+    wordsList.forEach((word) => {
+      const firstLetter = word.word.charAt(0).toUpperCase();
+      if (!grouped[firstLetter]) {
+        grouped[firstLetter] = [];
+      }
+      grouped[firstLetter].push(word);
+    });
+
+    return grouped;
+  };
+
+  const handleAddWord = async (word: string, emoji: string, color: string) => {
+    if (!selectedChild) {
+      Alert.alert('Error', 'Please select a child first');
+      return;
+    }
+
+    try {
+      console.log('Adding word:', word);
+      
+      const { error } = await supabase
+        .from('words')
+        .insert({
+          child_id: selectedChild.id,
+          word,
+          emoji,
+          color,
+        });
+
+      if (error) {
+        console.error('Error adding word:', error);
+        throw error;
+      }
+
+      console.log('Word added successfully');
+      addWordSheetRef.current?.close();
+      await fetchWords();
+    } catch (error) {
+      console.error('Error in handleAddWord:', error);
+      Alert.alert('Error', 'Failed to add word');
+    }
+  };
+
+  const handleWordPress = (word: Word) => {
+    console.log('Word pressed:', word.word);
+    setSelectedWord(word);
+    wordDetailSheetRef.current?.snapToIndex(0);
+  };
+
+  const handleOpenAddWord = () => {
+    addWordSheetRef.current?.snapToIndex(0);
+  };
+
+  const handleCloseWordDetail = () => {
+    setSelectedWord(null);
+  };
+
+  const handleOpenCameraFromDetail = () => {
+    // This will be handled by the camera integration
+    Alert.alert('Camera', 'Camera functionality will be integrated');
+  };
+
+  const groupedWords = groupWordsByLetter(filteredWords);
+  const sortedLetters = Object.keys(groupedWords).sort();
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -16,10 +168,12 @@ export default function WordsScreen() {
         >
           <View style={styles.header}>
             <Text style={commonStyles.title}>Words</Text>
-            <Text style={commonStyles.subtitle}>Scarlett&apos;s words</Text>
+            <Text style={commonStyles.subtitle}>
+              {selectedChild ? `${selectedChild.name}'s words` : 'Select a child'}
+            </Text>
             
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>32 words</Text>
+              <Text style={styles.badgeText}>{words.length} words</Text>
             </View>
           </View>
 
@@ -35,9 +189,11 @@ export default function WordsScreen() {
                 style={styles.searchInput}
                 placeholder="Search a word"
                 placeholderTextColor={colors.primary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
               />
             </View>
-            <TouchableOpacity style={styles.addButton}>
+            <TouchableOpacity style={styles.addButton} onPress={handleOpenAddWord}>
               <IconSymbol 
                 ios_icon_name="plus" 
                 android_material_icon_name="add" 
@@ -47,187 +203,103 @@ export default function WordsScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.letterSection}>
-            <View style={styles.letterBadge}>
-              <Text style={styles.letterText}>A</Text>
+          {loading ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>Loading words...</Text>
             </View>
-          </View>
+          ) : filteredWords.length === 0 ? (
+            <View style={styles.emptyState}>
+              <IconSymbol
+                ios_icon_name="text.bubble"
+                android_material_icon_name="chat-bubble-outline"
+                size={64}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.emptyText}>
+                {searchQuery ? 'No words found' : 'No words yet'}
+              </Text>
+              <Text style={styles.emptySubtext}>
+                {searchQuery ? 'Try a different search' : 'Tap the + button to add your first word'}
+              </Text>
+            </View>
+          ) : (
+            sortedLetters.map((letter, letterIndex) => (
+              <React.Fragment key={letterIndex}>
+                <View style={styles.letterSection}>
+                  <View style={styles.letterBadge}>
+                    <Text style={styles.letterText}>{letter}</Text>
+                  </View>
+                </View>
 
-          <View style={styles.wordsList}>
-            <View style={[styles.wordCard, { backgroundColor: colors.cardPink }]}>
-              <View style={styles.wordIcon}>
-                <Text style={styles.wordEmoji}>🍎</Text>
-              </View>
-              <Text style={styles.wordText}>Apple</Text>
-              <View style={styles.wordActions}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="eye" 
-                    android_material_icon_name="visibility" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="speaker.wave.2" 
-                    android_material_icon_name="volume-up" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="video" 
-                    android_material_icon_name="videocam" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="chevron.right" 
-                    android_material_icon_name="chevron-right" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={[styles.wordCard, { backgroundColor: colors.cardPink }]}>
-              <View style={styles.wordIcon}>
-                <Text style={styles.wordEmoji}>🍎</Text>
-              </View>
-              <Text style={styles.wordText}>Apple</Text>
-              <View style={styles.wordActions}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="eye" 
-                    android_material_icon_name="visibility" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="speaker.wave.2" 
-                    android_material_icon_name="volume-up" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="video" 
-                    android_material_icon_name="videocam" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="chevron.right" 
-                    android_material_icon_name="chevron-right" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={[styles.wordCard, { backgroundColor: colors.cardPink }]}>
-              <View style={styles.wordIcon}>
-                <Text style={styles.wordEmoji}>🍎</Text>
-              </View>
-              <Text style={styles.wordText}>Apple</Text>
-              <View style={styles.wordActions}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="eye" 
-                    android_material_icon_name="visibility" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="speaker.wave.2" 
-                    android_material_icon_name="volume-up" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="video" 
-                    android_material_icon_name="videocam" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="chevron.right" 
-                    android_material_icon_name="chevron-right" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.letterSection}>
-            <View style={styles.letterBadge}>
-              <Text style={styles.letterText}>B</Text>
-            </View>
-          </View>
-
-          <View style={styles.wordsList}>
-            <View style={[styles.wordCard, { backgroundColor: colors.cardPurple }]}>
-              <View style={styles.wordIcon}>
-                <Text style={styles.wordEmoji}>🥯</Text>
-              </View>
-              <Text style={styles.wordText}>Bagel</Text>
-              <View style={styles.wordActions}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="eye" 
-                    android_material_icon_name="visibility" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="speaker.wave.2" 
-                    android_material_icon_name="volume-up" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="video" 
-                    android_material_icon_name="videocam" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButton}>
-                  <IconSymbol 
-                    ios_icon_name="chevron.right" 
-                    android_material_icon_name="chevron-right" 
-                    size={20} 
-                    color={colors.primary} 
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
+                <View style={styles.wordsList}>
+                  {groupedWords[letter].map((word, wordIndex) => (
+                    <TouchableOpacity
+                      key={wordIndex}
+                      style={[styles.wordCard, { backgroundColor: word.color }]}
+                      onPress={() => handleWordPress(word)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.wordIcon}>
+                        <Text style={styles.wordEmoji}>{word.emoji}</Text>
+                      </View>
+                      <Text style={styles.wordText}>{word.word}</Text>
+                      <View style={styles.wordActions}>
+                        {word.is_spoken && (
+                          <View style={styles.statusIndicator}>
+                            <IconSymbol 
+                              ios_icon_name="speaker.wave.2.fill" 
+                              android_material_icon_name="volume-up" 
+                              size={16} 
+                              color={colors.primary} 
+                            />
+                          </View>
+                        )}
+                        {word.is_recognised && (
+                          <View style={styles.statusIndicator}>
+                            <IconSymbol 
+                              ios_icon_name="eye.fill" 
+                              android_material_icon_name="visibility" 
+                              size={16} 
+                              color={colors.primary} 
+                            />
+                          </View>
+                        )}
+                        {word.is_recorded && (
+                          <View style={styles.statusIndicator}>
+                            <IconSymbol 
+                              ios_icon_name="video.fill" 
+                              android_material_icon_name="videocam" 
+                              size={16} 
+                              color={colors.primary} 
+                            />
+                          </View>
+                        )}
+                        <View style={styles.chevronButton}>
+                          <IconSymbol 
+                            ios_icon_name="chevron.right" 
+                            android_material_icon_name="chevron-right" 
+                            size={20} 
+                            color={colors.primary} 
+                          />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </React.Fragment>
+            ))
+          )}
         </ScrollView>
       </SafeAreaView>
+
+      <AddWordBottomSheet ref={addWordSheetRef} onAddWord={handleAddWord} />
+      <WordDetailBottomSheet
+        ref={wordDetailSheetRef}
+        word={selectedWord}
+        onClose={handleCloseWordDetail}
+        onOpenCamera={handleOpenCameraFromDetail}
+        onRefresh={fetchWords}
+      />
     </View>
   );
 }
@@ -335,13 +407,39 @@ const styles = StyleSheet.create({
   wordActions: {
     flexDirection: 'row',
     gap: 8,
+    alignItems: 'center',
   },
-  actionButton: {
+  statusIndicator: {
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  chevronButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.backgroundAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
   },
 });
