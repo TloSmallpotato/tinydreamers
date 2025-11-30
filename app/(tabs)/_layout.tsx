@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Stack, useRouter, usePathname } from 'expo-router';
-import { View, TouchableOpacity, StyleSheet, Platform, Animated, Image, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Platform, Animated, Image } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -200,10 +200,19 @@ function CustomTabBar() {
             StyleSheet.absoluteFill, 
             { 
               zIndex: 2000,
+              backgroundColor: '#000000', // Black background appears instantly
             }
           ]}
           pointerEvents="auto"
         >
+          {/* Close button appears immediately */}
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={closeCamera}
+          >
+            <MaterialIcons name="close" size={32} color={colors.backgroundAlt} />
+          </TouchableOpacity>
+
           <CameraView 
             ref={cameraRef}
             style={StyleSheet.absoluteFill} 
@@ -211,15 +220,8 @@ function CustomTabBar() {
             facing="back"
             onCameraReady={handleCameraReady}
           />
-          
-          {/* Show loading indicator while camera initializes */}
-          {!isCameraReady && (
-            <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color={colors.secondary} />
-            </View>
-          )}
 
-          {/* Only show controls when camera is ready */}
+          {/* Only show recording controls when camera is ready */}
           {isCameraReady && (
             <View style={styles.cameraControls}>
               {!isRecording ? (
@@ -237,12 +239,6 @@ function CustomTabBar() {
                   <View style={styles.stopButtonInner} />
                 </TouchableOpacity>
               )}
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={closeCamera}
-              >
-                <MaterialIcons name="close" size={32} color={colors.backgroundAlt} />
-              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -395,9 +391,14 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: colors.background,
   },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  closeButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2001,
@@ -441,16 +442,5 @@ const styles = StyleSheet.create({
     height: 32,
     backgroundColor: colors.secondary,
     borderRadius: 4,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: -200,
-    right: 20,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
