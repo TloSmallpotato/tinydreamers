@@ -283,6 +283,8 @@ function CustomTabBar() {
 }
 
 export default function TabLayout() {
+  console.log('iOS TabLayout - Rendering with initialRouteName: profile');
+  
   return (
     <>
       <NativeTabs

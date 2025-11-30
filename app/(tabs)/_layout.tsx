@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Stack, useRouter, usePathname } from 'expo-router';
+import { Stack, Redirect, usePathname } from 'expo-router';
 import { View, TouchableOpacity, StyleSheet, Platform, Animated, Image } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
@@ -67,8 +67,7 @@ const tabs: TabItem[] = [
   },
 ];
 
-function CustomTabBar() {
-  const router = useRouter();
+function CustomTabBar({ onNavigate }: { onNavigate: (route: string) => void }) {
   const pathname = usePathname();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [showCamera, setShowCamera] = useState(false);
@@ -150,7 +149,7 @@ function CustomTabBar() {
       setShowCamera(true);
     } else {
       console.log('Navigating to:', tab.route);
-      router.push(tab.route as any);
+      onNavigate(tab.route);
     }
   };
 
@@ -314,17 +313,42 @@ function CustomTabBar() {
 }
 
 export default function TabLayout() {
-  const router = useRouter();
   const pathname = usePathname();
+  const [navigationTarget, setNavigationTarget] = useState<string | null>(null);
 
-  // Redirect to profile if on root tabs path
+  // Check if we should redirect to profile
+  const shouldRedirectToProfile = pathname === '/(tabs)' || pathname === '/';
+
+  console.log('TabLayout - Current pathname:', pathname);
+  console.log('TabLayout - Should redirect to profile:', shouldRedirectToProfile);
+
+  // Handle navigation from CustomTabBar
+  const handleNavigate = (route: string) => {
+    console.log('Navigation requested to:', route);
+    setNavigationTarget(route);
+  };
+
+  // Clear navigation target after redirect
   useEffect(() => {
-    console.log('Current pathname:', pathname);
-    if (pathname === '/(tabs)' || pathname === '/') {
-      console.log('Redirecting to profile from tabs root');
-      router.replace('/(tabs)/profile');
+    if (navigationTarget) {
+      const timer = setTimeout(() => {
+        setNavigationTarget(null);
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [pathname, router]);
+  }, [navigationTarget]);
+
+  // Use Redirect component instead of useEffect with router.replace
+  if (shouldRedirectToProfile) {
+    console.log('Redirecting to profile page');
+    return <Redirect href="/(tabs)/profile" />;
+  }
+
+  // Handle navigation from tab bar
+  if (navigationTarget) {
+    console.log('Redirecting to:', navigationTarget);
+    return <Redirect href={navigationTarget as any} />;
+  }
 
   return (
     <>
@@ -340,7 +364,7 @@ export default function TabLayout() {
         <Stack.Screen name="play" />
         <Stack.Screen name="settings" />
       </Stack>
-      <CustomTabBar />
+      <CustomTabBar onNavigate={handleNavigate} />
     </>
   );
 }
