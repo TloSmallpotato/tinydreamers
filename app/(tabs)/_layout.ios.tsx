@@ -65,7 +65,6 @@ function CustomTabBar() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [showCamera, setShowCamera] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [cameraReady, setCameraReady] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const scaleAnims = useRef(tabs.map(() => new Animated.Value(1))).current;
 
@@ -131,31 +130,27 @@ function CustomTabBar() {
   };
 
   // Start recording as soon as camera is ready and visible
-  useEffect(() => {
-    const startRecording = async () => {
-      if (showCamera && cameraReady && !isRecording && cameraRef.current) {
-        try {
-          console.log('Starting video recording immediately');
-          setIsRecording(true);
-          const video = await cameraRef.current.recordAsync({
-            maxDuration: 60,
-          });
-          console.log('Video recorded:', video);
-          setShowCamera(false);
-          setIsRecording(false);
-          setCameraReady(false);
-          Alert.alert('Video Recorded', 'Your video has been saved!');
-        } catch (error) {
-          console.error('Error recording video:', error);
-          setShowCamera(false);
-          setIsRecording(false);
-          setCameraReady(false);
-          Alert.alert('Error', 'Failed to record video');
-        }
+  const handleCameraReady = async () => {
+    console.log('Camera is ready');
+    if (showCamera && !isRecording && cameraRef.current) {
+      try {
+        console.log('Starting video recording immediately');
+        setIsRecording(true);
+        const video = await cameraRef.current.recordAsync({
+          maxDuration: 60,
+        });
+        console.log('Video recorded:', video);
+        setShowCamera(false);
+        setIsRecording(false);
+        Alert.alert('Video Recorded', 'Your video has been saved!');
+      } catch (error) {
+        console.error('Error recording video:', error);
+        setShowCamera(false);
+        setIsRecording(false);
+        Alert.alert('Error', 'Failed to record video');
       }
-    };
-    startRecording();
-  }, [showCamera, cameraReady, isRecording]);
+    }
+  };
 
   const stopRecording = () => {
     if (cameraRef.current && isRecording) {
@@ -164,19 +159,13 @@ function CustomTabBar() {
     }
     setShowCamera(false);
     setIsRecording(false);
-    setCameraReady(false);
-  };
-
-  const handleCameraReady = () => {
-    console.log('Camera is ready');
-    setCameraReady(true);
   };
 
   return (
     <>
-      {/* Pre-mount camera but keep it hidden when not in use */}
-      {cameraPermission?.granted && (
-        <View style={[StyleSheet.absoluteFill, { opacity: showCamera ? 1 : 0, zIndex: showCamera ? 2000 : -1 }]}>
+      {/* Only mount camera when showCamera is true */}
+      {showCamera && cameraPermission?.granted && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 2000 }]}>
           <CameraView 
             ref={cameraRef}
             style={StyleSheet.absoluteFill} 
@@ -184,16 +173,14 @@ function CustomTabBar() {
             facing="back"
             onCameraReady={handleCameraReady}
           />
-          {showCamera && (
-            <View style={styles.cameraControls}>
-              <TouchableOpacity 
-                style={styles.stopButton}
-                onPress={stopRecording}
-              >
-                <View style={styles.stopButtonInner} />
-              </TouchableOpacity>
-            </View>
-          )}
+          <View style={styles.cameraControls}>
+            <TouchableOpacity 
+              style={styles.stopButton}
+              onPress={stopRecording}
+            >
+              <View style={styles.stopButtonInner} />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
