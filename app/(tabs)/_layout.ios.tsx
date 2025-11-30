@@ -7,6 +7,7 @@ import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { usePathname } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useBottomSheetState } from '@/contexts/BottomSheetContext';
 
 interface TabItem {
   name: string;
@@ -68,6 +69,7 @@ function CustomTabBar() {
   const [isRecording, setIsRecording] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const scaleAnims = useRef(tabs.map(() => new Animated.Value(1))).current;
+  const { isBottomSheetOpen } = useBottomSheetState();
 
   // Pre-request camera permissions on mount
   useEffect(() => {
@@ -91,8 +93,8 @@ function CustomTabBar() {
 
   const activeTab = getActiveTab();
 
-  // Hide tab bar on settings page
-  const shouldShowTabBar = !pathname.includes('/settings');
+  // Hide tab bar on settings page OR when bottom sheet is open
+  const shouldShowTabBar = !pathname.includes('/settings') && !isBottomSheetOpen;
 
   const handleAddPress = async (index: number) => {
     console.log('Add button pressed - opening camera');
@@ -295,6 +297,10 @@ export default function TabLayout() {
           tabBarStyle: { height: 64, paddingBottom: 8, paddingTop: 8 },
         }}
       >
+        <NativeTabs.Trigger name="profile">
+          <Icon drawable={require('@/assets/images/14d63ac9-4651-4542-8f2a-76f9f54f4436.png')} />
+          <Label hidden />
+        </NativeTabs.Trigger>
         <NativeTabs.Trigger name="books">
           <Icon drawable={require('@/assets/images/40292f0c-5084-4da7-ab7e-20e42bbb8555.png')} />
           <Label hidden />
@@ -305,10 +311,6 @@ export default function TabLayout() {
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="play">
           <Icon drawable={require('@/assets/images/a52345f9-68c2-478b-9403-dc23d3ed0aee.png')} />
-          <Label hidden />
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="profile">
-          <Icon drawable={require('@/assets/images/14d63ac9-4651-4542-8f2a-76f9f54f4436.png')} />
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Screen name="settings" options={{ href: null }} />

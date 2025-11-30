@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 
 import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { useBottomSheetState } from '@/contexts/BottomSheetContext';
 
 interface Word {
   id: string;
@@ -23,6 +24,7 @@ const SelectWordBottomSheet = forwardRef<BottomSheet, SelectWordBottomSheetProps
     const snapPoints = useMemo(() => ['70%'], []);
     const [searchQuery, setSearchQuery] = useState('');
     const [filteredWords, setFilteredWords] = useState<Word[]>(words);
+    const { openBottomSheet, closeBottomSheet } = useBottomSheetState();
 
     useEffect(() => {
       if (searchQuery.trim()) {
@@ -60,6 +62,13 @@ const SelectWordBottomSheet = forwardRef<BottomSheet, SelectWordBottomSheetProps
         handleIndicatorStyle={styles.handleIndicator}
         onClose={onClose}
         style={styles.bottomSheet}
+        onChange={(index) => {
+          if (index >= 0) {
+            openBottomSheet();
+          } else {
+            closeBottomSheet();
+          }
+        }}
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Select a Word</Text>

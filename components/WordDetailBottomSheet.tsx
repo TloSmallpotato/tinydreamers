@@ -5,6 +5,7 @@ import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/botto
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
+import { useBottomSheetState } from '@/contexts/BottomSheetContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -40,6 +41,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheet, WordDetailBottomSheetProps
     const [isSpoken, setIsSpoken] = useState(false);
     const [isRecognised, setIsRecognised] = useState(false);
     const [isRecorded, setIsRecorded] = useState(false);
+    const { openBottomSheet, closeBottomSheet } = useBottomSheetState();
 
     useEffect(() => {
       if (word) {
@@ -136,6 +138,13 @@ const WordDetailBottomSheet = forwardRef<BottomSheet, WordDetailBottomSheetProps
         handleIndicatorStyle={styles.handleIndicator}
         onClose={onClose}
         style={styles.bottomSheet}
+        onChange={(index) => {
+          if (index >= 0) {
+            openBottomSheet();
+          } else {
+            closeBottomSheet();
+          }
+        }}
       >
         <BottomSheetView style={styles.contentContainer}>
           <View style={[styles.wordHeader, { backgroundColor: word.color }]}>

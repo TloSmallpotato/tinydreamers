@@ -1,64 +1,26 @@
 
-import React, { useEffect } from 'react';
-import { Stack, useRouter, useSegments, usePathname } from 'expo-router';
-import { useFonts } from 'expo-font';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useColorScheme } from 'react-native';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ChildProvider } from '@/contexts/ChildContext';
-
-SplashScreen.preventAutoHideAsync();
+import { BottomSheetProvider } from '@/contexts/BottomSheetContext';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const router = useRouter();
-  const segments = useSegments();
-  const pathname = usePathname();
-
-  const [fontsLoaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
-
-  useEffect(() => {
-    if (fontsLoaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded]);
-
-  useEffect(() => {
-    // Redirect to profile on app start
-    if (fontsLoaded) {
-      console.log('Current pathname:', pathname);
-      console.log('Current segments:', segments);
-      
-      // If we're at the root or tabs root, redirect to profile
-      if (segments.length === 0 || pathname === '/' || pathname === '/(tabs)') {
-        console.log('Redirecting to profile on app start');
-        router.replace('/(tabs)/profile');
-      }
-    }
-  }, [fontsLoaded, pathname, segments, router]);
-
-  if (!fontsLoaded) {
-    return null;
-  }
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
         <ChildProvider>
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="formsheet" options={{ presentation: 'formSheet' }} />
-              <Stack.Screen name="transparent-modal" options={{ presentation: 'transparentModal' }} />
+          <BottomSheetProvider>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: 'none',
+              }}
+            >
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" />
             </Stack>
-            <StatusBar style="auto" />
-          </ThemeProvider>
+          </BottomSheetProvider>
         </ChildProvider>
       </AuthProvider>
     </GestureHandlerRootView>

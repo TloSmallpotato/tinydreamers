@@ -1,8 +1,9 @@
 
-import React, { forwardRef, useMemo, useState } from 'react';
+import React, { forwardRef, useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
+import { useBottomSheetState } from '@/contexts/BottomSheetContext';
 
 interface AddWordBottomSheetProps {
   onAddWord: (word: string, emoji: string, color: string) => void;
@@ -131,6 +132,7 @@ const AddWordBottomSheet = forwardRef<BottomSheet, AddWordBottomSheetProps>(
   ({ onAddWord }, ref) => {
     const snapPoints = useMemo(() => ['40%'], []);
     const [word, setWord] = useState('');
+    const { openBottomSheet, closeBottomSheet } = useBottomSheetState();
 
     const renderBackdrop = (props: any) => (
       <BottomSheetBackdrop
@@ -163,6 +165,13 @@ const AddWordBottomSheet = forwardRef<BottomSheet, AddWordBottomSheetProps>(
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
         style={styles.bottomSheet}
+        onChange={(index) => {
+          if (index >= 0) {
+            openBottomSheet();
+          } else {
+            closeBottomSheet();
+          }
+        }}
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Add New Word</Text>

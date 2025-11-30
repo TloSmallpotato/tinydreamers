@@ -7,6 +7,7 @@ import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Alert } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useBottomSheetState } from '@/contexts/BottomSheetContext';
 
 interface TabItem {
   name: string;
@@ -74,6 +75,7 @@ function CustomTabBar() {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const cameraRef = useRef<CameraView>(null);
+  const { isBottomSheetOpen } = useBottomSheetState();
 
   const scaleAnims = useRef(
     tabs.map(() => new Animated.Value(1))
@@ -101,8 +103,8 @@ function CustomTabBar() {
 
   const activeTab = getActiveTab();
 
-  // Hide tab bar on settings page
-  const shouldShowTabBar = !pathname.includes('/settings');
+  // Hide tab bar on settings page OR when bottom sheet is open
+  const shouldShowTabBar = !pathname.includes('/settings') && !isBottomSheetOpen;
 
   const handleTabPress = async (tab: TabItem, index: number) => {
     console.log('Tab pressed:', tab.name);
@@ -331,12 +333,11 @@ export default function TabLayout() {
           headerShown: false,
           animation: 'none',
         }}
-        initialRouteName="profile"
       >
+        <Stack.Screen name="profile" />
         <Stack.Screen name="books" />
         <Stack.Screen name="words" />
         <Stack.Screen name="play" />
-        <Stack.Screen name="profile" />
         <Stack.Screen name="settings" />
       </Stack>
       <CustomTabBar />
