@@ -211,12 +211,14 @@ function CustomTabBar() {
                 onPress={() => handleTabPress(tab, index)}
                 activeOpacity={0.8}
               >
-                <IconSymbol
-                  ios_icon_name={tab.iosIcon}
-                  android_material_icon_name={tab.androidIcon}
-                  size={24}
-                  color={isActive ? colors.tabIconActive : colors.tabIconInactive}
-                />
+                <View style={styles.hiddenIconContainer}>
+                  <IconSymbol
+                    ios_icon_name={tab.iosIcon}
+                    android_material_icon_name={tab.androidIcon}
+                    size={24}
+                    color={isActive ? colors.tabIconActive : colors.tabIconInactive}
+                  />
+                </View>
               </TouchableOpacity>
             </Animated.View>
           );
@@ -276,6 +278,9 @@ const styles = StyleSheet.create({
   },
   tabButtonActive: {
     backgroundColor: colors.tabActive,
+  },
+  hiddenIconContainer: {
+    opacity: 0,
   },
   addButtonContainer: {
     marginTop: -24,

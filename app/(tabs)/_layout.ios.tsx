@@ -178,25 +178,26 @@ export default function TabLayout() {
   return (
     <>
       <NativeTabs
-        backgroundColor={colors.tabInactive}
-        tintColor={colors.tabIconActive}
-        iconColor={colors.tabIconInactive}
+        backgroundColor="transparent"
+        tintColor="transparent"
+        iconColor="transparent"
         initialRouteName="profile"
+        style={styles.nativeTabs}
       >
         <NativeTabs.Trigger name="books">
-          <Icon sf="book.fill" />
+          <Icon sf="book.fill" style={styles.hiddenIcon} />
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="words">
-          <Icon sf="text.bubble.fill" />
+          <Icon sf="text.bubble.fill" style={styles.hiddenIcon} />
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="play">
-          <Icon sf="play.circle.fill" />
+          <Icon sf="play.circle.fill" style={styles.hiddenIcon} />
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="profile">
-          <Icon sf="face.smiling.fill" />
+          <Icon sf="face.smiling.fill" style={styles.hiddenIcon} />
           <Label hidden />
         </NativeTabs.Trigger>
       </NativeTabs>
@@ -206,6 +207,12 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  nativeTabs: {
+    opacity: 0,
+  },
+  hiddenIcon: {
+    opacity: 0,
+  },
   tabBarContainer: {
     position: 'absolute',
     bottom: 0,

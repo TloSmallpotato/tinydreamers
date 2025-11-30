@@ -1,43 +1,27 @@
 
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet } from 'react-native';
 import { colors, commonStyles } from '@/styles/commonStyles';
 
 export default function PlayScreen() {
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={[
-          styles.contentContainer,
-          Platform.OS !== 'ios' && styles.contentContainerWithTabBar
-        ]}
-      >
-        <View style={styles.header}>
-          <Text style={commonStyles.title}>Play</Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <View style={styles.container}>
+      <View style={styles.content}>
+        <Text style={commonStyles.title}>Play</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   container: {
     flex: 1,
+    backgroundColor: colors.background,
+    paddingTop: 0,
   },
-  contentContainer: {
-    padding: 20,
-    paddingTop: Platform.OS === 'android' ? 48 : 20,
-  },
-  contentContainerWithTabBar: {
-    paddingBottom: 100,
-  },
-  header: {
-    marginBottom: 20,
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 60,
   },
 });
