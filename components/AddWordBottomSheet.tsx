@@ -194,7 +194,8 @@ const AddWordBottomSheet = forwardRef<BottomSheet, AddWordBottomSheetProps>(
 
 const styles = StyleSheet.create({
   bottomSheet: {
-    zIndex: 10000,
+    zIndex: 999999,
+    elevation: 999999,
   },
   bottomSheetBackground: {
     backgroundColor: colors.backgroundAlt,

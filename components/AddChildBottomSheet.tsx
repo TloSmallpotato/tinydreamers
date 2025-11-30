@@ -50,6 +50,7 @@ const AddChildBottomSheet = forwardRef<BottomSheet, AddChildBottomSheetProps>(
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
+        style={styles.bottomSheet}
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Add New Child</Text>
@@ -102,6 +103,10 @@ const AddChildBottomSheet = forwardRef<BottomSheet, AddChildBottomSheetProps>(
 );
 
 const styles = StyleSheet.create({
+  bottomSheet: {
+    zIndex: 999999,
+    elevation: 999999,
+  },
   bottomSheetBackground: {
     backgroundColor: colors.backgroundAlt,
     borderTopLeftRadius: 24,

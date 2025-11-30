@@ -41,6 +41,7 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheet, ChildSelectorBottomShee
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
+        style={styles.bottomSheet}
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Select Child</Text>
@@ -91,6 +92,10 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheet, ChildSelectorBottomShee
 );
 
 const styles = StyleSheet.create({
+  bottomSheet: {
+    zIndex: 999999,
+    elevation: 999999,
+  },
   bottomSheetBackground: {
     backgroundColor: colors.backgroundAlt,
     borderTopLeftRadius: 24,
