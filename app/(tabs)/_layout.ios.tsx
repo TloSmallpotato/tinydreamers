@@ -219,6 +219,12 @@ export default function TabLayout() {
         tintColor={colors.tabIconActive}
         iconColor={colors.tabIconInactive}
         initialRouteName="profile"
+        screenOptions={{
+          tabBarActiveBackgroundColor: '#FF7A00',
+          tabBarInactiveBackgroundColor: 'transparent',
+          tabBarItemStyle: { borderRadius: 16, margin: 6 },
+          tabBarStyle: { height: 64, paddingBottom: 8, paddingTop: 8 },
+        }}
       >
         <NativeTabs.Trigger name="books">
           <Icon drawable={require('@/assets/images/40292f0c-5084-4da7-ab7e-20e42bbb8555.png')} />
