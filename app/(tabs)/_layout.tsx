@@ -24,16 +24,16 @@ const tabs: TabItem[] = [
     route: '/(tabs)/books',
     iosIcon: 'book.fill',
     androidIcon: 'menu-book',
-    iconDefault: require('@/assets/images/5394d9a9-b46e-435c-8381-1e06e62059f8.png'),
-    iconSelected: require('@/assets/images/640e4c19-40a7-4c3c-bd67-4c40276bd1e2.png'),
+    iconDefault: require('@/assets/images/435d780d-ba95-4570-81d7-010f545ce6bf.png'),
+    iconSelected: require('@/assets/images/6ee16373-9a99-46cf-8c3d-30616cd588a7.png'),
   },
   {
     name: 'words',
     route: '/(tabs)/words',
     iosIcon: 'text.bubble.fill',
     androidIcon: 'chat-bubble',
-    iconDefault: require('@/assets/images/c7a4fdc1-6d22-4745-8d41-27e5b82049df.png'),
-    iconSelected: require('@/assets/images/ed71be58-8504-4a3d-b8b9-cd852db940c7.png'),
+    iconDefault: require('@/assets/images/db7c4d7d-2a0d-4a56-8d9f-0807d2b75247.png'),
+    iconSelected: require('@/assets/images/aed760c0-46cf-4b8e-9da1-3afe736e5078.png'),
   },
   {
     name: 'add',
@@ -53,8 +53,8 @@ const tabs: TabItem[] = [
     route: '/(tabs)/profile',
     iosIcon: 'face.smiling.fill',
     androidIcon: 'mood',
-    iconDefault: require('@/assets/images/2db3fc89-f490-4700-9943-eebd88408478.png'),
-    iconSelected: require('@/assets/images/508559d4-267e-4940-bad5-54ef683fdc4d.png'),
+    iconDefault: require('@/assets/images/bc980c42-46cf-47fb-af93-2146b9173154.png'),
+    iconSelected: require('@/assets/images/39f1f9da-ae85-4522-bc20-7ebf251b1462.png'),
   },
 ];
 
