@@ -36,12 +36,16 @@ export default function BooksScreen() {
         </View>
 
         <View style={styles.booksGrid}>
-          <View style={[styles.bookCard, { backgroundColor: colors.cardPink }]} />
-          <View style={[styles.bookCard, { backgroundColor: colors.cardPurple }]} />
-          <View style={[styles.bookCard, { backgroundColor: colors.cardYellow }]} />
-          <View style={[styles.bookCard, { backgroundColor: colors.cardPink }]} />
-          <View style={[styles.bookCard, { backgroundColor: colors.cardPink }]} />
-          <View style={[styles.bookCard, { backgroundColor: colors.cardOrange }]} />
+          {[
+            { color: colors.cardPink },
+            { color: colors.cardPurple },
+            { color: colors.cardYellow },
+            { color: colors.cardPink },
+            { color: colors.cardPink },
+            { color: colors.cardOrange },
+          ].map((book, index) => (
+            <View key={index} style={[styles.bookCard, { backgroundColor: book.color }]} />
+          ))}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -66,15 +70,15 @@ const styles = StyleSheet.create({
   badge: {
     backgroundColor: colors.secondary,
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     alignSelf: 'flex-start',
     marginTop: 12,
   },
   badgeText: {
     color: colors.backgroundAlt,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
   },
   searchInput: {
     flex: 1,
@@ -86,12 +90,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 16,
+    marginTop: 8,
   },
   bookCard: {
     width: '47%',
     aspectRatio: 0.7,
     borderRadius: 16,
+    marginBottom: 16,
     boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
     elevation: 3,
   },

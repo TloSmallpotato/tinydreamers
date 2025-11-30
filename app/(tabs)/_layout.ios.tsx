@@ -1,6 +1,6 @@
 
 import React, { useRef, useState } from 'react';
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
 import { View, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -177,31 +177,26 @@ export default function TabLayout() {
   return (
     <>
       <NativeTabs
-        tabBarStyle={{
-          backgroundColor: colors.tabInactive,
-          borderTopWidth: 0,
-        }}
+        backgroundColor={colors.tabInactive}
+        tintColor={colors.tabIconActive}
+        iconColor={colors.tabIconInactive}
         initialRouteName="profile"
       >
         <NativeTabs.Trigger name="books">
-          <View style={styles.nativeTabTrigger}>
-            <IconSymbol ios_icon_name="book.fill" android_material_icon_name="menu-book" size={24} color={colors.text} />
-          </View>
+          <Icon sf="book.fill" />
+          <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="words">
-          <View style={styles.nativeTabTrigger}>
-            <IconSymbol ios_icon_name="text.bubble.fill" android_material_icon_name="chat-bubble" size={24} color={colors.text} />
-          </View>
+          <Icon sf="text.bubble.fill" />
+          <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="play">
-          <View style={styles.nativeTabTrigger}>
-            <IconSymbol ios_icon_name="play.circle.fill" android_material_icon_name="sports-esports" size={24} color={colors.text} />
-          </View>
+          <Icon sf="play.circle.fill" />
+          <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="profile">
-          <View style={styles.nativeTabTrigger}>
-            <IconSymbol ios_icon_name="face.smiling.fill" android_material_icon_name="mood" size={24} color={colors.text} />
-          </View>
+          <Icon sf="face.smiling.fill" />
+          <Label hidden />
         </NativeTabs.Trigger>
       </NativeTabs>
       <CustomTabBar />
@@ -210,15 +205,13 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  nativeTabTrigger: {
-    opacity: 0,
-  },
   tabBarContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: 'transparent',
+    pointerEvents: 'box-none',
   },
   tabBar: {
     flexDirection: 'row',
