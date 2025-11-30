@@ -207,7 +207,7 @@ function CustomTabBar() {
           style={[
             StyleSheet.absoluteFill, 
             { 
-              zIndex: 2000,
+              zIndex: 10000,
               backgroundColor: '#000000', // Black background appears instantly
             }
           ]}
@@ -252,7 +252,7 @@ function CustomTabBar() {
         </View>
       )}
 
-      <View style={styles.tabBarContainer}>
+      <View style={styles.tabBarContainer} pointerEvents="box-none">
         <View style={styles.tabBar}>
           {tabs.map((tab, index) => {
             const isActive = activeTab === tab.name;
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'transparent',
-    zIndex: 1000,
+    zIndex: 100,
     paddingBottom: 0,
   },
   tabBar: {
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 2001,
+    zIndex: 10001,
   },
   cameraControls: {
     position: 'absolute',
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    zIndex: 2000,
+    zIndex: 10000,
   },
   recordButton: {
     width: 72,
