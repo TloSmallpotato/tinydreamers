@@ -1,5 +1,5 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Stack, useRouter, usePathname } from 'expo-router';
 import { View, TouchableOpacity, StyleSheet, Platform, Animated, Image } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -71,11 +71,24 @@ function CustomTabBar() {
   const pathname = usePathname();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [showCamera, setShowCamera] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
   const scaleAnims = useRef(
     tabs.map(() => new Animated.Value(1))
   ).current;
+
+  // Pre-request camera permissions on mount
+  useEffect(() => {
+    const requestPermissions = async () => {
+      if (cameraPermission && !cameraPermission.granted) {
+        console.log('Pre-requesting camera permission');
+        await requestCameraPermission();
+      }
+    };
+    requestPermissions();
+  }, [cameraPermission, requestCameraPermission]);
 
   const getActiveTab = () => {
     if (pathname.includes('/books')) return 'books';
@@ -105,7 +118,7 @@ function CustomTabBar() {
     ]).start();
 
     if (tab.isAddButton) {
-      console.log('Add button pressed - requesting camera permission');
+      console.log('Add button pressed - opening camera instantly');
       // Handle Add button - open camera for video recording
       if (!cameraPermission) {
         console.log('Camera permission not loaded yet');
@@ -128,116 +141,135 @@ function CustomTabBar() {
 
       console.log('Opening camera for video recording');
       setShowCamera(true);
-      
-      // Start recording automatically after a short delay
-      setTimeout(async () => {
-        if (cameraRef.current) {
-          try {
-            console.log('Starting video recording');
-            const video = await cameraRef.current.recordAsync({
-              maxDuration: 60,
-            });
-            console.log('Video recorded:', video);
-            setShowCamera(false);
-            Alert.alert('Video Recorded', 'Your video has been saved!');
-          } catch (error) {
-            console.error('Error recording video:', error);
-            setShowCamera(false);
-            Alert.alert('Error', 'Failed to record video');
-          }
-        }
-      }, 500);
     } else {
       console.log('Navigating to:', tab.route);
       router.push(tab.route as any);
     }
   };
 
+  // Start recording as soon as camera is ready and visible
+  useEffect(() => {
+    const startRecording = async () => {
+      if (showCamera && cameraReady && !isRecording && cameraRef.current) {
+        try {
+          console.log('Starting video recording immediately');
+          setIsRecording(true);
+          const video = await cameraRef.current.recordAsync({
+            maxDuration: 60,
+          });
+          console.log('Video recorded:', video);
+          setShowCamera(false);
+          setIsRecording(false);
+          setCameraReady(false);
+          Alert.alert('Video Recorded', 'Your video has been saved!');
+        } catch (error) {
+          console.error('Error recording video:', error);
+          setShowCamera(false);
+          setIsRecording(false);
+          setCameraReady(false);
+          Alert.alert('Error', 'Failed to record video');
+        }
+      }
+    };
+    startRecording();
+  }, [showCamera, cameraReady, isRecording]);
+
   const stopRecording = () => {
-    if (cameraRef.current) {
+    if (cameraRef.current && isRecording) {
       console.log('Stopping video recording');
       cameraRef.current.stopRecording();
     }
     setShowCamera(false);
+    setIsRecording(false);
+    setCameraReady(false);
   };
 
-  if (showCamera) {
-    return (
-      <View style={StyleSheet.absoluteFill}>
-        <CameraView 
-          ref={cameraRef}
-          style={StyleSheet.absoluteFill} 
-          mode="video"
-          facing="back"
-        />
-        <View style={styles.cameraControls}>
-          <TouchableOpacity 
-            style={styles.stopButton}
-            onPress={stopRecording}
-          >
-            <View style={styles.stopButtonInner} />
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+  const handleCameraReady = () => {
+    console.log('Camera is ready');
+    setCameraReady(true);
+  };
 
   return (
-    <View style={styles.tabBarContainer}>
-      <View style={styles.tabBar}>
-        {tabs.map((tab, index) => {
-          const isActive = activeTab === tab.name;
-          const isAddButton = tab.isAddButton;
+    <>
+      {/* Pre-mount camera but keep it hidden when not in use */}
+      {cameraPermission?.granted && (
+        <View style={[StyleSheet.absoluteFill, { opacity: showCamera ? 1 : 0, zIndex: showCamera ? 2000 : -1 }]}>
+          <CameraView 
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill} 
+            mode="video"
+            facing="back"
+            onCameraReady={handleCameraReady}
+          />
+          {showCamera && (
+            <View style={styles.cameraControls}>
+              <TouchableOpacity 
+                style={styles.stopButton}
+                onPress={stopRecording}
+              >
+                <View style={styles.stopButtonInner} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
 
-          if (isAddButton) {
+      <View style={styles.tabBarContainer}>
+        <View style={styles.tabBar}>
+          {tabs.map((tab, index) => {
+            const isActive = activeTab === tab.name;
+            const isAddButton = tab.isAddButton;
+
+            if (isAddButton) {
+              return (
+                <Animated.View 
+                  key={index}
+                  style={[
+                    styles.addButtonWrapper,
+                    { transform: [{ scale: scaleAnims[index] }] }
+                  ]}
+                >
+                  <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() => handleTabPress(tab, index)}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="add" size={28} color={colors.backgroundAlt} />
+                  </TouchableOpacity>
+                </Animated.View>
+              );
+            }
+
             return (
-              <Animated.View 
+              <TouchableOpacity
                 key={index}
                 style={[
-                  styles.addButtonWrapper,
-                  { transform: [{ scale: scaleAnims[index] }] }
+                  styles.tabButton,
+                  isActive && styles.tabButtonActive,
                 ]}
+                onPress={() => handleTabPress(tab, index)}
+                activeOpacity={0.8}
               >
-                <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={() => handleTabPress(tab, index)}
-                  activeOpacity={0.8}
-                >
-                  <MaterialIcons name="add" size={28} color={colors.backgroundAlt} />
-                </TouchableOpacity>
-              </Animated.View>
+                {tab.iconDefault && tab.iconSelected ? (
+                  <Image
+                    source={isActive ? tab.iconSelected : tab.iconDefault}
+                    style={styles.tabIcon}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <IconSymbol
+                    ios_icon_name={tab.iosIcon}
+                    android_material_icon_name={tab.androidIcon}
+                    size={24}
+                    color={isActive ? colors.tabIconActive : colors.tabIconInactive}
+                  />
+                )}
+              </TouchableOpacity>
             );
-          }
-
-          return (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.tabButton,
-                isActive && styles.tabButtonActive,
-              ]}
-              onPress={() => handleTabPress(tab, index)}
-              activeOpacity={0.8}
-            >
-              {tab.iconDefault && tab.iconSelected ? (
-                <Image
-                  source={isActive ? tab.iconSelected : tab.iconDefault}
-                  style={styles.tabIcon}
-                  resizeMode="contain"
-                />
-              ) : (
-                <IconSymbol
-                  ios_icon_name={tab.iosIcon}
-                  android_material_icon_name={tab.androidIcon}
-                  size={24}
-                  color={isActive ? colors.tabIconActive : colors.tabIconInactive}
-                />
-              )}
-            </TouchableOpacity>
-          );
-        })}
+          })}
+        </View>
       </View>
-    </View>
+    </>
   );
 }
 
