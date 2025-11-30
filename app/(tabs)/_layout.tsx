@@ -47,6 +47,8 @@ const tabs: TabItem[] = [
     route: '/(tabs)/play',
     iosIcon: 'play.circle.fill',
     androidIcon: 'sports-esports',
+    iconDefault: require('@/assets/images/d8365c50-5f03-4cfe-bc88-7134e994a1f0.png'),
+    iconSelected: require('@/assets/images/712895bb-c081-40bd-8ad7-d878855ed203.png'),
   },
   {
     name: 'profile',
