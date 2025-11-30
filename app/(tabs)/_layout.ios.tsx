@@ -280,8 +280,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   tabIcon: {
-    width: 36,
-    height: 36,
+    width: 24,
+    height: 24,
   },
   addButtonWrapper: {
     marginTop: -24,
