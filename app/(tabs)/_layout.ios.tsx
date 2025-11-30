@@ -6,7 +6,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { BlurView } from 'expo-blur';
 
 interface TabItem {
   name: string;
@@ -140,39 +139,37 @@ function CustomTabBar() {
 
   return (
     <SafeAreaView style={styles.tabBarContainer} edges={['bottom']} pointerEvents="box-none">
-      <BlurView intensity={80} tint="light" style={styles.blurContainer}>
-        <View style={styles.tabBar} pointerEvents="box-none">
-          {tabs.map((tab, index) => {
-            if (tab.isAddButton) {
-              return (
-                <Animated.View 
-                  key={index}
-                  style={[
-                    styles.addButtonContainer,
-                    { transform: [{ scale: scaleAnims[index] }] }
-                  ]}
-                  pointerEvents="box-none"
+      <View style={styles.tabBar} pointerEvents="box-none">
+        {tabs.map((tab, index) => {
+          if (tab.isAddButton) {
+            return (
+              <Animated.View 
+                key={index}
+                style={[
+                  styles.addButtonContainer,
+                  { transform: [{ scale: scaleAnims[index] }] }
+                ]}
+                pointerEvents="box-none"
+              >
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => handleAddPress(index)}
+                  activeOpacity={0.8}
                 >
-                  <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => handleAddPress(index)}
-                    activeOpacity={0.8}
-                  >
-                    <IconSymbol
-                      ios_icon_name={tab.iosIcon}
-                      android_material_icon_name={tab.androidIcon}
-                      size={28}
-                      color={colors.backgroundAlt}
-                    />
-                  </TouchableOpacity>
-                </Animated.View>
-              );
-            }
+                  <IconSymbol
+                    ios_icon_name={tab.iosIcon}
+                    android_material_icon_name={tab.androidIcon}
+                    size={28}
+                    color={colors.backgroundAlt}
+                  />
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          }
 
-            return <View key={index} style={{ width: 56 }} pointerEvents="none" />;
-          })}
-        </View>
-      </BlurView>
+          return <View key={index} style={{ width: 56 }} pointerEvents="none" />;
+        })}
+      </View>
     </SafeAreaView>
   );
 }
@@ -181,34 +178,25 @@ export default function TabLayout() {
   return (
     <>
       <NativeTabs
-        backgroundColor="transparent"
-        tintColor={colors.backgroundAlt}
-        iconColor={colors.textSecondary}
+        backgroundColor={colors.tabInactive}
+        tintColor={colors.tabIconActive}
+        iconColor={colors.tabIconInactive}
         initialRouteName="profile"
-        blurEffect="light"
       >
         <NativeTabs.Trigger name="books">
-          <View style={styles.tabTrigger}>
-            <Icon sf="book.fill" />
-          </View>
+          <Icon sf="book.fill" />
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="words">
-          <View style={styles.tabTrigger}>
-            <Icon sf="text.bubble.fill" />
-          </View>
+          <Icon sf="text.bubble.fill" />
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="play">
-          <View style={styles.tabTrigger}>
-            <Icon sf="play.circle.fill" />
-          </View>
+          <Icon sf="play.circle.fill" />
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="profile">
-          <View style={styles.tabTrigger}>
-            <Icon sf="face.smiling.fill" />
-          </View>
+          <Icon sf="face.smiling.fill" />
           <Label hidden />
         </NativeTabs.Trigger>
       </NativeTabs>
@@ -226,28 +214,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     zIndex: 1000,
   },
-  blurContainer: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 40,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-  },
   tabBar: {
     flexDirection: 'row',
-    height: 80,
+    backgroundColor: colors.tabInactive,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    borderRadius: 32,
+    paddingVertical: 8,
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'space-around',
-  },
-  tabTrigger: {
-    width: 56,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
+    elevation: 8,
   },
   addButtonContainer: {
-    marginTop: -32,
+    marginTop: -24,
     zIndex: 1001,
   },
   addButton: {
@@ -260,7 +241,7 @@ const styles = StyleSheet.create({
     boxShadow: '0px 6px 16px rgba(61, 63, 181, 0.4)',
     elevation: 12,
     borderWidth: 4,
-    borderColor: colors.backgroundAlt,
+    borderColor: colors.background,
   },
   cameraControls: {
     position: 'absolute',
