@@ -5,7 +5,7 @@ import { View, TouchableOpacity, StyleSheet, Animated, Alert, Image } from 'reac
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { usePathname } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 interface TabItem {
@@ -62,6 +62,7 @@ const tabs: TabItem[] = [
 
 function CustomTabBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [showCamera, setShowCamera] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
@@ -79,6 +80,17 @@ function CustomTabBar() {
     };
     initPermissions();
   }, [cameraPermission, requestCameraPermission]);
+
+  // Redirect to profile if on root tabs path or home path
+  useEffect(() => {
+    console.log('iOS TabLayout - Current pathname:', pathname);
+    if (pathname === '/(tabs)' || pathname === '/' || pathname.includes('/(home)')) {
+      console.log('iOS TabLayout - Redirecting to profile from tabs root');
+      setTimeout(() => {
+        router.replace('/(tabs)/profile');
+      }, 0);
+    }
+  }, [pathname, router]);
 
   const getActiveTab = () => {
     if (pathname.includes('/books')) return 'books';
@@ -311,6 +323,7 @@ export default function TabLayout() {
           <Icon drawable={require('@/assets/images/14d63ac9-4651-4542-8f2a-76f9f54f4436.png')} />
           <Label hidden />
         </NativeTabs.Trigger>
+        <NativeTabs.Screen name="(home)" options={{ href: null }} />
         <NativeTabs.Screen name="settings" options={{ href: null }} />
       </NativeTabs>
       <CustomTabBar />

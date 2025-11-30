@@ -315,12 +315,14 @@ export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Redirect to profile if on root tabs path
+  // Redirect to profile if on root tabs path or home path
   useEffect(() => {
-    console.log('Current pathname:', pathname);
-    if (pathname === '/(tabs)' || pathname === '/') {
-      console.log('Redirecting to profile from tabs root');
-      router.replace('/(tabs)/profile');
+    console.log('TabLayout - Current pathname:', pathname);
+    if (pathname === '/(tabs)' || pathname === '/' || pathname.includes('/(home)')) {
+      console.log('TabLayout - Redirecting to profile from tabs root');
+      setTimeout(() => {
+        router.replace('/(tabs)/profile');
+      }, 0);
     }
   }, [pathname, router]);
 
@@ -331,13 +333,13 @@ export default function TabLayout() {
           headerShown: false,
           animation: 'none',
         }}
-        initialRouteName="profile"
       >
-        <Stack.Screen name="books" />
-        <Stack.Screen name="words" />
-        <Stack.Screen name="play" />
-        <Stack.Screen name="profile" />
-        <Stack.Screen name="settings" />
+        <Stack.Screen name="(home)" options={{ headerShown: false }} />
+        <Stack.Screen name="books" options={{ headerShown: false }} />
+        <Stack.Screen name="words" options={{ headerShown: false }} />
+        <Stack.Screen name="play" options={{ headerShown: false }} />
+        <Stack.Screen name="profile" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
       </Stack>
       <CustomTabBar />
     </>

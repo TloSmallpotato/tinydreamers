@@ -34,10 +34,19 @@ export default function RootLayout() {
       console.log('Current pathname:', pathname);
       console.log('Current segments:', segments);
       
-      // If we're at the root or tabs root, redirect to profile
-      if (segments.length === 0 || pathname === '/' || pathname === '/(tabs)') {
+      // If we're at the root, tabs root, or home, redirect to profile
+      if (
+        segments.length === 0 || 
+        pathname === '/' || 
+        pathname === '/(tabs)' ||
+        pathname === '/(tabs)/(home)' ||
+        pathname.includes('/(home)')
+      ) {
         console.log('Redirecting to profile on app start');
-        router.replace('/(tabs)/profile');
+        // Use replace to avoid adding to navigation history
+        setTimeout(() => {
+          router.replace('/(tabs)/profile');
+        }, 0);
       }
     }
   }, [fontsLoaded, pathname, segments, router]);
