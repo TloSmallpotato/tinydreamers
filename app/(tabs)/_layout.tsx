@@ -36,8 +36,8 @@ const tabs: TabItem[] = [
     iosIcon: 'text.bubble.fill',
     androidIcon: 'chat-bubble',
     materialIcon: 'chat-bubble',
-    iconDefault: require('@/assets/images/38e2e7c2-3dad-400a-bf6b-6598901f393c.png'),
-    iconSelected: require('@/assets/images/c0b915af-27e6-4c4a-9151-cfbf0ad2e156.png'),
+    iconDefault: require('@/assets/images/c7a4fdc1-6d22-4745-8d41-27e5b82049df.png'),
+    iconSelected: require('@/assets/images/ed71be58-8504-4a3d-b8b9-cd852db940c7.png'),
   },
   {
     name: 'add',
@@ -53,8 +53,6 @@ const tabs: TabItem[] = [
     iosIcon: 'play.circle.fill',
     androidIcon: 'sports-esports',
     materialIcon: 'sports-esports',
-    iconDefault: require('@/assets/images/60572750-7134-4e21-a14b-3a56eb724db4.png'),
-    iconSelected: require('@/assets/images/414ac7fe-96c8-41af-9465-80b1a460ad3e.png'),
   },
   {
     name: 'profile',
