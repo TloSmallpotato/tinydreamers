@@ -13,14 +13,14 @@ interface Child {
 }
 
 interface ChildSelectorBottomSheetProps {
-  children: Child[];
+  childrenList: Child[];
   selectedChildId: string | null;
   onSelectChild: (childId: string) => void;
   onAddChild: () => void;
 }
 
 const ChildSelectorBottomSheet = forwardRef<BottomSheet, ChildSelectorBottomSheetProps>(
-  ({ children, selectedChildId, onSelectChild, onAddChild }, ref) => {
+  ({ childrenList, selectedChildId, onSelectChild, onAddChild }, ref) => {
     const snapPoints = useMemo(() => ['50%', '75%'], []);
 
     const renderBackdrop = (props: any) => (
@@ -46,7 +46,7 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheet, ChildSelectorBottomShee
           <Text style={styles.title}>Select Child</Text>
           
           <ScrollView style={styles.childrenList} showsVerticalScrollIndicator={false}>
-            {children.map((child) => (
+            {childrenList.map((child) => (
               <TouchableOpacity
                 key={child.id}
                 style={[

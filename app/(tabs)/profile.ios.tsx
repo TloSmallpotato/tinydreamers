@@ -226,7 +226,7 @@ export default function ProfileScreen() {
 
         <ChildSelectorBottomSheet
           ref={childSelectorRef}
-          children={children}
+          childrenList={children}
           selectedChildId={selectedChild?.id || null}
           onSelectChild={handleSelectChild}
           onAddChild={handleOpenAddChild}

@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 
@@ -49,7 +49,7 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchChildren = async () => {
+  const fetchChildren = useCallback(async () => {
     if (!user) {
       setChildren([]);
       setSelectedChild(null);
@@ -82,12 +82,11 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, selectedChild]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchChildren();
-  }, [user]);
+  }, [fetchChildren]);
 
   const selectChild = (childId: string) => {
     const child = children.find((c) => c.id === childId);
