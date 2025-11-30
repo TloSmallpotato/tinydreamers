@@ -34,7 +34,7 @@ const tabs: TabItem[] = [
     androidIcon: 'chat-bubble',
     materialIcon: 'chat-bubble',
     iconDefault: require('@/assets/images/0d5c36da-89bf-42a5-b21a-859a42fe4580.png'),
-    iconSelected: require('@/assets/images/e6ac3f52-53f8-45a0-b744-28cbf5ef758f.png'),
+    iconSelected: require('@/assets/images/b8d67420-03b7-4803-aab2-35e9d6d21f4e.png'),
   },
   {
     name: 'add',
@@ -49,7 +49,7 @@ const tabs: TabItem[] = [
     androidIcon: 'sports-esports',
     materialIcon: 'sports-esports',
     iconDefault: require('@/assets/images/a52345f9-68c2-478b-9403-dc23d3ed0aee.png'),
-    iconSelected: require('@/assets/images/b8d67420-03b7-4803-aab2-35e9d6d21f4e.png'),
+    iconSelected: require('@/assets/images/e6ac3f52-53f8-45a0-b744-28cbf5ef758f.png'),
   },
   {
     name: 'profile',
@@ -186,6 +186,7 @@ function CustomTabBar() {
                   style={styles.addButton}
                   onPress={() => handleAddPress(index)}
                   activeOpacity={0.8}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <MaterialIcons name="add" size={28} color={colors.backgroundAlt} />
                 </TouchableOpacity>
@@ -279,16 +280,18 @@ const styles = StyleSheet.create({
   },
   addButtonContainer: {
     marginTop: -24,
+    width: 64,
+    height: 64,
     zIndex: 1001,
   },
   addButton: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: colors.buttonBlue,
+    backgroundColor: colors.secondary,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0px 6px 16px rgba(61, 63, 181, 0.4)',
+    boxShadow: '0px 6px 16px rgba(255, 87, 34, 0.4)',
     elevation: 12,
     borderWidth: 4,
     borderColor: colors.background,
