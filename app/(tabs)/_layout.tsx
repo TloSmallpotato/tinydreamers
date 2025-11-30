@@ -95,10 +95,14 @@ function CustomTabBar() {
     if (pathname.includes('/words')) return 'words';
     if (pathname.includes('/play')) return 'play';
     if (pathname.includes('/profile')) return 'profile';
+    if (pathname.includes('/settings')) return 'profile'; // Settings is part of profile flow
     return 'profile';
   };
 
   const activeTab = getActiveTab();
+
+  // Hide tab bar on settings page
+  const shouldShowTabBar = !pathname.includes('/settings');
 
   const handleTabPress = async (tab: TabItem, index: number) => {
     console.log('Tab pressed:', tab.name);
@@ -190,6 +194,10 @@ function CustomTabBar() {
     setIsCameraReady(false);
     setIsRecording(false);
   };
+
+  if (!shouldShowTabBar) {
+    return null;
+  }
 
   return (
     <>
@@ -329,6 +337,7 @@ export default function TabLayout() {
         <Stack.Screen name="words" />
         <Stack.Screen name="play" />
         <Stack.Screen name="profile" />
+        <Stack.Screen name="settings" />
       </Stack>
       <CustomTabBar />
     </>

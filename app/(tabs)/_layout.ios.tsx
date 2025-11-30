@@ -85,10 +85,14 @@ function CustomTabBar() {
     if (pathname.includes('/words')) return 'words';
     if (pathname.includes('/play')) return 'play';
     if (pathname.includes('/profile')) return 'profile';
+    if (pathname.includes('/settings')) return 'profile'; // Settings is part of profile flow
     return 'profile';
   };
 
   const activeTab = getActiveTab();
+
+  // Hide tab bar on settings page
+  const shouldShowTabBar = !pathname.includes('/settings');
 
   const handleAddPress = async (index: number) => {
     console.log('Add button pressed - opening camera');
@@ -173,6 +177,10 @@ function CustomTabBar() {
     setIsCameraReady(false);
     setIsRecording(false);
   };
+
+  if (!shouldShowTabBar) {
+    return null;
+  }
 
   return (
     <>
@@ -303,6 +311,7 @@ export default function TabLayout() {
           <Icon drawable={require('@/assets/images/14d63ac9-4651-4542-8f2a-76f9f54f4436.png')} />
           <Label hidden />
         </NativeTabs.Trigger>
+        <NativeTabs.Screen name="settings" options={{ href: null }} />
       </NativeTabs>
       <CustomTabBar />
     </>
