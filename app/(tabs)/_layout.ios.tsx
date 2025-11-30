@@ -1,16 +1,19 @@
 
 import React, { useRef, useState } from 'react';
 import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
-import { View, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Animated, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { usePathname } from 'expo-router';
 
 interface TabItem {
   name: string;
   iosIcon: string;
   androidIcon: string;
+  iconDefault?: any;
+  iconSelected?: any;
   isAddButton?: boolean;
 }
 
@@ -19,11 +22,15 @@ const tabs: TabItem[] = [
     name: 'books',
     iosIcon: 'book.fill',
     androidIcon: 'menu-book',
+    iconDefault: require('@/assets/images/5394d9a9-b46e-435c-8381-1e06e62059f8.png'),
+    iconSelected: require('@/assets/images/640e4c19-40a7-4c3c-bd67-4c40276bd1e2.png'),
   },
   {
     name: 'words',
     iosIcon: 'text.bubble.fill',
     androidIcon: 'chat-bubble',
+    iconDefault: require('@/assets/images/c7a4fdc1-6d22-4745-8d41-27e5b82049df.png'),
+    iconSelected: require('@/assets/images/ed71be58-8504-4a3d-b8b9-cd852db940c7.png'),
   },
   {
     name: 'add',
@@ -40,14 +47,27 @@ const tabs: TabItem[] = [
     name: 'profile',
     iosIcon: 'face.smiling.fill',
     androidIcon: 'mood',
+    iconDefault: require('@/assets/images/2db3fc89-f490-4700-9943-eebd88408478.png'),
+    iconSelected: require('@/assets/images/508559d4-267e-4940-bad5-54ef683fdc4d.png'),
   },
 ];
 
 function CustomTabBar() {
+  const pathname = usePathname();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [showCamera, setShowCamera] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const scaleAnims = useRef(tabs.map(() => new Animated.Value(1))).current;
+
+  const getActiveTab = () => {
+    if (pathname.includes('/books')) return 'books';
+    if (pathname.includes('/words')) return 'words';
+    if (pathname.includes('/play')) return 'play';
+    if (pathname.includes('/profile')) return 'profile';
+    return 'profile';
+  };
+
+  const activeTab = getActiveTab();
 
   const handleAddPress = async (index: number) => {
     console.log('Add button pressed - requesting camera permission');
@@ -141,6 +161,8 @@ function CustomTabBar() {
     <SafeAreaView style={styles.tabBarContainer} edges={['bottom']} pointerEvents="box-none">
       <View style={styles.tabBar} pointerEvents="box-none">
         {tabs.map((tab, index) => {
+          const isActive = activeTab === tab.name;
+
           if (tab.isAddButton) {
             return (
               <Animated.View 
@@ -167,7 +189,19 @@ function CustomTabBar() {
             );
           }
 
-          return <View key={index} style={{ width: 56 }} pointerEvents="none" />;
+          // For iOS native tabs, we show custom icons in the overlay
+          // but they're just visual - the native tabs handle the actual navigation
+          return (
+            <View key={index} style={styles.tabButtonPlaceholder} pointerEvents="none">
+              {tab.iconDefault && tab.iconSelected ? (
+                <Image
+                  source={isActive ? tab.iconSelected : tab.iconDefault}
+                  style={styles.tabIcon}
+                  resizeMode="contain"
+                />
+              ) : null}
+            </View>
+          );
         })}
       </View>
     </SafeAreaView>
@@ -184,11 +218,11 @@ export default function TabLayout() {
         initialRouteName="profile"
       >
         <NativeTabs.Trigger name="books">
-          <Icon sf="book.fill" />
+          <Icon drawable={require('@/assets/images/5394d9a9-b46e-435c-8381-1e06e62059f8.png')} />
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="words">
-          <Icon sf="text.bubble.fill" />
+          <Icon drawable={require('@/assets/images/c7a4fdc1-6d22-4745-8d41-27e5b82049df.png')} />
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="play">
@@ -196,7 +230,7 @@ export default function TabLayout() {
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="profile">
-          <Icon sf="face.smiling.fill" />
+          <Icon drawable={require('@/assets/images/2db3fc89-f490-4700-9943-eebd88408478.png')} />
           <Label hidden />
         </NativeTabs.Trigger>
       </NativeTabs>
@@ -226,6 +260,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
     elevation: 8,
+  },
+  tabButtonPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  tabIcon: {
+    width: 24,
+    height: 24,
   },
   addButtonContainer: {
     marginTop: -24,
