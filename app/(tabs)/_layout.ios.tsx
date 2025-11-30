@@ -7,11 +7,13 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { usePathname } from 'expo-router';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 interface TabItem {
   name: string;
   iosIcon: string;
   androidIcon: string;
+  materialIcon?: keyof typeof MaterialIcons.glyphMap;
   iconDefault?: any;
   iconSelected?: any;
   isAddButton?: boolean;
@@ -22,35 +24,40 @@ const tabs: TabItem[] = [
     name: 'books',
     iosIcon: 'book.fill',
     androidIcon: 'menu-book',
-    iconDefault: require('@/assets/images/435d780d-ba95-4570-81d7-010f545ce6bf.png'),
-    iconSelected: require('@/assets/images/6ee16373-9a99-46cf-8c3d-30616cd588a7.png'),
+    materialIcon: 'menu-book',
+    iconDefault: require('@/assets/images/5394d9a9-b46e-435c-8381-1e06e62059f8.png'),
+    iconSelected: require('@/assets/images/640e4c19-40a7-4c3c-bd67-4c40276bd1e2.png'),
   },
   {
     name: 'words',
     iosIcon: 'text.bubble.fill',
     androidIcon: 'chat-bubble',
-    iconDefault: require('@/assets/images/db7c4d7d-2a0d-4a56-8d9f-0807d2b75247.png'),
-    iconSelected: require('@/assets/images/aed760c0-46cf-4b8e-9da1-3afe736e5078.png'),
+    materialIcon: 'chat-bubble',
+    iconDefault: require('@/assets/images/38e2e7c2-3dad-400a-bf6b-6598901f393c.png'),
+    iconSelected: require('@/assets/images/c0b915af-27e6-4c4a-9151-cfbf0ad2e156.png'),
   },
   {
     name: 'add',
     iosIcon: 'plus',
     androidIcon: 'add',
+    materialIcon: 'add',
     isAddButton: true,
   },
   {
     name: 'play',
     iosIcon: 'play.circle.fill',
     androidIcon: 'sports-esports',
-    iconDefault: require('@/assets/images/d8365c50-5f03-4cfe-bc88-7134e994a1f0.png'),
-    iconSelected: require('@/assets/images/712895bb-c081-40bd-8ad7-d878855ed203.png'),
+    materialIcon: 'sports-esports',
+    iconDefault: require('@/assets/images/60572750-7134-4e21-a14b-3a56eb724db4.png'),
+    iconSelected: require('@/assets/images/414ac7fe-96c8-41af-9465-80b1a460ad3e.png'),
   },
   {
     name: 'profile',
     iosIcon: 'face.smiling.fill',
     androidIcon: 'mood',
-    iconDefault: require('@/assets/images/bc980c42-46cf-47fb-af93-2146b9173154.png'),
-    iconSelected: require('@/assets/images/39f1f9da-ae85-4522-bc20-7ebf251b1462.png'),
+    materialIcon: 'mood',
+    iconDefault: require('@/assets/images/2db3fc89-f490-4700-9943-eebd88408478.png'),
+    iconSelected: require('@/assets/images/508559d4-267e-4940-bad5-54ef683fdc4d.png'),
   },
 ];
 
@@ -180,12 +187,7 @@ function CustomTabBar() {
                   onPress={() => handleAddPress(index)}
                   activeOpacity={0.8}
                 >
-                  <IconSymbol
-                    ios_icon_name={tab.iosIcon}
-                    android_material_icon_name={tab.androidIcon}
-                    size={28}
-                    color={colors.backgroundAlt}
-                  />
+                  <MaterialIcons name="add" size={28} color={colors.backgroundAlt} />
                 </TouchableOpacity>
               </Animated.View>
             );
@@ -220,19 +222,19 @@ export default function TabLayout() {
         initialRouteName="profile"
       >
         <NativeTabs.Trigger name="books">
-          <Icon drawable={require('@/assets/images/435d780d-ba95-4570-81d7-010f545ce6bf.png')} />
+          <Icon drawable={require('@/assets/images/5394d9a9-b46e-435c-8381-1e06e62059f8.png')} />
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="words">
-          <Icon drawable={require('@/assets/images/db7c4d7d-2a0d-4a56-8d9f-0807d2b75247.png')} />
+          <Icon drawable={require('@/assets/images/38e2e7c2-3dad-400a-bf6b-6598901f393c.png')} />
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="play">
-          <Icon drawable={require('@/assets/images/d8365c50-5f03-4cfe-bc88-7134e994a1f0.png')} />
+          <Icon drawable={require('@/assets/images/60572750-7134-4e21-a14b-3a56eb724db4.png')} />
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="profile">
-          <Icon drawable={require('@/assets/images/bc980c42-46cf-47fb-af93-2146b9173154.png')} />
+          <Icon drawable={require('@/assets/images/2db3fc89-f490-4700-9943-eebd88408478.png')} />
           <Label hidden />
         </NativeTabs.Trigger>
       </NativeTabs>
