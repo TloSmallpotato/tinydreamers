@@ -230,7 +230,7 @@ function CustomTabBar() {
                 <IconSymbol
                   ios_icon_name={tab.iosIcon}
                   android_material_icon_name={tab.androidIcon}
-                  size={24}
+                  size={36}
                   color={isActive ? colors.tabIconActive : colors.tabIconInactive}
                 />
               )}
@@ -296,8 +296,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.tabActive,
   },
   tabIcon: {
-    width: 24,
-    height: 24,
+    width: 36,
+    height: 36,
   },
   addButtonWrapper: {
     marginTop: -24,
