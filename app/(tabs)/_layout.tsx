@@ -185,7 +185,7 @@ function CustomTabBar() {
 
   return (
     <SafeAreaView style={styles.tabBarContainer} edges={['bottom']}>
-      <View style={[styles.tabBar, { height: 72 }]}>
+      <View style={styles.tabBar}>
         {tabs.map((tab, index) => {
           const isActive = activeTab === tab.name;
           const isAddButton = tab.isAddButton;
@@ -195,7 +195,7 @@ function CustomTabBar() {
               <Animated.View 
                 key={index}
                 style={[
-                  styles.addButtonContainer,
+                  styles.addButtonWrapper,
                   { transform: [{ scale: scaleAnims[index] }] }
                 ]}
               >
@@ -203,7 +203,6 @@ function CustomTabBar() {
                   style={styles.addButton}
                   onPress={() => handleTabPress(tab, index)}
                   activeOpacity={0.8}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <MaterialIcons name="add" size={28} color={colors.backgroundAlt} />
                 </TouchableOpacity>
@@ -212,35 +211,30 @@ function CustomTabBar() {
           }
 
           return (
-            <View 
+            <TouchableOpacity
               key={index}
-              style={styles.tabButtonWrapper}
+              style={[
+                styles.tabButton,
+                isActive && styles.tabButtonActive,
+              ]}
+              onPress={() => handleTabPress(tab, index)}
+              activeOpacity={0.8}
             >
-              <TouchableOpacity
-                style={[
-                  styles.tabButton,
-                  isActive && styles.tabButtonActive,
-                ]}
-                onPress={() => handleTabPress(tab, index)}
-                activeOpacity={0.8}
-                hitSlop={{ top: 0, bottom: 0, left: 0, right: 0 }}
-              >
-                {tab.iconDefault && tab.iconSelected ? (
-                  <Image
-                    source={isActive ? tab.iconSelected : tab.iconDefault}
-                    style={styles.tabIcon}
-                    resizeMode="contain"
-                  />
-                ) : (
-                  <IconSymbol
-                    ios_icon_name={tab.iosIcon}
-                    android_material_icon_name={tab.androidIcon}
-                    size={24}
-                    color={isActive ? colors.tabIconActive : colors.tabIconInactive}
-                  />
-                )}
-              </TouchableOpacity>
-            </View>
+              {tab.iconDefault && tab.iconSelected ? (
+                <Image
+                  source={isActive ? tab.iconSelected : tab.iconDefault}
+                  style={styles.tabIcon}
+                  resizeMode="contain"
+                />
+              ) : (
+                <IconSymbol
+                  ios_icon_name={tab.iosIcon}
+                  android_material_icon_name={tab.androidIcon}
+                  size={24}
+                  color={isActive ? colors.tabIconActive : colors.tabIconInactive}
+                />
+              )}
+            </TouchableOpacity>
           );
         })}
       </View>
@@ -274,6 +268,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'transparent',
+    zIndex: 1000,
   },
   tabBar: {
     flexDirection: 'row',
@@ -287,10 +282,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
     elevation: 8,
-  },
-  tabButtonWrapper: {
-    width: 56,
-    height: 56,
+    height: 72,
   },
   tabButton: {
     width: 56,
@@ -307,7 +299,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
   },
-  addButtonContainer: {
+  addButtonWrapper: {
     marginTop: -24,
     width: 64,
     height: 64,
@@ -331,6 +323,7 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     paddingBottom: 40,
+    zIndex: 2000,
   },
   stopButton: {
     width: 72,

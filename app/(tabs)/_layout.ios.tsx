@@ -177,16 +177,14 @@ function CustomTabBar() {
               <Animated.View 
                 key={index}
                 style={[
-                  styles.addButtonContainer,
+                  styles.addButtonWrapper,
                   { transform: [{ scale: scaleAnims[index] }] }
                 ]}
-                pointerEvents="box-none"
               >
                 <TouchableOpacity
                   style={styles.addButton}
                   onPress={() => handleAddPress(index)}
                   activeOpacity={0.8}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <MaterialIcons name="add" size={28} color={colors.backgroundAlt} />
                 </TouchableOpacity>
@@ -197,7 +195,7 @@ function CustomTabBar() {
           // For iOS native tabs, we show custom icons in the overlay
           // but they're just visual - the native tabs handle the actual navigation
           return (
-            <View key={index} style={styles.tabButtonPlaceholder} pointerEvents="none">
+            <View key={index} style={styles.tabIconPlaceholder} pointerEvents="none">
               {tab.iconDefault && tab.iconSelected ? (
                 <Image
                   source={isActive ? tab.iconSelected : tab.iconDefault}
@@ -265,8 +263,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
     elevation: 8,
+    height: 72,
   },
-  tabButtonPlaceholder: {
+  tabIconPlaceholder: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -278,11 +277,10 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
   },
-  addButtonContainer: {
+  addButtonWrapper: {
     marginTop: -24,
     width: 64,
     height: 64,
-    zIndex: 1001,
   },
   addButton: {
     width: 64,
