@@ -2,7 +2,6 @@
 import React, { useRef, useState } from 'react';
 import { Stack, useRouter, usePathname } from 'expo-router';
 import { View, TouchableOpacity, StyleSheet, Platform, Animated, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -171,20 +170,20 @@ function CustomTabBar() {
           mode="video"
           facing="back"
         />
-        <SafeAreaView style={styles.cameraControls} edges={['bottom']}>
+        <View style={styles.cameraControls}>
           <TouchableOpacity 
             style={styles.stopButton}
             onPress={stopRecording}
           >
             <View style={styles.stopButtonInner} />
           </TouchableOpacity>
-        </SafeAreaView>
+        </View>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.tabBarContainer} edges={['bottom']}>
+    <View style={styles.tabBarContainer}>
       <View style={styles.tabBar}>
         {tabs.map((tab, index) => {
           const isActive = activeTab === tab.name;
@@ -238,7 +237,7 @@ function CustomTabBar() {
           );
         })}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -269,6 +268,7 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: 'transparent',
     zIndex: 1000,
+    paddingBottom: 0,
   },
   tabBar: {
     flexDirection: 'row',
@@ -318,11 +318,10 @@ const styles = StyleSheet.create({
   },
   cameraControls: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 40,
     left: 0,
     right: 0,
     alignItems: 'center',
-    paddingBottom: 40,
     zIndex: 2000,
   },
   stopButton: {

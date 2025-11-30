@@ -7,167 +7,173 @@ import { IconSymbol } from '@/components/IconSymbol';
 
 export default function ProfileScreen() {
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
-      >
-        <View style={styles.header}>
-          <Text style={styles.appTitle}>Tiny Dreamers</Text>
-          <TouchableOpacity style={styles.settingsButton}>
-            <IconSymbol 
-              ios_icon_name="gearshape.fill" 
-              android_material_icon_name="settings" 
-              size={24} 
-              color={colors.primary} 
-            />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.profileSection}>
-          <View style={styles.avatarPlaceholder} />
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>Scarlett Lo</Text>
-            <View style={styles.ageDropdown}>
+    <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Text style={styles.appTitle}>Tiny Dreamers</Text>
+            <TouchableOpacity style={styles.settingsButton}>
               <IconSymbol 
-                ios_icon_name="chevron.down" 
-                android_material_icon_name="arrow-drop-down" 
-                size={20} 
+                ios_icon_name="gearshape.fill" 
+                android_material_icon_name="settings" 
+                size={24} 
                 color={colors.primary} 
               />
-            </View>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.ageText}>1y 10m</Text>
-        </View>
 
-        <View style={styles.achievementBanner}>
-          <IconSymbol 
-            ios_icon_name="star.fill" 
-            android_material_icon_name="star" 
-            size={20} 
-            color={colors.accent} 
-          />
-          <Text style={styles.achievementText}>Ava learned 2 new words this week!</Text>
-        </View>
-
-        <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>This week</Text>
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, { backgroundColor: colors.buttonBlue }]}>
-              <Text style={styles.statNumber}>1</Text>
-              <Text style={styles.statLabel}>new word{'\n'}this week</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: colors.cardPink }]}>
-              <Text style={styles.statNumber}>1</Text>
-              <Text style={styles.statLabel}>new book{'\n'}this week</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
-              <Text style={styles.statNumber}>2</Text>
-              <Text style={styles.statLabel}>new moments{'\n'}this week</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Total</Text>
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, { backgroundColor: colors.cardGreen }]}>
-              <Text style={styles.statNumber}>21</Text>
-              <Text style={styles.statLabel}>total words{'\n'}tracked</Text>
-              <View style={styles.statIcon}>
+          <View style={styles.profileSection}>
+            <View style={styles.avatarPlaceholder} />
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileName}>Scarlett Lo</Text>
+              <View style={styles.ageDropdown}>
                 <IconSymbol 
-                  ios_icon_name="text.bubble.fill" 
-                  android_material_icon_name="chat-bubble" 
-                  size={24} 
-                  color={colors.backgroundAlt} 
+                  ios_icon_name="chevron.down" 
+                  android_material_icon_name="arrow-drop-down" 
+                  size={20} 
+                  color={colors.primary} 
                 />
               </View>
             </View>
-            <View style={[styles.statCard, { backgroundColor: colors.accent }]}>
-              <Text style={styles.statNumber}>34</Text>
-              <Text style={styles.statLabel}>total books{'\n'}added</Text>
-              <View style={styles.statIcon}>
-                <IconSymbol 
-                  ios_icon_name="book.fill" 
-                  android_material_icon_name="menu-book" 
-                  size={24} 
-                  color={colors.backgroundAlt} 
+            <Text style={styles.ageText}>1y 10m</Text>
+          </View>
+
+          <View style={styles.achievementBanner}>
+            <IconSymbol 
+              ios_icon_name="star.fill" 
+              android_material_icon_name="star" 
+              size={20} 
+              color={colors.accent} 
+            />
+            <Text style={styles.achievementText}>Ava learned 2 new words this week!</Text>
+          </View>
+
+          <View style={styles.statsSection}>
+            <Text style={styles.sectionTitle}>This week</Text>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { backgroundColor: colors.buttonBlue }]}>
+                <Text style={styles.statNumber}>1</Text>
+                <Text style={styles.statLabel}>new word{'\n'}this week</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.cardPink }]}>
+                <Text style={styles.statNumber}>1</Text>
+                <Text style={styles.statLabel}>new book{'\n'}this week</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
+                <Text style={styles.statNumber}>2</Text>
+                <Text style={styles.statLabel}>new moments{'\n'}this week</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.statsSection}>
+            <Text style={styles.sectionTitle}>Total</Text>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { backgroundColor: colors.cardGreen }]}>
+                <Text style={styles.statNumber}>21</Text>
+                <Text style={styles.statLabel}>total words{'\n'}tracked</Text>
+                <View style={styles.statIcon}>
+                  <IconSymbol 
+                    ios_icon_name="text.bubble.fill" 
+                    android_material_icon_name="chat-bubble" 
+                    size={24} 
+                    color={colors.backgroundAlt} 
+                  />
+                </View>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.accent }]}>
+                <Text style={styles.statNumber}>34</Text>
+                <Text style={styles.statLabel}>total books{'\n'}added</Text>
+                <View style={styles.statIcon}>
+                  <IconSymbol 
+                    ios_icon_name="book.fill" 
+                    android_material_icon_name="menu-book" 
+                    size={24} 
+                    color={colors.backgroundAlt} 
+                  />
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.momentsSection}>
+            <Text style={styles.sectionTitle}>Moments</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.momentsScroll}>
+              <View style={styles.momentCard}>
+                <Image 
+                  source={{ uri: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=400' }}
+                  style={styles.momentImage}
                 />
               </View>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.momentsSection}>
-          <Text style={styles.sectionTitle}>Moments</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.momentsScroll}>
-            <View style={styles.momentCard}>
-              <Image 
-                source={{ uri: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=400' }}
-                style={styles.momentImage}
-              />
-            </View>
-            <View style={styles.momentCard}>
-              <Image 
-                source={{ uri: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=400' }}
-                style={styles.momentImage}
-              />
-            </View>
-            <View style={styles.momentCard}>
-              <Image 
-                source={{ uri: 'https://images.unsplash.com/photo-1544776193-352d25ca82cd?w=400' }}
-                style={styles.momentImage}
-              />
-            </View>
-          </ScrollView>
-          <TouchableOpacity style={styles.viewMoreButton}>
-            <Text style={styles.viewMoreText}>View more</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.suggestionsSection}>
-          <Text style={styles.sectionTitle}>Suggestions</Text>
-          <View style={styles.suggestionCard}>
-            <Text style={styles.suggestionText}>Try recording a new word today: <Text style={styles.suggestionBold}>Ball</Text></Text>
-            <TouchableOpacity style={styles.recordButton}>
-              <Text style={styles.recordButtonText}>Record</Text>
+              <View style={styles.momentCard}>
+                <Image 
+                  source={{ uri: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=400' }}
+                  style={styles.momentImage}
+                />
+              </View>
+              <View style={styles.momentCard}>
+                <Image 
+                  source={{ uri: 'https://images.unsplash.com/photo-1544776193-352d25ca82cd?w=400' }}
+                  style={styles.momentImage}
+                />
+              </View>
+            </ScrollView>
+            <TouchableOpacity style={styles.viewMoreButton}>
+              <Text style={styles.viewMoreText}>View more</Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        <View style={styles.analyticsSection}>
-          <Text style={styles.sectionTitle}>Analytics</Text>
-          <View style={styles.analyticsCard}>
-            <View style={styles.analyticsRow}>
-              <View style={[styles.analyticsDot, { backgroundColor: colors.backgroundAlt }]}>
-                <Text style={styles.analyticsPercent}>51%</Text>
-              </View>
-              <View style={[styles.analyticsDot, { backgroundColor: colors.secondary }]}>
-                <Text style={styles.analyticsPercent}>51%</Text>
-              </View>
-              <View style={[styles.analyticsDot, { backgroundColor: colors.cardGreen }]}>
-                <Text style={styles.analyticsPercent}>51%</Text>
-              </View>
-              <View style={[styles.analyticsDot, { backgroundColor: colors.buttonBlue }]}>
-                <Text style={styles.analyticsPercent}>51%</Text>
-              </View>
+          <View style={styles.suggestionsSection}>
+            <Text style={styles.sectionTitle}>Suggestions</Text>
+            <View style={styles.suggestionCard}>
+              <Text style={styles.suggestionText}>Try recording a new word today: <Text style={styles.suggestionBold}>Ball</Text></Text>
+              <TouchableOpacity style={styles.recordButton}>
+                <Text style={styles.recordButtonText}>Record</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.findOutButton}>
-              <Text style={styles.findOutButtonText}>Find out more</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+
+          <View style={styles.analyticsSection}>
+            <Text style={styles.sectionTitle}>Analytics</Text>
+            <View style={styles.analyticsCard}>
+              <View style={styles.analyticsRow}>
+                <View style={[styles.analyticsDot, { backgroundColor: colors.backgroundAlt }]}>
+                  <Text style={styles.analyticsPercent}>51%</Text>
+                </View>
+                <View style={[styles.analyticsDot, { backgroundColor: colors.secondary }]}>
+                  <Text style={styles.analyticsPercent}>51%</Text>
+                </View>
+                <View style={[styles.analyticsDot, { backgroundColor: colors.cardGreen }]}>
+                  <Text style={styles.analyticsPercent}>51%</Text>
+                </View>
+                <View style={[styles.analyticsDot, { backgroundColor: colors.buttonBlue }]}>
+                  <Text style={styles.analyticsPercent}>51%</Text>
+                </View>
+              </View>
+              <TouchableOpacity style={styles.findOutButton}>
+                <Text style={styles.findOutButtonText}>Find out more</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  container: {
+  safeArea: {
+    flex: 1,
+  },
+  scrollView: {
     flex: 1,
   },
   contentContainer: {
