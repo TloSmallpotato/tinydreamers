@@ -1,22 +1,18 @@
 
 import React, { useRef, useState } from 'react';
 import { Stack, useRouter, usePathname } from 'expo-router';
-import { View, TouchableOpacity, StyleSheet, Platform, Animated, Image } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Alert } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 interface TabItem {
   name: string;
   route: string;
   iosIcon: string;
   androidIcon: string;
-  materialIcon?: keyof typeof MaterialIcons.glyphMap;
-  iconDefault?: any;
-  iconSelected?: any;
   isAddButton?: boolean;
 }
 
@@ -26,25 +22,18 @@ const tabs: TabItem[] = [
     route: '/(tabs)/books',
     iosIcon: 'book.fill',
     androidIcon: 'menu-book',
-    materialIcon: 'menu-book',
-    iconDefault: require('@/assets/images/5394d9a9-b46e-435c-8381-1e06e62059f8.png'),
-    iconSelected: require('@/assets/images/640e4c19-40a7-4c3c-bd67-4c40276bd1e2.png'),
   },
   {
     name: 'words',
     route: '/(tabs)/words',
     iosIcon: 'text.bubble.fill',
     androidIcon: 'chat-bubble',
-    materialIcon: 'chat-bubble',
-    iconDefault: require('@/assets/images/38e2e7c2-3dad-400a-bf6b-6598901f393c.png'),
-    iconSelected: require('@/assets/images/c0b915af-27e6-4c4a-9151-cfbf0ad2e156.png'),
   },
   {
     name: 'add',
     route: '/(tabs)/add',
     iosIcon: 'plus',
     androidIcon: 'add',
-    materialIcon: 'add',
     isAddButton: true,
   },
   {
@@ -52,18 +41,12 @@ const tabs: TabItem[] = [
     route: '/(tabs)/play',
     iosIcon: 'play.circle.fill',
     androidIcon: 'sports-esports',
-    materialIcon: 'sports-esports',
-    iconDefault: require('@/assets/images/60572750-7134-4e21-a14b-3a56eb724db4.png'),
-    iconSelected: require('@/assets/images/414ac7fe-96c8-41af-9465-80b1a460ad3e.png'),
   },
   {
     name: 'profile',
     route: '/(tabs)/profile',
     iosIcon: 'face.smiling.fill',
     androidIcon: 'mood',
-    materialIcon: 'mood',
-    iconDefault: require('@/assets/images/2db3fc89-f490-4700-9943-eebd88408478.png'),
-    iconSelected: require('@/assets/images/508559d4-267e-4940-bad5-54ef683fdc4d.png'),
   },
 ];
 
@@ -204,7 +187,12 @@ function CustomTabBar() {
                   onPress={() => handleTabPress(tab, index)}
                   activeOpacity={0.8}
                 >
-                  <MaterialIcons name="add" size={28} color={colors.backgroundAlt} />
+                  <IconSymbol
+                    ios_icon_name={tab.iosIcon}
+                    android_material_icon_name={tab.androidIcon}
+                    size={28}
+                    color={colors.backgroundAlt}
+                  />
                 </TouchableOpacity>
               </Animated.View>
             );
@@ -223,20 +211,14 @@ function CustomTabBar() {
                 onPress={() => handleTabPress(tab, index)}
                 activeOpacity={0.8}
               >
-                {tab.iconDefault && tab.iconSelected ? (
-                  <Image
-                    source={isActive ? tab.iconSelected : tab.iconDefault}
-                    style={styles.tabIcon}
-                    resizeMode="contain"
-                  />
-                ) : (
+                <View style={styles.hiddenIconContainer}>
                   <IconSymbol
                     ios_icon_name={tab.iosIcon}
                     android_material_icon_name={tab.androidIcon}
                     size={24}
                     color={isActive ? colors.tabIconActive : colors.tabIconInactive}
                   />
-                )}
+                </View>
               </TouchableOpacity>
             </Animated.View>
           );
@@ -297,9 +279,8 @@ const styles = StyleSheet.create({
   tabButtonActive: {
     backgroundColor: colors.tabActive,
   },
-  tabIcon: {
-    width: 24,
-    height: 24,
+  hiddenIconContainer: {
+    opacity: 0,
   },
   addButtonContainer: {
     marginTop: -24,
