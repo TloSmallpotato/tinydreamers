@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Stack, useRouter, usePathname } from 'expo-router';
-import { View, TouchableOpacity, StyleSheet, Platform, Animated, Image } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Platform, Animated, Image, ActivityIndicator } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -71,6 +71,7 @@ function CustomTabBar() {
   const pathname = usePathname();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [showCamera, setShowCamera] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
@@ -139,11 +140,17 @@ function CustomTabBar() {
       }
 
       console.log('Opening camera for video recording');
+      setIsCameraReady(false); // Reset camera ready state
       setShowCamera(true);
     } else {
       console.log('Navigating to:', tab.route);
       router.push(tab.route as any);
     }
+  };
+
+  const handleCameraReady = () => {
+    console.log('Camera is ready!');
+    setIsCameraReady(true);
   };
 
   const startRecording = async () => {
@@ -179,6 +186,7 @@ function CustomTabBar() {
       stopRecording();
     }
     setShowCamera(false);
+    setIsCameraReady(false);
   };
 
   return (
@@ -191,30 +199,42 @@ function CustomTabBar() {
             style={StyleSheet.absoluteFill} 
             mode="video"
             facing="back"
+            onCameraReady={handleCameraReady}
           />
-          <View style={styles.cameraControls}>
-            {!isRecording ? (
+          
+          {/* Show loading indicator while camera initializes */}
+          {!isCameraReady && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color={colors.secondary} />
+            </View>
+          )}
+
+          {/* Only show controls when camera is ready */}
+          {isCameraReady && (
+            <View style={styles.cameraControls}>
+              {!isRecording ? (
+                <TouchableOpacity 
+                  style={styles.recordButton}
+                  onPress={startRecording}
+                >
+                  <View style={styles.recordButtonInner} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity 
+                  style={styles.stopButton}
+                  onPress={stopRecording}
+                >
+                  <View style={styles.stopButtonInner} />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity 
-                style={styles.recordButton}
-                onPress={startRecording}
+                style={styles.closeButton}
+                onPress={closeCamera}
               >
-                <View style={styles.recordButtonInner} />
+                <MaterialIcons name="close" size={32} color={colors.backgroundAlt} />
               </TouchableOpacity>
-            ) : (
-              <TouchableOpacity 
-                style={styles.stopButton}
-                onPress={stopRecording}
-              >
-                <View style={styles.stopButtonInner} />
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={closeCamera}
-            >
-              <MaterialIcons name="close" size={32} color={colors.backgroundAlt} />
-            </TouchableOpacity>
-          </View>
+            </View>
+          )}
         </View>
       )}
 
@@ -364,6 +384,13 @@ const styles = StyleSheet.create({
     elevation: 12,
     borderWidth: 4,
     borderColor: colors.background,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2001,
   },
   cameraControls: {
     position: 'absolute',
