@@ -312,20 +312,6 @@ function CustomTabBar() {
 }
 
 export default function TabLayout() {
-  const router = useRouter();
-  const pathname = usePathname();
-
-  // Redirect to profile if on root tabs path or home path
-  useEffect(() => {
-    console.log('TabLayout - Current pathname:', pathname);
-    if (pathname === '/(tabs)' || pathname === '/' || pathname.includes('/(home)')) {
-      console.log('TabLayout - Redirecting to profile from tabs root');
-      setTimeout(() => {
-        router.replace('/(tabs)/profile');
-      }, 0);
-    }
-  }, [pathname, router]);
-
   return (
     <>
       <Stack
