@@ -1,3 +1,4 @@
+
 /* eslint-disable */
 
 // @eslint-ignore-file
@@ -34,6 +35,15 @@ const toArray = (object: T | T[]): T[] => {
 };
 
 export default function EditableElement_(_props: PropsWithChildren<any>) {
+  const context = useContext(EditableContext);
+  
+  // If context is undefined, just render the children as-is
+  if (!context) {
+    const { children } = _props;
+    const { props } = children;
+    return cloneElement(children, props);
+  }
+
   const {
     editModeEnabled,
     selected,
@@ -42,7 +52,7 @@ export default function EditableElement_(_props: PropsWithChildren<any>) {
     hovered,
     pushHovered,
     popHovered,
-  } = useContext(EditableContext);
+  } = context;
 
   const { children } = _props;
   const { props } = children;
@@ -56,8 +66,8 @@ export default function EditableElement_(_props: PropsWithChildren<any>) {
   const type = getType(children);
   const __sourceLocation = props.__sourceLocation;
   const __trace = props.__trace;
-  const id = __trace.join("");
-  const attributes = overwrittenProps[id] ?? {};
+  const id = __trace?.join("") || "";
+  const attributes = overwrittenProps?.[id] ?? {};
 
   const editStyling =
     selected === id
@@ -73,21 +83,23 @@ export default function EditableElement_(_props: PropsWithChildren<any>) {
   const onClick = (ev: any) => {
     ev.stopPropagation();
     ev.preventDefault();
-    onElementClick({
-      sourceLocation: __sourceLocation,
-      id,
-      type,
-      trace: __trace,
-      props: {
-        style: { ...props.style },
-        children: isPrimitive(props.children) ? props.children : undefined,
-      },
-    });
+    if (onElementClick) {
+      onElementClick({
+        sourceLocation: __sourceLocation,
+        id,
+        type,
+        trace: __trace,
+        props: {
+          style: { ...props.style },
+          children: isPrimitive(props.children) ? props.children : undefined,
+        },
+      });
+    }
   };
 
   const editProps = {
-    onMouseOver: () => pushHovered(id),
-    onMouseLeave: () => popHovered(id),
+    onMouseOver: () => pushHovered && pushHovered(id),
+    onMouseLeave: () => popHovered && popHovered(id),
     onClick: (ev) => onClick(ev),
     onPress: (ev) => onClick(ev),
   };
@@ -135,4 +147,7 @@ export default function EditableElement_(_props: PropsWithChildren<any>) {
       children: children.props.children,
     });
   }
+
+  // Default case: just return children as-is
+  return children;
 }

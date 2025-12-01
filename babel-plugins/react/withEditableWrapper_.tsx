@@ -1,3 +1,4 @@
+
 /* eslint-disable */
 
 import {
@@ -28,7 +29,19 @@ type EditableContextType = {
   popHovered: (hovered: string) => void;
 };
 
-export const EditableContext = createContext<EditableContextType>({} as any);
+// Provide a safe default context value
+const defaultContextValue: EditableContextType = {
+  onElementClick: () => {},
+  editModeEnabled: false,
+  attributes: {},
+  selected: undefined,
+  setSelected: () => {},
+  hovered: undefined,
+  pushHovered: () => {},
+  popHovered: () => {},
+};
+
+export const EditableContext = createContext<EditableContextType | undefined>(undefined);
 
 const EditablePage = (props: PropsWithChildren) => {
   const { children } = props;
@@ -42,7 +55,7 @@ const EditablePage = (props: PropsWithChildren) => {
   );
 
   useEffect(() => {
-    if (!haveBooted) {
+    if (!haveBooted && typeof window !== 'undefined') {
       setHaveBooted(true);
       window.addEventListener("message", (event) => {
         const { type, data } = event.data ?? {};
@@ -76,7 +89,7 @@ const EditablePage = (props: PropsWithChildren) => {
 
   const postMessageToParent = useCallback(
     (message: any) => {
-      if (origin && window.parent) {
+      if (origin && typeof window !== 'undefined' && window.parent) {
         window.parent.postMessage(message, origin);
       }
     },
