@@ -1,7 +1,7 @@
 
-import React, { forwardRef, useMemo, useState, useEffect } from 'react';
+import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions } from 'react-native';
-import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
+import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -114,13 +114,17 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       await updateWordStatus('is_recorded', newValue);
     };
 
-    const renderBackdrop = (props: any) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-      />
+    const renderBackdrop = useCallback(
+      (props: any) => (
+        <BottomSheetBackdrop
+          {...props}
+          disappearsOnIndex={-1}
+          appearsOnIndex={0}
+          opacity={0.5}
+          pressBehavior="close"
+        />
+      ),
+      []
     );
 
     if (!word) return null;
@@ -130,7 +134,8 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
         ref={ref}
         index={0}
         snapPoints={snapPoints}
-        enablePanDownToClose
+        enablePanDownToClose={true}
+        enableDismissOnClose={true}
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
@@ -207,7 +212,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.momentsList} showsVerticalScrollIndicator={false}>
+            <BottomSheetScrollView style={styles.momentsList} showsVerticalScrollIndicator={false}>
               {moments.length === 0 ? (
                 <View style={styles.emptyState}>
                   <IconSymbol
@@ -240,7 +245,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
                   ))}
                 </View>
               )}
-            </ScrollView>
+            </BottomSheetScrollView>
           </View>
         </BottomSheetView>
       </BottomSheetModal>

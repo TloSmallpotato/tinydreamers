@@ -1,7 +1,7 @@
 
-import React, { forwardRef, useMemo, useState } from 'react';
+import React, { forwardRef, useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'react-native';
-import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
+import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors } from '@/styles/commonStyles';
 
@@ -16,17 +16,22 @@ const AddChildBottomSheet = forwardRef<BottomSheetModal, AddChildBottomSheetProp
     const [birthDate, setBirthDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
 
-    const renderBackdrop = (props: any) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-      />
+    const renderBackdrop = useCallback(
+      (props: any) => (
+        <BottomSheetBackdrop
+          {...props}
+          disappearsOnIndex={-1}
+          appearsOnIndex={0}
+          opacity={0.5}
+          pressBehavior="close"
+        />
+      ),
+      []
     );
 
     const handleAdd = () => {
       if (name.trim()) {
+        console.log('Adding child:', name, birthDate);
         onAddChild(name.trim(), birthDate);
         setName('');
         setBirthDate(new Date());
@@ -46,17 +51,21 @@ const AddChildBottomSheet = forwardRef<BottomSheetModal, AddChildBottomSheetProp
         ref={ref}
         index={0}
         snapPoints={snapPoints}
-        enablePanDownToClose
+        enablePanDownToClose={true}
+        enableDismissOnClose={true}
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Add New Child</Text>
 
           <View style={styles.form}>
             <Text style={styles.label}>Name</Text>
-            <TextInput
+            <BottomSheetTextInput
               style={styles.input}
               value={name}
               onChangeText={setName}

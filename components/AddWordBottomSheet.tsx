@@ -1,7 +1,7 @@
 
-import React, { forwardRef, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
-import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
+import React, { forwardRef, useMemo, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 
 interface AddWordBottomSheetProps {
@@ -132,13 +132,17 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
     const snapPoints = useMemo(() => ['40%'], []);
     const [word, setWord] = useState('');
 
-    const renderBackdrop = (props: any) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-      />
+    const renderBackdrop = useCallback(
+      (props: any) => (
+        <BottomSheetBackdrop
+          {...props}
+          disappearsOnIndex={-1}
+          appearsOnIndex={0}
+          opacity={0.5}
+          pressBehavior="close"
+        />
+      ),
+      []
     );
 
     const handleAdd = () => {
@@ -148,6 +152,7 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
         const emoji = getEmojiForWord(trimmedWord);
         const color = getColorForLetter(firstLetter);
         
+        console.log('Adding word:', trimmedWord, emoji, color);
         onAddWord(trimmedWord, emoji, color);
         setWord('');
       }
@@ -158,17 +163,21 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
         ref={ref}
         index={0}
         snapPoints={snapPoints}
-        enablePanDownToClose
+        enablePanDownToClose={true}
+        enableDismissOnClose={true}
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Add New Word</Text>
 
           <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
             <Text style={styles.label}>Word</Text>
-            <TextInput
+            <BottomSheetTextInput
               style={styles.input}
               value={word}
               onChangeText={setWord}

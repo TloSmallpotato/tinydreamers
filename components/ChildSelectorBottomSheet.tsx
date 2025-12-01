@@ -1,5 +1,5 @@
 
-import React, { forwardRef, useMemo } from 'react';
+import React, { forwardRef, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
@@ -23,13 +23,17 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
   ({ childrenList, selectedChildId, onSelectChild, onAddChild }, ref) => {
     const snapPoints = useMemo(() => ['50%', '75%'], []);
 
-    const renderBackdrop = (props: any) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-      />
+    const renderBackdrop = useCallback(
+      (props: any) => (
+        <BottomSheetBackdrop
+          {...props}
+          disappearsOnIndex={-1}
+          appearsOnIndex={0}
+          opacity={0.5}
+          pressBehavior="close"
+        />
+      ),
+      []
     );
 
     return (
@@ -37,10 +41,14 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
         ref={ref}
         index={0}
         snapPoints={snapPoints}
-        enablePanDownToClose
+        enablePanDownToClose={true}
+        enableDismissOnClose={true}
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Select Child</Text>
@@ -54,6 +62,7 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
                   selectedChildId === child.id && styles.childItemSelected,
                 ]}
                 onPress={() => {
+                  console.log('Child selected:', child.name);
                   onSelectChild(child.id);
                 }}
               >

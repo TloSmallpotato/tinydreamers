@@ -1,7 +1,7 @@
 
-import React, { forwardRef, useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
-import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
+import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal, BottomSheetTextInput, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -35,16 +35,21 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
       }
     }, [searchQuery, words]);
 
-    const renderBackdrop = (props: any) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-      />
+    const renderBackdrop = useCallback(
+      (props: any) => (
+        <BottomSheetBackdrop
+          {...props}
+          disappearsOnIndex={-1}
+          appearsOnIndex={0}
+          opacity={0.5}
+          pressBehavior="close"
+        />
+      ),
+      []
     );
 
     const handleSelectWord = (wordId: string) => {
+      console.log('Word selected:', wordId);
       onSelectWord(wordId);
       setSearchQuery('');
     };
@@ -54,11 +59,15 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
         ref={ref}
         index={0}
         snapPoints={snapPoints}
-        enablePanDownToClose
+        enablePanDownToClose={true}
+        enableDismissOnClose={true}
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
         onDismiss={onClose}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Select a Word</Text>
@@ -71,7 +80,7 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
               size={20}
               color={colors.primary}
             />
-            <TextInput
+            <BottomSheetTextInput
               style={styles.searchInput}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -80,7 +89,7 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
             />
           </View>
 
-          <ScrollView style={styles.wordsList} showsVerticalScrollIndicator={false}>
+          <BottomSheetScrollView style={styles.wordsList} showsVerticalScrollIndicator={false}>
             {filteredWords.length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyText}>No words found</Text>
@@ -108,7 +117,7 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
                 </TouchableOpacity>
               ))
             )}
-          </ScrollView>
+          </BottomSheetScrollView>
         </BottomSheetView>
       </BottomSheetModal>
     );
