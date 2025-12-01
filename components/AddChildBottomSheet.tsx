@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'react-native';
-import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
+import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors } from '@/styles/commonStyles';
 
@@ -11,7 +11,7 @@ interface AddChildBottomSheetProps {
 
 const AddChildBottomSheet = forwardRef<BottomSheetModal, AddChildBottomSheetProps>(
   ({ onAddChild }, ref) => {
-    const snapPoints = useMemo(() => ['60%'], []);
+    const snapPoints = useMemo(() => ['65%'], []);
     const [name, setName] = useState('');
     const [birthDate, setBirthDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
@@ -60,7 +60,11 @@ const AddChildBottomSheet = forwardRef<BottomSheetModal, AddChildBottomSheetProp
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
       >
-        <BottomSheetView style={styles.contentContainer}>
+        <BottomSheetScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.title}>Add New Child</Text>
 
           <View style={styles.form}>
@@ -105,7 +109,7 @@ const AddChildBottomSheet = forwardRef<BottomSheetModal, AddChildBottomSheetProp
           >
             <Text style={styles.addButtonText}>Add Child</Text>
           </TouchableOpacity>
-        </BottomSheetView>
+        </BottomSheetScrollView>
       </BottomSheetModal>
     );
   }
@@ -122,10 +126,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
   },
-  contentContainer: {
+  scrollView: {
     flex: 1,
+  },
+  contentContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 24,
@@ -135,7 +141,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   form: {
-    flex: 1,
     marginBottom: 16,
   },
   label: {
@@ -167,6 +172,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingVertical: 16,
     alignItems: 'center',
+    marginTop: 8,
   },
   addButtonDisabled: {
     opacity: 0.5,

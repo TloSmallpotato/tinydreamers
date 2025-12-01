@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
-import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
+import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 
 interface AddWordBottomSheetProps {
@@ -129,7 +129,7 @@ const getColorForLetter = (letter: string): string => {
 
 const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>(
   ({ onAddWord }, ref) => {
-    const snapPoints = useMemo(() => ['40%'], []);
+    const snapPoints = useMemo(() => ['50%'], []);
     const [word, setWord] = useState('');
 
     const renderBackdrop = useCallback(
@@ -172,7 +172,11 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
       >
-        <BottomSheetView style={styles.contentContainer}>
+        <BottomSheetScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.title}>Add New Word</Text>
 
           <View style={styles.form}>
@@ -194,7 +198,7 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
           >
             <Text style={styles.addButtonText}>Add Word</Text>
           </TouchableOpacity>
-        </BottomSheetView>
+        </BottomSheetScrollView>
       </BottomSheetModal>
     );
   }
@@ -211,10 +215,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
   },
-  contentContainer: {
+  scrollView: {
     flex: 1,
+  },
+  contentContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 24,
@@ -224,7 +230,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   form: {
-    flex: 1,
     marginBottom: 16,
   },
   label: {
@@ -247,6 +252,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingVertical: 16,
     alignItems: 'center',
+    marginTop: 8,
   },
   addButtonDisabled: {
     opacity: 0.5,

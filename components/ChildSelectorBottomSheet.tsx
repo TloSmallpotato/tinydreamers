@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -46,14 +46,14 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
-        keyboardBehavior="interactive"
-        keyboardBlurBehavior="restore"
-        android_keyboardInputMode="adjustResize"
       >
-        <BottomSheetView style={styles.contentContainer}>
+        <BottomSheetScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+        >
           <Text style={styles.title}>Select Child</Text>
           
-          <ScrollView style={styles.childrenList} showsVerticalScrollIndicator={false}>
+          <View style={styles.childrenList}>
             {childrenList.map((child) => (
               <TouchableOpacity
                 key={child.id}
@@ -82,7 +82,7 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
                 )}
               </TouchableOpacity>
             ))}
-          </ScrollView>
+          </View>
 
           <TouchableOpacity style={styles.addButton} onPress={onAddChild}>
             <IconSymbol
@@ -93,7 +93,7 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
             />
             <Text style={styles.addButtonText}>Add New Child</Text>
           </TouchableOpacity>
-        </BottomSheetView>
+        </BottomSheetScrollView>
       </BottomSheetModal>
     );
   }
@@ -110,10 +110,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
   },
-  contentContainer: {
+  scrollView: {
     flex: 1,
+  },
+  contentContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 24,
@@ -123,7 +125,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   childrenList: {
-    flex: 1,
     marginBottom: 16,
   },
   childItem: {
@@ -165,6 +166,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingVertical: 16,
     gap: 8,
+    marginTop: 8,
   },
   addButtonText: {
     fontSize: 16,

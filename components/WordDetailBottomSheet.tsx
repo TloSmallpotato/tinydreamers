@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions } from 'react-native';
-import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions } from 'react-native';
+import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -141,7 +141,10 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
         handleIndicatorStyle={styles.handleIndicator}
         onDismiss={onClose}
       >
-        <BottomSheetView style={styles.contentContainer}>
+        <BottomSheetScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+        >
           <View style={[styles.wordHeader, { backgroundColor: word.color }]}>
             <View style={styles.wordIcon}>
               <Text style={styles.wordEmoji}>{word.emoji}</Text>
@@ -212,42 +215,40 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
               </TouchableOpacity>
             </View>
 
-            <BottomSheetScrollView style={styles.momentsList} showsVerticalScrollIndicator={false}>
-              {moments.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <IconSymbol
-                    ios_icon_name="video.slash"
-                    android_material_icon_name="videocam-off"
-                    size={48}
-                    color={colors.textSecondary}
-                  />
-                  <Text style={styles.emptyText}>No moments yet</Text>
-                  <Text style={styles.emptySubtext}>
-                    Tap the + button to record a video
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.momentsGrid}>
-                  {moments.map((moment, index) => (
-                    <View key={index} style={styles.momentCard}>
-                      <View style={styles.momentThumbnail}>
-                        <IconSymbol
-                          ios_icon_name="play.circle.fill"
-                          android_material_icon_name="play-circle-filled"
-                          size={32}
-                          color={colors.backgroundAlt}
-                        />
-                      </View>
-                      <Text style={styles.momentDate}>
-                        {new Date(moment.created_at).toLocaleDateString()}
-                      </Text>
+            {moments.length === 0 ? (
+              <View style={styles.emptyState}>
+                <IconSymbol
+                  ios_icon_name="video.slash"
+                  android_material_icon_name="videocam-off"
+                  size={48}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.emptyText}>No moments yet</Text>
+                <Text style={styles.emptySubtext}>
+                  Tap the + button to record a video
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.momentsGrid}>
+                {moments.map((moment, index) => (
+                  <View key={index} style={styles.momentCard}>
+                    <View style={styles.momentThumbnail}>
+                      <IconSymbol
+                        ios_icon_name="play.circle.fill"
+                        android_material_icon_name="play-circle-filled"
+                        size={32}
+                        color={colors.backgroundAlt}
+                      />
                     </View>
-                  ))}
-                </View>
-              )}
-            </BottomSheetScrollView>
+                    <Text style={styles.momentDate}>
+                      {new Date(moment.created_at).toLocaleDateString()}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
-        </BottomSheetView>
+        </BottomSheetScrollView>
       </BottomSheetModal>
     );
   }
@@ -264,9 +265,11 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
   },
-  contentContainer: {
+  scrollView: {
     flex: 1,
-    paddingBottom: 20,
+  },
+  contentContainer: {
+    paddingBottom: 40,
   },
   wordHeader: {
     padding: 20,
@@ -325,7 +328,6 @@ const styles = StyleSheet.create({
     color: colors.backgroundAlt,
   },
   momentsSection: {
-    flex: 1,
     paddingHorizontal: 20,
     paddingTop: 20,
   },
@@ -342,9 +344,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  momentsList: {
-    flex: 1,
   },
   emptyState: {
     alignItems: 'center',

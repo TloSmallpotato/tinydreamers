@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
-import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -20,7 +20,7 @@ interface SelectWordBottomSheetProps {
 
 const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheetProps>(
   ({ words, onSelectWord, onClose }, ref) => {
-    const snapPoints = useMemo(() => ['70%'], []);
+    const snapPoints = useMemo(() => ['75%'], []);
     const [searchQuery, setSearchQuery] = useState('');
     const [filteredWords, setFilteredWords] = useState<Word[]>(words);
 
@@ -69,7 +69,11 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
       >
-        <BottomSheetView style={styles.contentContainer}>
+        <BottomSheetScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.title}>Select a Word</Text>
           <Text style={styles.subtitle}>Choose which word this video is for</Text>
 
@@ -89,7 +93,7 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
             />
           </View>
 
-          <BottomSheetScrollView style={styles.wordsList} showsVerticalScrollIndicator={false}>
+          <View style={styles.wordsList}>
             {filteredWords.length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyText}>No words found</Text>
@@ -117,8 +121,8 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
                 </TouchableOpacity>
               ))
             )}
-          </BottomSheetScrollView>
-        </BottomSheetView>
+          </View>
+        </BottomSheetScrollView>
       </BottomSheetModal>
     );
   }
@@ -135,10 +139,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
   },
-  contentContainer: {
+  scrollView: {
     flex: 1,
+  },
+  contentContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 24,
@@ -169,7 +175,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   wordsList: {
-    flex: 1,
+    marginBottom: 20,
   },
   wordCard: {
     borderRadius: 16,
