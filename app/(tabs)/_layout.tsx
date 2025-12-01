@@ -9,6 +9,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useVideoRecording } from '@/contexts/VideoRecordingContext';
 import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
+import { useWordNavigation } from '@/contexts/WordNavigationContext';
 import SelectWordBottomSheet from '@/components/SelectWordBottomSheet';
 import VideoPreviewModal from '@/components/VideoPreviewModal';
 import ToastNotification from '@/components/ToastNotification';
@@ -84,6 +85,7 @@ function CustomTabBar() {
   const [recordingTime, setRecordingTime] = useState(0);
   const cameraRef = useRef<CameraView>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [previousRoute, setPreviousRoute] = useState<string>('/(tabs)/profile');
 
   const scaleAnims = useRef(
     tabs.map(() => new Animated.Value(1))
@@ -99,6 +101,7 @@ function CustomTabBar() {
   } = useVideoRecording();
   const { selectedChild } = useChild();
   const { shouldOpenCamera, resetCameraTrigger } = useCameraTrigger();
+  const { setTargetWordIdToOpen } = useWordNavigation();
   const [words, setWords] = useState<any[]>([]);
   const selectWordSheetRef = useRef<BottomSheetModal>(null);
 
@@ -107,6 +110,13 @@ function CustomTabBar() {
   const [toastMessage, setToastMessage] = useState('');
   const [showToastViewButton, setShowToastViewButton] = useState(false);
   const [savedWordId, setSavedWordId] = useState<string | null>(null);
+
+  // Track the current route before opening camera
+  useEffect(() => {
+    if (!showCamera && !recordedVideoUri) {
+      setPreviousRoute(pathname);
+    }
+  }, [pathname, showCamera, recordedVideoUri]);
 
   useEffect(() => {
     const initPermissions = async () => {
@@ -281,8 +291,8 @@ function CustomTabBar() {
     console.log('targetWordId:', targetWordId);
     
     if (isRecordingFromWordDetail && targetWordId) {
-      // Method 2: Save directly to the target word
-      await saveVideoToWord(targetWordId);
+      // Method 2: Save directly to the target word and return to previous page
+      await saveVideoToWord(targetWordId, true);
     } else {
       // Method 1: Show word selection bottom sheet
       await fetchWords();
@@ -295,7 +305,7 @@ function CustomTabBar() {
     clearRecordedVideo();
   };
 
-  const saveVideoToWord = async (wordId: string) => {
+  const saveVideoToWord = async (wordId: string, isMethod2: boolean = false) => {
     if (!selectedChild || !recordedVideoUri) {
       Alert.alert('Error', 'Missing required data');
       return;
@@ -313,9 +323,19 @@ function CustomTabBar() {
       
       const wordName = wordData?.word || 'word';
       
+      // Close the bottom sheet and return to previous page immediately
+      selectWordSheetRef.current?.dismiss();
+      
+      // For Method 2, navigate back to previous route
+      if (isMethod2 && previousRoute) {
+        console.log('Returning to previous route:', previousRoute);
+        router.push(previousRoute as any);
+      }
+      
       // Show "Video saving..." toast
       setToastMessage('Video saving…');
       setShowToastViewButton(false);
+      setSavedWordId(null);
       setToastVisible(true);
       
       const videoFileName = `${selectedChild.id}/${Date.now()}.mp4`;
@@ -363,13 +383,18 @@ function CustomTabBar() {
 
       console.log('Video saved successfully');
       
-      // Update toast to show success with "View now" button
-      setToastMessage(`Video saved to "${wordName}"`);
-      setShowToastViewButton(true);
-      setSavedWordId(wordId);
+      // Hide the "saving" toast first
+      setToastVisible(false);
+      
+      // Wait a brief moment, then show the success toast
+      setTimeout(() => {
+        setToastMessage(`Video saved to "${wordName}"`);
+        setShowToastViewButton(true);
+        setSavedWordId(wordId);
+        setToastVisible(true);
+      }, 300);
       
       clearRecordedVideo();
-      selectWordSheetRef.current?.dismiss();
       
     } catch (error) {
       console.error('Error in saveVideoToWord:', error);
@@ -379,18 +404,17 @@ function CustomTabBar() {
   };
 
   const handleSelectWord = async (wordId: string) => {
-    await saveVideoToWord(wordId);
+    await saveVideoToWord(wordId, false);
   };
 
   const handleViewNow = () => {
     console.log('View now pressed for word:', savedWordId);
     setToastVisible(false);
     
-    // Navigate to words page - the word detail will be opened from there
+    // Set the target word to open and navigate to words page
     if (savedWordId) {
+      setTargetWordIdToOpen(savedWordId);
       router.push('/(tabs)/words');
-      // Note: The words page will need to handle opening the specific word detail
-      // This could be done via a query parameter or context
     }
   };
 

@@ -1,10 +1,11 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
+import { useWordNavigation } from '@/contexts/WordNavigationContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
@@ -30,6 +31,7 @@ interface GroupedWords {
 
 export default function WordsScreen() {
   const { selectedChild } = useChild();
+  const { targetWordIdToOpen, clearTargetWordIdToOpen } = useWordNavigation();
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
@@ -52,7 +54,7 @@ export default function WordsScreen() {
         .from('words')
         .select('*')
         .eq('child_id', selectedChild.id)
-        .order('word', { ascending: true });
+        .order('word', { ascending: true});
 
       if (error) {
         console.error('Error fetching words:', error);
@@ -74,6 +76,22 @@ export default function WordsScreen() {
       fetchWords();
     }, [fetchWords])
   );
+
+  // Handle opening a specific word detail when navigating from toast
+  useEffect(() => {
+    if (targetWordIdToOpen && words.length > 0) {
+      console.log('Opening word detail for:', targetWordIdToOpen);
+      const wordToOpen = words.find(w => w.id === targetWordIdToOpen);
+      if (wordToOpen) {
+        setSelectedWord(wordToOpen);
+        // Small delay to ensure the page is fully loaded
+        setTimeout(() => {
+          wordDetailSheetRef.current?.present();
+        }, 300);
+      }
+      clearTargetWordIdToOpen();
+    }
+  }, [targetWordIdToOpen, words, clearTargetWordIdToOpen]);
 
   const groupWordsByLetter = (wordsList: Word[]): GroupedWords => {
     const grouped: GroupedWords = {};
@@ -280,6 +298,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 20,
+    paddingTop: Platform.OS === 'android' ? 48 : 20,
     paddingBottom: 120,
   },
   header: {
