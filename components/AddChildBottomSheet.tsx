@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'react-native';
-import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors } from '@/styles/commonStyles';
 
@@ -65,12 +65,13 @@ const AddChildBottomSheet = forwardRef<BottomSheetModal, AddChildBottomSheetProp
 
           <View style={styles.form}>
             <Text style={styles.label}>Name</Text>
-            <BottomSheetTextInput
+            <TextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
               placeholder="Enter child's name"
               placeholderTextColor={colors.textSecondary}
+              autoCapitalize="words"
             />
 
             <Text style={styles.label}>Birth Date</Text>

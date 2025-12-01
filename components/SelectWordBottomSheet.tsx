@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal, BottomSheetTextInput, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -80,7 +80,7 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
               size={20}
               color={colors.primary}
             />
-            <BottomSheetTextInput
+            <TextInput
               style={styles.searchInput}
               value={searchQuery}
               onChangeText={setSearchQuery}
