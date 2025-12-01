@@ -5,6 +5,8 @@ import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@g
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
+import { useVideoRecording } from '@/contexts/VideoRecordingContext';
+import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -28,18 +30,20 @@ interface Moment {
 interface WordDetailBottomSheetProps {
   word: Word | null;
   onClose: () => void;
-  onOpenCamera: () => void;
   onRefresh: () => void;
 }
 
 const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheetProps>(
-  ({ word, onClose, onOpenCamera, onRefresh }, ref) => {
+  ({ word, onClose, onRefresh }, ref) => {
     const snapPoints = useMemo(() => ['85%'], []);
     const [moments, setMoments] = useState<Moment[]>([]);
     const [loading, setLoading] = useState(false);
     const [isSpoken, setIsSpoken] = useState(false);
     const [isRecognised, setIsRecognised] = useState(false);
     const [isRecorded, setIsRecorded] = useState(false);
+    
+    const { setTargetWord, setIsRecordingFromWordDetail } = useVideoRecording();
+    const { triggerCamera } = useCameraTrigger();
 
     useEffect(() => {
       if (word) {
@@ -112,6 +116,24 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       const newValue = !isRecorded;
       setIsRecorded(newValue);
       await updateWordStatus('is_recorded', newValue);
+    };
+
+    const handleOpenCamera = () => {
+      if (!word) return;
+      
+      console.log('Opening camera from word detail for word:', word.id);
+      
+      // Set the target word and flag for Method 2
+      setTargetWord(word.id);
+      setIsRecordingFromWordDetail(true);
+      
+      // Dismiss the bottom sheet
+      if (ref && typeof ref !== 'function' && ref.current) {
+        ref.current.dismiss();
+      }
+      
+      // Trigger the camera opening
+      triggerCamera();
     };
 
     const renderBackdrop = useCallback(
@@ -205,7 +227,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           <View style={styles.momentsSection}>
             <View style={styles.momentsHeader}>
               <Text style={styles.sectionTitle}>Moments ({moments.length})</Text>
-              <TouchableOpacity style={styles.addMomentButton} onPress={onOpenCamera}>
+              <TouchableOpacity style={styles.addMomentButton} onPress={handleOpenCamera}>
                 <IconSymbol
                   ios_icon_name="plus"
                   android_material_icon_name="add"

@@ -1,12 +1,19 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
-import { View, TouchableOpacity, StyleSheet, Animated, Alert, Image } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Animated, Alert, Image, Text } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { usePathname } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useVideoRecording } from '@/contexts/VideoRecordingContext';
+import { useChild } from '@/contexts/ChildContext';
+import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
+import SelectWordBottomSheet from '@/components/SelectWordBottomSheet';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { supabase } from '@/app/integrations/supabase/client';
+import * as FileSystem from 'expo-file-system';
 
 interface TabItem {
   name: string;
@@ -66,10 +73,24 @@ function CustomTabBar() {
   const [showCamera, setShowCamera] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
   const cameraRef = useRef<CameraView>(null);
   const scaleAnims = useRef(tabs.map(() => new Animated.Value(1))).current;
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const { 
+    recordedVideoUri, 
+    recordedVideoDuration,
+    setRecordedVideo, 
+    isRecordingFromWordDetail, 
+    targetWordId, 
+    clearRecordedVideo 
+  } = useVideoRecording();
+  const { selectedChild } = useChild();
+  const { shouldOpenCamera, resetCameraTrigger } = useCameraTrigger();
+  const [words, setWords] = useState<any[]>([]);
+  const selectWordSheetRef = useRef<BottomSheetModal>(null);
 
-  // Pre-request camera permissions on mount
   useEffect(() => {
     const initPermissions = async () => {
       if (cameraPermission && !cameraPermission.granted) {
@@ -80,37 +101,47 @@ function CustomTabBar() {
     initPermissions();
   }, [cameraPermission, requestCameraPermission]);
 
+  // Listen for camera trigger from WordDetailBottomSheet
+  useEffect(() => {
+    if (shouldOpenCamera) {
+      console.log('Camera trigger detected from WordDetailBottomSheet');
+      openCamera();
+      resetCameraTrigger();
+    }
+  }, [shouldOpenCamera, resetCameraTrigger]);
+
+  const fetchWords = async () => {
+    if (!selectedChild) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('words')
+        .select('*')
+        .eq('child_id', selectedChild.id)
+        .order('word', { ascending: true });
+
+      if (error) throw error;
+      setWords(data || []);
+    } catch (error) {
+      console.error('Error fetching words:', error);
+    }
+  };
+
   const getActiveTab = () => {
     if (pathname.includes('/books')) return 'books';
     if (pathname.includes('/words')) return 'words';
     if (pathname.includes('/play')) return 'play';
     if (pathname.includes('/profile')) return 'profile';
-    if (pathname.includes('/settings')) return 'profile'; // Settings is part of profile flow
+    if (pathname.includes('/settings')) return 'profile';
     return 'profile';
   };
 
   const activeTab = getActiveTab();
-
-  // Hide tab bar on settings page
   const shouldShowTabBar = !pathname.includes('/settings');
 
-  const handleAddPress = async (index: number) => {
-    console.log('Add button pressed - opening camera');
+  const openCamera = async () => {
+    console.log('Opening camera for video recording');
     
-    // Animate button press
-    Animated.sequence([
-      Animated.timing(scaleAnims[index], {
-        toValue: 0.85,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnims[index], {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
     if (!cameraPermission) {
       console.log('Camera permission not loaded yet');
       return;
@@ -130,9 +161,28 @@ function CustomTabBar() {
       }
     }
 
-    console.log('Opening camera for video recording');
     setIsCameraReady(false);
     setShowCamera(true);
+    setRecordingTime(0);
+  };
+
+  const handleAddPress = async (index: number) => {
+    console.log('Add button pressed - opening camera');
+    
+    Animated.sequence([
+      Animated.timing(scaleAnims[index], {
+        toValue: 0.85,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnims[index], {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    await openCamera();
   };
 
   const handleCameraReady = () => {
@@ -145,15 +195,35 @@ function CustomTabBar() {
       try {
         console.log('Starting video recording');
         setIsRecording(true);
+        setRecordingTime(0);
+        
+        recordingTimerRef.current = setInterval(() => {
+          setRecordingTime((prev) => prev + 1);
+        }, 1000);
+        
         const video = await cameraRef.current.recordAsync({
-          maxDuration: 300, // 5 minutes max
+          maxDuration: 300,
         });
+        
         console.log('Video recorded:', video);
+        
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+        
         setIsRecording(false);
-        Alert.alert('Video Recorded', 'Your video has been saved!');
+        setRecordedVideo(video.uri, recordingTime);
+        setShowCamera(false);
+        setIsCameraReady(false);
+        
       } catch (error) {
         console.error('Error recording video:', error);
         setIsRecording(false);
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
         Alert.alert('Error', 'Failed to record video');
       }
     }
@@ -163,19 +233,116 @@ function CustomTabBar() {
     if (cameraRef.current && isRecording) {
       console.log('Stopping video recording');
       cameraRef.current.stopRecording();
-      setIsRecording(false);
     }
   };
 
   const closeCamera = () => {
-    console.log('Closing camera - shutting down completely');
+    console.log('Closing camera - cancelling recording');
     if (isRecording) {
       stopRecording();
     }
-    // Reset all camera states
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
     setShowCamera(false);
     setIsCameraReady(false);
     setIsRecording(false);
+    setRecordingTime(0);
+    clearRecordedVideo();
+  };
+
+  const handleConfirmVideo = async () => {
+    console.log('Video confirmed');
+    console.log('isRecordingFromWordDetail:', isRecordingFromWordDetail);
+    console.log('targetWordId:', targetWordId);
+    
+    if (isRecordingFromWordDetail && targetWordId) {
+      // Method 2: Save directly to the target word
+      await saveVideoToWord(targetWordId);
+    } else {
+      // Method 1: Show word selection bottom sheet
+      await fetchWords();
+      selectWordSheetRef.current?.present();
+    }
+  };
+
+  const handleCancelVideo = () => {
+    console.log('Video cancelled');
+    clearRecordedVideo();
+  };
+
+  const saveVideoToWord = async (wordId: string) => {
+    if (!selectedChild || !recordedVideoUri) {
+      Alert.alert('Error', 'Missing required data');
+      return;
+    }
+
+    try {
+      console.log('Saving video to word:', wordId);
+      
+      const videoFileName = `${selectedChild.id}/${Date.now()}.mp4`;
+      const videoFile = await FileSystem.readAsStringAsync(recordedVideoUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      const decode = (base64: string) => {
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes;
+      };
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('video-moments')
+        .upload(videoFileName, decode(videoFile), {
+          contentType: 'video/mp4',
+        });
+
+      if (uploadError) {
+        console.error('Error uploading video:', uploadError);
+        throw uploadError;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('video-moments')
+        .getPublicUrl(videoFileName);
+
+      const { error: insertError } = await supabase
+        .from('moments')
+        .insert({
+          word_id: wordId,
+          child_id: selectedChild.id,
+          video_url: urlData.publicUrl,
+          duration: recordedVideoDuration || 0,
+        });
+
+      if (insertError) {
+        console.error('Error saving moment:', insertError);
+        throw insertError;
+      }
+
+      console.log('Video saved successfully');
+      Alert.alert('Success', 'Video moment saved!');
+      clearRecordedVideo();
+      selectWordSheetRef.current?.dismiss();
+      
+    } catch (error) {
+      console.error('Error in saveVideoToWord:', error);
+      Alert.alert('Error', 'Failed to save video');
+    }
+  };
+
+  const handleSelectWord = async (wordId: string) => {
+    await saveVideoToWord(wordId);
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (!shouldShowTabBar) {
@@ -184,25 +351,30 @@ function CustomTabBar() {
 
   return (
     <>
-      {/* Only mount camera when showCamera is true */}
       {showCamera && cameraPermission?.granted && (
         <View 
           style={[
             StyleSheet.absoluteFill, 
             { 
               zIndex: 2000,
-              backgroundColor: '#000000', // Black background appears instantly
+              backgroundColor: '#000000',
             }
           ]}
           pointerEvents="auto"
         >
-          {/* Close button appears immediately */}
           <TouchableOpacity 
             style={styles.closeButton}
             onPress={closeCamera}
           >
             <MaterialIcons name="close" size={32} color={colors.backgroundAlt} />
           </TouchableOpacity>
+
+          {isRecording && (
+            <View style={styles.recordingIndicator}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingTime}>{formatTime(recordingTime)}</Text>
+            </View>
+          )}
 
           <CameraView 
             ref={cameraRef}
@@ -212,7 +384,6 @@ function CustomTabBar() {
             onCameraReady={handleCameraReady}
           />
 
-          {/* Only show recording controls when camera is ready */}
           {isCameraReady && (
             <View style={styles.cameraControls}>
               {!isRecording ? (
@@ -232,6 +403,45 @@ function CustomTabBar() {
               )}
             </View>
           )}
+        </View>
+      )}
+
+      {!showCamera && recordedVideoUri && (
+        <View 
+          style={[
+            StyleSheet.absoluteFill, 
+            { 
+              zIndex: 2000,
+              backgroundColor: colors.background,
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: 20,
+            }
+          ]}
+          pointerEvents="auto"
+        >
+          <Text style={styles.previewTitle}>Video Recorded!</Text>
+          <Text style={styles.previewSubtitle}>
+            Duration: {formatTime(recordedVideoDuration || 0)}
+          </Text>
+          
+          <View style={styles.previewActions}>
+            <TouchableOpacity 
+              style={styles.cancelButton}
+              onPress={handleCancelVideo}
+            >
+              <MaterialIcons name="close" size={24} color={colors.backgroundAlt} />
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.confirmButton}
+              onPress={handleConfirmVideo}
+            >
+              <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
+              <Text style={styles.confirmButtonText}>Confirm</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -260,8 +470,6 @@ function CustomTabBar() {
               );
             }
 
-            // For iOS native tabs, we show custom icons in the overlay
-            // but they're just visual - the native tabs handle the actual navigation
             return (
               <View key={index} style={styles.tabIconPlaceholder} pointerEvents="none">
                 {tab.iconDefault && tab.iconSelected ? (
@@ -276,6 +484,13 @@ function CustomTabBar() {
           })}
         </View>
       </View>
+
+      <SelectWordBottomSheet
+        ref={selectWordSheetRef}
+        words={words}
+        onSelectWord={handleSelectWord}
+        onClose={() => selectWordSheetRef.current?.dismiss()}
+      />
     </>
   );
 }
@@ -384,6 +599,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 2001,
   },
+  recordingIndicator: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 2001,
+  },
+  recordingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.secondary,
+    marginRight: 8,
+  },
+  recordingTime: {
+    color: colors.backgroundAlt,
+    fontSize: 16,
+    fontWeight: '600',
+  },
   cameraControls: {
     position: 'absolute',
     bottom: 40,
@@ -423,5 +662,48 @@ const styles = StyleSheet.create({
     height: 32,
     backgroundColor: colors.secondary,
     borderRadius: 4,
+  },
+  previewTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.primary,
+    marginBottom: 8,
+  },
+  previewSubtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginBottom: 40,
+  },
+  previewActions: {
+    flexDirection: 'row',
+    gap: 20,
+  },
+  cancelButton: {
+    backgroundColor: colors.textSecondary,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cancelButtonText: {
+    color: colors.backgroundAlt,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  confirmButton: {
+    backgroundColor: colors.buttonBlue,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  confirmButtonText: {
+    color: colors.backgroundAlt,
+    fontSize: 18,
+    fontWeight: '600',
   },
 });

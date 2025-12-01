@@ -136,11 +136,6 @@ export default function WordsScreen() {
     setSelectedWord(null);
   };
 
-  const handleOpenCameraFromDetail = () => {
-    // This will be handled by the camera integration
-    Alert.alert('Camera', 'Camera functionality will be integrated');
-  };
-
   const groupedWords = groupWordsByLetter(words);
   const sortedLetters = Object.keys(groupedWords).sort();
 
@@ -266,7 +261,6 @@ export default function WordsScreen() {
         ref={wordDetailSheetRef}
         word={selectedWord}
         onClose={handleCloseWordDetail}
-        onOpenCamera={handleOpenCameraFromDetail}
         onRefresh={fetchWords}
       />
     </View>

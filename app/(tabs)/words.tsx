@@ -58,7 +58,7 @@ export default function WordsScreen() {
         .from('words')
         .select('*')
         .eq('child_id', selectedChild.id)
-        .order('word', { ascending: true });
+        .order('word', { ascending: true});
 
       if (error) {
         console.error('Error fetching words:', error);
@@ -134,11 +134,6 @@ export default function WordsScreen() {
 
   const handleCloseWordDetail = () => {
     setSelectedWord(null);
-  };
-
-  const handleOpenCameraFromDetail = () => {
-    // This will be handled by the camera integration
-    Alert.alert('Camera', 'Camera functionality will be integrated');
   };
 
   const groupedWords = groupWordsByLetter(words);
@@ -266,7 +261,6 @@ export default function WordsScreen() {
         ref={wordDetailSheetRef}
         word={selectedWord}
         onClose={handleCloseWordDetail}
-        onOpenCamera={handleOpenCameraFromDetail}
         onRefresh={fetchWords}
       />
     </View>
