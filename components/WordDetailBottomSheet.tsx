@@ -136,6 +136,69 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       triggerCamera();
     };
 
+    const handleDeleteMoment = (moment: Moment) => {
+      Alert.alert(
+        'Delete Video',
+        'Are you sure you want to delete this video moment? This action cannot be undone.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              await deleteMoment(moment);
+            },
+          },
+        ]
+      );
+    };
+
+    const deleteMoment = async (moment: Moment) => {
+      try {
+        console.log('Deleting moment:', moment.id);
+        
+        // Extract the file path from the video URL
+        const urlParts = moment.video_url.split('/video-moments/');
+        if (urlParts.length > 1) {
+          const filePath = urlParts[1];
+          
+          // Delete from storage
+          const { error: storageError } = await supabase.storage
+            .from('video-moments')
+            .remove([filePath]);
+
+          if (storageError) {
+            console.error('Error deleting from storage:', storageError);
+            // Continue even if storage deletion fails
+          }
+        }
+
+        // Delete from database
+        const { error: dbError } = await supabase
+          .from('moments')
+          .delete()
+          .eq('id', moment.id);
+
+        if (dbError) {
+          console.error('Error deleting from database:', dbError);
+          throw dbError;
+        }
+
+        console.log('Moment deleted successfully');
+        
+        // Refresh the moments list
+        await fetchMoments();
+        
+        Alert.alert('Success', 'Video deleted successfully');
+      } catch (error) {
+        console.error('Error in deleteMoment:', error);
+        Alert.alert('Error', 'Failed to delete video');
+      }
+    };
+
     const renderBackdrop = useCallback(
       (props: any) => (
         <BottomSheetBackdrop
@@ -262,9 +325,22 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
                         color={colors.backgroundAlt}
                       />
                     </View>
-                    <Text style={styles.momentDate}>
-                      {new Date(moment.created_at).toLocaleDateString()}
-                    </Text>
+                    <View style={styles.momentInfo}>
+                      <Text style={styles.momentDate}>
+                        {new Date(moment.created_at).toLocaleDateString()}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => handleDeleteMoment(moment)}
+                      >
+                        <IconSymbol
+                          ios_icon_name="trash"
+                          android_material_icon_name="delete"
+                          size={16}
+                          color={colors.secondary}
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 ))}
               </View>
@@ -390,22 +466,29 @@ const styles = StyleSheet.create({
   },
   momentCard: {
     width: (screenWidth - 64) / 3,
-    aspectRatio: 1,
     backgroundColor: colors.background,
     borderRadius: 12,
     overflow: 'hidden',
   },
   momentThumbnail: {
-    flex: 1,
+    aspectRatio: 1,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  momentInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 8,
+  },
   momentDate: {
     fontSize: 10,
     color: colors.textSecondary,
-    padding: 8,
-    textAlign: 'center',
+    flex: 1,
+  },
+  deleteButton: {
+    padding: 4,
   },
 });
 

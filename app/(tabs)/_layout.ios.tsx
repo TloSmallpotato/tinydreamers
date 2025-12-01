@@ -5,12 +5,14 @@ import { View, TouchableOpacity, StyleSheet, Animated, Alert, Image, Text } from
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { usePathname } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useVideoRecording } from '@/contexts/VideoRecordingContext';
 import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import SelectWordBottomSheet from '@/components/SelectWordBottomSheet';
+import VideoPreviewModal from '@/components/VideoPreviewModal';
+import ToastNotification from '@/components/ToastNotification';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -69,6 +71,7 @@ const tabs: TabItem[] = [
 
 function CustomTabBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [showCamera, setShowCamera] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
@@ -90,6 +93,12 @@ function CustomTabBar() {
   const { shouldOpenCamera, resetCameraTrigger } = useCameraTrigger();
   const [words, setWords] = useState<any[]>([]);
   const selectWordSheetRef = useRef<BottomSheetModal>(null);
+
+  // Toast notification state
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [showToastViewButton, setShowToastViewButton] = useState(false);
+  const [savedWordId, setSavedWordId] = useState<string | null>(null);
 
   useEffect(() => {
     const initPermissions = async () => {
@@ -281,6 +290,20 @@ function CustomTabBar() {
     try {
       console.log('Saving video to word:', wordId);
       
+      // Get word name for toast message
+      const { data: wordData } = await supabase
+        .from('words')
+        .select('word')
+        .eq('id', wordId)
+        .single();
+      
+      const wordName = wordData?.word || 'word';
+      
+      // Show "Video saving..." toast
+      setToastMessage('Video saving…');
+      setShowToastViewButton(false);
+      setToastVisible(true);
+      
       const videoFileName = `${selectedChild.id}/${Date.now()}.mp4`;
       const videoFile = await FileSystem.readAsStringAsync(recordedVideoUri, {
         encoding: FileSystem.EncodingType.Base64,
@@ -325,18 +348,34 @@ function CustomTabBar() {
       }
 
       console.log('Video saved successfully');
-      Alert.alert('Success', 'Video moment saved!');
+      
+      // Update toast to show success with "View now" button
+      setToastMessage(`Video saved to "${wordName}"`);
+      setShowToastViewButton(true);
+      setSavedWordId(wordId);
+      
       clearRecordedVideo();
       selectWordSheetRef.current?.dismiss();
       
     } catch (error) {
       console.error('Error in saveVideoToWord:', error);
+      setToastVisible(false);
       Alert.alert('Error', 'Failed to save video');
     }
   };
 
   const handleSelectWord = async (wordId: string) => {
     await saveVideoToWord(wordId);
+  };
+
+  const handleViewNow = () => {
+    console.log('View now pressed for word:', savedWordId);
+    setToastVisible(false);
+    
+    // Navigate to words page
+    if (savedWordId) {
+      router.push('/(tabs)/words');
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -412,36 +451,16 @@ function CustomTabBar() {
             StyleSheet.absoluteFill, 
             { 
               zIndex: 2000,
-              backgroundColor: colors.background,
-              justifyContent: 'center',
-              alignItems: 'center',
-              padding: 20,
             }
           ]}
           pointerEvents="auto"
         >
-          <Text style={styles.previewTitle}>Video Recorded!</Text>
-          <Text style={styles.previewSubtitle}>
-            Duration: {formatTime(recordedVideoDuration || 0)}
-          </Text>
-          
-          <View style={styles.previewActions}>
-            <TouchableOpacity 
-              style={styles.cancelButton}
-              onPress={handleCancelVideo}
-            >
-              <MaterialIcons name="close" size={24} color={colors.backgroundAlt} />
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.confirmButton}
-              onPress={handleConfirmVideo}
-            >
-              <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
-              <Text style={styles.confirmButtonText}>Confirm</Text>
-            </TouchableOpacity>
-          </View>
+          <VideoPreviewModal
+            videoUri={recordedVideoUri}
+            duration={recordedVideoDuration || 0}
+            onConfirm={handleConfirmVideo}
+            onCancel={handleCancelVideo}
+          />
         </View>
       )}
 
@@ -490,6 +509,14 @@ function CustomTabBar() {
         words={words}
         onSelectWord={handleSelectWord}
         onClose={() => selectWordSheetRef.current?.dismiss()}
+      />
+
+      <ToastNotification
+        visible={toastVisible}
+        message={toastMessage}
+        showViewButton={showToastViewButton}
+        onViewPress={handleViewNow}
+        onHide={() => setToastVisible(false)}
       />
     </>
   );
@@ -662,48 +689,5 @@ const styles = StyleSheet.create({
     height: 32,
     backgroundColor: colors.secondary,
     borderRadius: 4,
-  },
-  previewTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.primary,
-    marginBottom: 8,
-  },
-  previewSubtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginBottom: 40,
-  },
-  previewActions: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  cancelButton: {
-    backgroundColor: colors.textSecondary,
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  cancelButtonText: {
-    color: colors.backgroundAlt,
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  confirmButton: {
-    backgroundColor: colors.buttonBlue,
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  confirmButtonText: {
-    color: colors.backgroundAlt,
-    fontSize: 18,
-    fontWeight: '600',
   },
 });
