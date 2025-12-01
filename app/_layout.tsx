@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ChildProvider } from '@/contexts/ChildContext';
 
@@ -60,13 +61,15 @@ export default function RootLayout() {
       <AuthProvider>
         <ChildProvider>
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="formsheet" options={{ presentation: 'formSheet' }} />
-              <Stack.Screen name="transparent-modal" options={{ presentation: 'transparentModal' }} />
-            </Stack>
-            <StatusBar style="auto" />
+            <BottomSheetModalProvider>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="formsheet" options={{ presentation: 'formSheet' }} />
+                <Stack.Screen name="transparent-modal" options={{ presentation: 'transparentModal' }} />
+              </Stack>
+              <StatusBar style="auto" />
+            </BottomSheetModalProvider>
           </ThemeProvider>
         </ChildProvider>
       </AuthProvider>
