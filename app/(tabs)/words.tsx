@@ -128,6 +128,7 @@ export default function WordsScreen() {
   };
 
   const handleOpenAddWord = () => {
+    console.log('Opening add word bottom sheet');
     addWordSheetRef.current?.present();
   };
 

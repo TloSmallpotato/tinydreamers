@@ -58,10 +58,10 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <ChildProvider>
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <BottomSheetModalProvider>
+      <BottomSheetModalProvider>
+        <AuthProvider>
+          <ChildProvider>
+            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
@@ -69,10 +69,10 @@ export default function RootLayout() {
                 <Stack.Screen name="transparent-modal" options={{ presentation: 'transparentModal' }} />
               </Stack>
               <StatusBar style="auto" />
-            </BottomSheetModalProvider>
-          </ThemeProvider>
-        </ChildProvider>
-      </AuthProvider>
+            </ThemeProvider>
+          </ChildProvider>
+        </AuthProvider>
+      </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
 }

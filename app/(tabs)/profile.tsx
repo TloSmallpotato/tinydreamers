@@ -4,7 +4,6 @@ import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Image }
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
@@ -33,15 +32,18 @@ export default function ProfileScreen() {
   };
 
   const handleOpenChildSelector = () => {
+    console.log('Opening child selector bottom sheet');
     childSelectorRef.current?.present();
   };
 
   const handleSelectChild = (childId: string) => {
+    console.log('Selecting child:', childId);
     selectChild(childId);
     childSelectorRef.current?.dismiss();
   };
 
   const handleOpenAddChild = () => {
+    console.log('Opening add child bottom sheet');
     childSelectorRef.current?.dismiss();
     setTimeout(() => {
       addChildRef.current?.present();
@@ -50,6 +52,7 @@ export default function ProfileScreen() {
 
   const handleAddChild = async (name: string, birthDate: Date) => {
     try {
+      console.log('Adding child:', name, birthDate);
       await addChild(name, birthDate);
       addChildRef.current?.dismiss();
     } catch (error) {
@@ -62,182 +65,180 @@ export default function ProfileScreen() {
   };
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={styles.container}>
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.header}>
-              <Text style={styles.appTitle}>Tiny Dreamers</Text>
-              <TouchableOpacity style={styles.settingsButton} onPress={handleOpenSettings}>
+    <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Text style={styles.appTitle}>Tiny Dreamers</Text>
+            <TouchableOpacity style={styles.settingsButton} onPress={handleOpenSettings}>
+              <IconSymbol 
+                ios_icon_name="gearshape.fill" 
+                android_material_icon_name="settings" 
+                size={24} 
+                color={colors.primary} 
+              />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.profileSection}>
+            <View style={styles.avatarPlaceholder} />
+            <TouchableOpacity style={styles.profileInfo} onPress={handleOpenChildSelector}>
+              <Text style={styles.profileName}>
+                {selectedChild?.name || 'Add a child'}
+              </Text>
+              <View style={styles.ageDropdown}>
                 <IconSymbol 
-                  ios_icon_name="gearshape.fill" 
-                  android_material_icon_name="settings" 
-                  size={24} 
+                  ios_icon_name="chevron.down" 
+                  android_material_icon_name="arrow-drop-down" 
+                  size={20} 
                   color={colors.primary} 
                 />
-              </TouchableOpacity>
-            </View>
+              </View>
+            </TouchableOpacity>
+            {selectedChild && (
+              <Text style={styles.ageText}>{calculateAge(selectedChild.birth_date)}</Text>
+            )}
+          </View>
 
-            <View style={styles.profileSection}>
-              <View style={styles.avatarPlaceholder} />
-              <TouchableOpacity style={styles.profileInfo} onPress={handleOpenChildSelector}>
-                <Text style={styles.profileName}>
-                  {selectedChild?.name || 'Add a child'}
-                </Text>
-                <View style={styles.ageDropdown}>
+          <View style={styles.achievementBanner}>
+            <IconSymbol 
+              ios_icon_name="star.fill" 
+              android_material_icon_name="star" 
+              size={20} 
+              color={colors.accent} 
+            />
+            <Text style={styles.achievementText}>
+              {selectedChild?.name || 'Your child'} learned 2 new words this week!
+            </Text>
+          </View>
+
+          <View style={styles.statsSection}>
+            <Text style={styles.sectionTitle}>This week</Text>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { backgroundColor: colors.buttonBlue }]}>
+                <Text style={styles.statNumber}>1</Text>
+                <Text style={styles.statLabel}>new word{'\n'}this week</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.cardPink }]}>
+                <Text style={styles.statNumber}>1</Text>
+                <Text style={styles.statLabel}>new book{'\n'}this week</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
+                <Text style={styles.statNumber}>2</Text>
+                <Text style={styles.statLabel}>new moments{'\n'}this week</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.statsSection}>
+            <Text style={styles.sectionTitle}>Total</Text>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { backgroundColor: colors.cardGreen }]}>
+                <Text style={styles.statNumber}>21</Text>
+                <Text style={styles.statLabel}>total words{'\n'}tracked</Text>
+                <View style={styles.statIcon}>
                   <IconSymbol 
-                    ios_icon_name="chevron.down" 
-                    android_material_icon_name="arrow-drop-down" 
-                    size={20} 
-                    color={colors.primary} 
+                    ios_icon_name="text.bubble.fill" 
+                    android_material_icon_name="chat-bubble" 
+                    size={24} 
+                    color={colors.backgroundAlt} 
                   />
                 </View>
-              </TouchableOpacity>
-              {selectedChild && (
-                <Text style={styles.ageText}>{calculateAge(selectedChild.birth_date)}</Text>
-              )}
-            </View>
-
-            <View style={styles.achievementBanner}>
-              <IconSymbol 
-                ios_icon_name="star.fill" 
-                android_material_icon_name="star" 
-                size={20} 
-                color={colors.accent} 
-              />
-              <Text style={styles.achievementText}>
-                {selectedChild?.name || 'Your child'} learned 2 new words this week!
-              </Text>
-            </View>
-
-            <View style={styles.statsSection}>
-              <Text style={styles.sectionTitle}>This week</Text>
-              <View style={styles.statsRow}>
-                <View style={[styles.statCard, { backgroundColor: colors.buttonBlue }]}>
-                  <Text style={styles.statNumber}>1</Text>
-                  <Text style={styles.statLabel}>new word{'\n'}this week</Text>
-                </View>
-                <View style={[styles.statCard, { backgroundColor: colors.cardPink }]}>
-                  <Text style={styles.statNumber}>1</Text>
-                  <Text style={styles.statLabel}>new book{'\n'}this week</Text>
-                </View>
-                <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
-                  <Text style={styles.statNumber}>2</Text>
-                  <Text style={styles.statLabel}>new moments{'\n'}this week</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.accent }]}>
+                <Text style={styles.statNumber}>34</Text>
+                <Text style={styles.statLabel}>total books{'\n'}added</Text>
+                <View style={styles.statIcon}>
+                  <IconSymbol 
+                    ios_icon_name="book.fill" 
+                    android_material_icon_name="menu-book" 
+                    size={24} 
+                    color={colors.backgroundAlt} 
+                  />
                 </View>
               </View>
             </View>
+          </View>
 
-            <View style={styles.statsSection}>
-              <Text style={styles.sectionTitle}>Total</Text>
-              <View style={styles.statsRow}>
-                <View style={[styles.statCard, { backgroundColor: colors.cardGreen }]}>
-                  <Text style={styles.statNumber}>21</Text>
-                  <Text style={styles.statLabel}>total words{'\n'}tracked</Text>
-                  <View style={styles.statIcon}>
-                    <IconSymbol 
-                      ios_icon_name="text.bubble.fill" 
-                      android_material_icon_name="chat-bubble" 
-                      size={24} 
-                      color={colors.backgroundAlt} 
-                    />
-                  </View>
-                </View>
-                <View style={[styles.statCard, { backgroundColor: colors.accent }]}>
-                  <Text style={styles.statNumber}>34</Text>
-                  <Text style={styles.statLabel}>total books{'\n'}added</Text>
-                  <View style={styles.statIcon}>
-                    <IconSymbol 
-                      ios_icon_name="book.fill" 
-                      android_material_icon_name="menu-book" 
-                      size={24} 
-                      color={colors.backgroundAlt} 
-                    />
-                  </View>
-                </View>
+          <View style={styles.momentsSection}>
+            <Text style={styles.sectionTitle}>Moments</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.momentsScroll}>
+              <View style={styles.momentCard}>
+                <Image 
+                  source={{ uri: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=400' }}
+                  style={styles.momentImage}
+                />
               </View>
-            </View>
+              <View style={styles.momentCard}>
+                <Image 
+                  source={{ uri: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=400' }}
+                  style={styles.momentImage}
+                />
+              </View>
+              <View style={styles.momentCard}>
+                <Image 
+                  source={{ uri: 'https://images.unsplash.com/photo-1544776193-352d25ca82cd?w=400' }}
+                  style={styles.momentImage}
+                />
+              </View>
+            </ScrollView>
+            <TouchableOpacity style={styles.viewMoreButton}>
+              <Text style={styles.viewMoreText}>View more</Text>
+            </TouchableOpacity>
+          </View>
 
-            <View style={styles.momentsSection}>
-              <Text style={styles.sectionTitle}>Moments</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.momentsScroll}>
-                <View style={styles.momentCard}>
-                  <Image 
-                    source={{ uri: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=400' }}
-                    style={styles.momentImage}
-                  />
-                </View>
-                <View style={styles.momentCard}>
-                  <Image 
-                    source={{ uri: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=400' }}
-                    style={styles.momentImage}
-                  />
-                </View>
-                <View style={styles.momentCard}>
-                  <Image 
-                    source={{ uri: 'https://images.unsplash.com/photo-1544776193-352d25ca82cd?w=400' }}
-                    style={styles.momentImage}
-                  />
-                </View>
-              </ScrollView>
-              <TouchableOpacity style={styles.viewMoreButton}>
-                <Text style={styles.viewMoreText}>View more</Text>
+          <View style={styles.suggestionsSection}>
+            <Text style={styles.sectionTitle}>Suggestions</Text>
+            <View style={styles.suggestionCard}>
+              <Text style={styles.suggestionText}>Try recording a new word today: <Text style={styles.suggestionBold}>Ball</Text></Text>
+              <TouchableOpacity style={styles.recordButton}>
+                <Text style={styles.recordButtonText}>Record</Text>
               </TouchableOpacity>
             </View>
+          </View>
 
-            <View style={styles.suggestionsSection}>
-              <Text style={styles.sectionTitle}>Suggestions</Text>
-              <View style={styles.suggestionCard}>
-                <Text style={styles.suggestionText}>Try recording a new word today: <Text style={styles.suggestionBold}>Ball</Text></Text>
-                <TouchableOpacity style={styles.recordButton}>
-                  <Text style={styles.recordButtonText}>Record</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.analyticsSection}>
-              <Text style={styles.sectionTitle}>Analytics</Text>
-              <View style={styles.analyticsCard}>
-                <View style={styles.analyticsRow}>
-                  <View style={[styles.analyticsDot, { backgroundColor: colors.backgroundAlt }]}>
-                    <Text style={styles.analyticsPercent}>51%</Text>
-                  </View>
-                  <View style={[styles.analyticsDot, { backgroundColor: colors.secondary }]}>
-                    <Text style={styles.analyticsPercent}>51%</Text>
-                  </View>
-                  <View style={[styles.analyticsDot, { backgroundColor: colors.cardGreen }]}>
-                    <Text style={styles.analyticsPercent}>51%</Text>
-                  </View>
-                  <View style={[styles.analyticsDot, { backgroundColor: colors.buttonBlue }]}>
-                    <Text style={styles.analyticsPercent}>51%</Text>
-                  </View>
+          <View style={styles.analyticsSection}>
+            <Text style={styles.sectionTitle}>Analytics</Text>
+            <View style={styles.analyticsCard}>
+              <View style={styles.analyticsRow}>
+                <View style={[styles.analyticsDot, { backgroundColor: colors.backgroundAlt }]}>
+                  <Text style={styles.analyticsPercent}>51%</Text>
                 </View>
-                <TouchableOpacity style={styles.findOutButton}>
-                  <Text style={styles.findOutButtonText}>Find out more</Text>
-                </TouchableOpacity>
+                <View style={[styles.analyticsDot, { backgroundColor: colors.secondary }]}>
+                  <Text style={styles.analyticsPercent}>51%</Text>
+                </View>
+                <View style={[styles.analyticsDot, { backgroundColor: colors.cardGreen }]}>
+                  <Text style={styles.analyticsPercent}>51%</Text>
+                </View>
+                <View style={[styles.analyticsDot, { backgroundColor: colors.buttonBlue }]}>
+                  <Text style={styles.analyticsPercent}>51%</Text>
+                </View>
               </View>
+              <TouchableOpacity style={styles.findOutButton}>
+                <Text style={styles.findOutButtonText}>Find out more</Text>
+              </TouchableOpacity>
             </View>
-          </ScrollView>
-        </SafeAreaView>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
 
-        <ChildSelectorBottomSheet
-          ref={childSelectorRef}
-          childrenList={children}
-          selectedChildId={selectedChild?.id || null}
-          onSelectChild={handleSelectChild}
-          onAddChild={handleOpenAddChild}
-        />
+      <ChildSelectorBottomSheet
+        ref={childSelectorRef}
+        childrenList={children}
+        selectedChildId={selectedChild?.id || null}
+        onSelectChild={handleSelectChild}
+        onAddChild={handleOpenAddChild}
+      />
 
-        <AddChildBottomSheet
-          ref={addChildRef}
-          onAddChild={handleAddChild}
-        />
-      </View>
-    </GestureHandlerRootView>
+      <AddChildBottomSheet
+        ref={addChildRef}
+        onAddChild={handleAddChild}
+      />
+    </View>
   );
 }
 
