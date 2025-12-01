@@ -12,23 +12,23 @@ export default function Index() {
 
   useEffect(() => {
     if (loading) {
-      console.log('Index: Auth loading...');
+      console.log('Index (iOS): Auth loading...');
       return;
     }
 
     const inAuthGroup = segments[0] === '(auth)';
 
-    console.log('Index: User authenticated:', !!user);
-    console.log('Index: Current segments:', segments);
-    console.log('Index: In auth group:', inAuthGroup);
+    console.log('Index (iOS): User authenticated:', !!user);
+    console.log('Index (iOS): Current segments:', segments);
+    console.log('Index (iOS): In auth group:', inAuthGroup);
 
     if (!user && !inAuthGroup) {
       // User is not signed in and not in auth group, redirect to login
-      console.log('Index: Redirecting to login');
+      console.log('Index (iOS): Redirecting to login');
       router.replace('/(auth)/login');
     } else if (user && inAuthGroup) {
       // User is signed in but in auth group, redirect to profile
-      console.log('Index: Redirecting to profile');
+      console.log('Index (iOS): Redirecting to profile');
       router.replace('/(tabs)/profile');
     }
   }, [user, loading, segments]);
