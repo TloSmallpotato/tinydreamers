@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions } from 'react-native';
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
+import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -32,7 +32,7 @@ interface WordDetailBottomSheetProps {
   onRefresh: () => void;
 }
 
-const WordDetailBottomSheet = forwardRef<BottomSheet, WordDetailBottomSheetProps>(
+const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheetProps>(
   ({ word, onClose, onOpenCamera, onRefresh }, ref) => {
     const snapPoints = useMemo(() => ['85%'], []);
     const [moments, setMoments] = useState<Moment[]>([]);
@@ -126,16 +126,15 @@ const WordDetailBottomSheet = forwardRef<BottomSheet, WordDetailBottomSheetProps
     if (!word) return null;
 
     return (
-      <BottomSheet
+      <BottomSheetModal
         ref={ref}
-        index={-1}
+        index={0}
         snapPoints={snapPoints}
         enablePanDownToClose
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
-        onClose={onClose}
-        style={styles.bottomSheet}
+        onDismiss={onClose}
       >
         <BottomSheetView style={styles.contentContainer}>
           <View style={[styles.wordHeader, { backgroundColor: word.color }]}>
@@ -244,16 +243,12 @@ const WordDetailBottomSheet = forwardRef<BottomSheet, WordDetailBottomSheetProps
             </ScrollView>
           </View>
         </BottomSheetView>
-      </BottomSheet>
+      </BottomSheetModal>
     );
   }
 );
 
 const styles = StyleSheet.create({
-  bottomSheet: {
-    zIndex: 999999,
-    elevation: 999999,
-  },
   bottomSheetBackground: {
     backgroundColor: colors.backgroundAlt,
     borderTopLeftRadius: 24,

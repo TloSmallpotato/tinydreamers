@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
+import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -19,7 +19,7 @@ interface ChildSelectorBottomSheetProps {
   onAddChild: () => void;
 }
 
-const ChildSelectorBottomSheet = forwardRef<BottomSheet, ChildSelectorBottomSheetProps>(
+const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBottomSheetProps>(
   ({ childrenList, selectedChildId, onSelectChild, onAddChild }, ref) => {
     const snapPoints = useMemo(() => ['50%', '75%'], []);
 
@@ -33,15 +33,14 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheet, ChildSelectorBottomShee
     );
 
     return (
-      <BottomSheet
+      <BottomSheetModal
         ref={ref}
-        index={-1}
+        index={0}
         snapPoints={snapPoints}
         enablePanDownToClose
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
-        style={styles.bottomSheet}
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Select Child</Text>
@@ -86,16 +85,12 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheet, ChildSelectorBottomShee
             <Text style={styles.addButtonText}>Add New Child</Text>
           </TouchableOpacity>
         </BottomSheetView>
-      </BottomSheet>
+      </BottomSheetModal>
     );
   }
 );
 
 const styles = StyleSheet.create({
-  bottomSheet: {
-    zIndex: 999999,
-    elevation: 999999,
-  },
   bottomSheetBackground: {
     backgroundColor: colors.backgroundAlt,
     borderTopLeftRadius: 24,

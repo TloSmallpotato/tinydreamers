@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'react-native';
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
+import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors } from '@/styles/commonStyles';
 
@@ -9,7 +9,7 @@ interface AddChildBottomSheetProps {
   onAddChild: (name: string, birthDate: Date) => void;
 }
 
-const AddChildBottomSheet = forwardRef<BottomSheet, AddChildBottomSheetProps>(
+const AddChildBottomSheet = forwardRef<BottomSheetModal, AddChildBottomSheetProps>(
   ({ onAddChild }, ref) => {
     const snapPoints = useMemo(() => ['60%'], []);
     const [name, setName] = useState('');
@@ -42,15 +42,14 @@ const AddChildBottomSheet = forwardRef<BottomSheet, AddChildBottomSheetProps>(
     };
 
     return (
-      <BottomSheet
+      <BottomSheetModal
         ref={ref}
-        index={-1}
+        index={0}
         snapPoints={snapPoints}
         enablePanDownToClose
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
-        style={styles.bottomSheet}
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Add New Child</Text>
@@ -97,16 +96,12 @@ const AddChildBottomSheet = forwardRef<BottomSheet, AddChildBottomSheetProps>(
             <Text style={styles.addButtonText}>Add Child</Text>
           </TouchableOpacity>
         </BottomSheetView>
-      </BottomSheet>
+      </BottomSheetModal>
     );
   }
 );
 
 const styles = StyleSheet.create({
-  bottomSheet: {
-    zIndex: 999999,
-    elevation: 999999,
-  },
   bottomSheetBackground: {
     backgroundColor: colors.backgroundAlt,
     borderTopLeftRadius: 24,

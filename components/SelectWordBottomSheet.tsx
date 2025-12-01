@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
+import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -18,7 +18,7 @@ interface SelectWordBottomSheetProps {
   onClose: () => void;
 }
 
-const SelectWordBottomSheet = forwardRef<BottomSheet, SelectWordBottomSheetProps>(
+const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheetProps>(
   ({ words, onSelectWord, onClose }, ref) => {
     const snapPoints = useMemo(() => ['70%'], []);
     const [searchQuery, setSearchQuery] = useState('');
@@ -50,16 +50,15 @@ const SelectWordBottomSheet = forwardRef<BottomSheet, SelectWordBottomSheetProps
     };
 
     return (
-      <BottomSheet
+      <BottomSheetModal
         ref={ref}
-        index={-1}
+        index={0}
         snapPoints={snapPoints}
         enablePanDownToClose
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
-        onClose={onClose}
-        style={styles.bottomSheet}
+        onDismiss={onClose}
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Select a Word</Text>
@@ -111,16 +110,12 @@ const SelectWordBottomSheet = forwardRef<BottomSheet, SelectWordBottomSheetProps
             )}
           </ScrollView>
         </BottomSheetView>
-      </BottomSheet>
+      </BottomSheetModal>
     );
   }
 );
 
 const styles = StyleSheet.create({
-  bottomSheet: {
-    zIndex: 999999,
-    elevation: 999999,
-  },
   bottomSheetBackground: {
     backgroundColor: colors.backgroundAlt,
     borderTopLeftRadius: 24,

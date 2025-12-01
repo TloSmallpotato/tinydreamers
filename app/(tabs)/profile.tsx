@@ -3,7 +3,7 @@ import React, { useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import BottomSheet from '@gorhom/bottom-sheet';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -14,8 +14,8 @@ import AddChildBottomSheet from '@/components/AddChildBottomSheet';
 export default function ProfileScreen() {
   const router = useRouter();
   const { children, selectedChild, selectChild, addChild } = useChild();
-  const childSelectorRef = useRef<BottomSheet>(null);
-  const addChildRef = useRef<BottomSheet>(null);
+  const childSelectorRef = useRef<BottomSheetModal>(null);
+  const addChildRef = useRef<BottomSheetModal>(null);
 
   const calculateAge = (birthDate: string) => {
     const birth = new Date(birthDate);
@@ -33,25 +33,25 @@ export default function ProfileScreen() {
   };
 
   const handleOpenChildSelector = () => {
-    childSelectorRef.current?.snapToIndex(0);
+    childSelectorRef.current?.present();
   };
 
   const handleSelectChild = (childId: string) => {
     selectChild(childId);
-    childSelectorRef.current?.close();
+    childSelectorRef.current?.dismiss();
   };
 
   const handleOpenAddChild = () => {
-    childSelectorRef.current?.close();
+    childSelectorRef.current?.dismiss();
     setTimeout(() => {
-      addChildRef.current?.snapToIndex(0);
+      addChildRef.current?.present();
     }, 300);
   };
 
   const handleAddChild = async (name: string, birthDate: Date) => {
     try {
       await addChild(name, birthDate);
-      addChildRef.current?.close();
+      addChildRef.current?.dismiss();
     } catch (error) {
       console.error('Error adding child:', error);
     }

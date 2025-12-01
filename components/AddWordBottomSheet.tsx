@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
+import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 
 interface AddWordBottomSheetProps {
@@ -127,7 +127,7 @@ const getColorForLetter = (letter: string): string => {
   return COLOR_OPTIONS[letterIndex % COLOR_OPTIONS.length];
 };
 
-const AddWordBottomSheet = forwardRef<BottomSheet, AddWordBottomSheetProps>(
+const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>(
   ({ onAddWord }, ref) => {
     const snapPoints = useMemo(() => ['40%'], []);
     const [word, setWord] = useState('');
@@ -154,15 +154,14 @@ const AddWordBottomSheet = forwardRef<BottomSheet, AddWordBottomSheetProps>(
     };
 
     return (
-      <BottomSheet
+      <BottomSheetModal
         ref={ref}
-        index={-1}
+        index={0}
         snapPoints={snapPoints}
         enablePanDownToClose
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
-        style={styles.bottomSheet}
       >
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Add New Word</Text>
@@ -187,16 +186,12 @@ const AddWordBottomSheet = forwardRef<BottomSheet, AddWordBottomSheetProps>(
             <Text style={styles.addButtonText}>Add Word</Text>
           </TouchableOpacity>
         </BottomSheetView>
-      </BottomSheet>
+      </BottomSheetModal>
     );
   }
 );
 
 const styles = StyleSheet.create({
-  bottomSheet: {
-    zIndex: 999999,
-    elevation: 999999,
-  },
   bottomSheetBackground: {
     backgroundColor: colors.backgroundAlt,
     borderTopLeftRadius: 24,
