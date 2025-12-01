@@ -1,7 +1,7 @@
 
 import React, { forwardRef, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { BottomSheetBackdrop, BottomSheetView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 
 interface AddWordBottomSheetProps {
@@ -175,9 +175,9 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
         <BottomSheetView style={styles.contentContainer}>
           <Text style={styles.title}>Add New Word</Text>
 
-          <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
+          <View style={styles.form}>
             <Text style={styles.label}>Word</Text>
-            <BottomSheetTextInput
+            <TextInput
               style={styles.input}
               value={word}
               onChangeText={setWord}
@@ -185,7 +185,7 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
               placeholderTextColor={colors.textSecondary}
               autoCapitalize="words"
             />
-          </ScrollView>
+          </View>
 
           <TouchableOpacity
             style={[styles.addButton, !word.trim() && styles.addButtonDisabled]}

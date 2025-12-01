@@ -8,7 +8,7 @@ import { useChild } from '@/contexts/ChildContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
-import BottomSheet from '@gorhom/bottom-sheet';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useFocusEffect } from '@react-navigation/native';
 
 interface Word {
@@ -34,8 +34,8 @@ export default function WordsScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
 
-  const addWordSheetRef = useRef<BottomSheet>(null);
-  const wordDetailSheetRef = useRef<BottomSheet>(null);
+  const addWordSheetRef = useRef<BottomSheetModal>(null);
+  const wordDetailSheetRef = useRef<BottomSheetModal>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -113,7 +113,7 @@ export default function WordsScreen() {
       }
 
       console.log('Word added successfully');
-      addWordSheetRef.current?.close();
+      addWordSheetRef.current?.dismiss();
       await fetchWords();
     } catch (error) {
       console.error('Error in handleAddWord:', error);
@@ -124,11 +124,12 @@ export default function WordsScreen() {
   const handleWordPress = (word: Word) => {
     console.log('Word pressed:', word.word);
     setSelectedWord(word);
-    wordDetailSheetRef.current?.snapToIndex(0);
+    wordDetailSheetRef.current?.present();
   };
 
   const handleOpenAddWord = () => {
-    addWordSheetRef.current?.snapToIndex(0);
+    console.log('Opening add word bottom sheet');
+    addWordSheetRef.current?.present();
   };
 
   const handleCloseWordDetail = () => {
