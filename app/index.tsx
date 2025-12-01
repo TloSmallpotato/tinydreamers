@@ -31,7 +31,7 @@ export default function Index() {
       console.log('Index: Redirecting to profile');
       router.replace('/(tabs)/profile');
     }
-  }, [user, loading, segments]);
+  }, [user, loading, segments, router]);
 
   // Show loading spinner while checking auth state
   if (loading) {

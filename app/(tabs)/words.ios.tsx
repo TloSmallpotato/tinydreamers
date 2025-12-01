@@ -37,13 +37,7 @@ export default function WordsScreen() {
   const addWordSheetRef = useRef<BottomSheetModal>(null);
   const wordDetailSheetRef = useRef<BottomSheetModal>(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchWords();
-    }, [selectedChild])
-  );
-
-  const fetchWords = async () => {
+  const fetchWords = useCallback(async () => {
     if (!selectedChild) {
       setWords([]);
       setLoading(false);
@@ -73,7 +67,13 @@ export default function WordsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedChild]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchWords();
+    }, [fetchWords])
+  );
 
   const groupWordsByLetter = (wordsList: Word[]): GroupedWords => {
     const grouped: GroupedWords = {};

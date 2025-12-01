@@ -1,5 +1,5 @@
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Stack, useRouter, usePathname } from 'expo-router';
 import { View, TouchableOpacity, StyleSheet, Platform, Animated, Image, Alert, Text } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -12,7 +12,7 @@ import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import SelectWordBottomSheet from '@/components/SelectWordBottomSheet';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { supabase } from '@/app/integrations/supabase/client';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 interface TabItem {
   name: string;
@@ -110,6 +110,33 @@ function CustomTabBar() {
     initPermissions();
   }, [cameraPermission, requestCameraPermission]);
 
+  const openCamera = useCallback(async () => {
+    console.log('Opening camera for video recording');
+    
+    if (!cameraPermission) {
+      console.log('Camera permission not loaded yet');
+      return;
+    }
+
+    if (!cameraPermission.granted) {
+      console.log('Requesting camera permission');
+      const result = await requestCameraPermission();
+      if (!result.granted) {
+        console.log('Camera permission denied');
+        Alert.alert(
+          'Camera Permission Required',
+          'Please grant camera permission to record videos.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+
+    setIsCameraReady(false);
+    setShowCamera(true);
+    setRecordingTime(0);
+  }, [cameraPermission, requestCameraPermission]);
+
   // Listen for camera trigger from WordDetailBottomSheet
   useEffect(() => {
     if (shouldOpenCamera) {
@@ -117,7 +144,7 @@ function CustomTabBar() {
       openCamera();
       resetCameraTrigger();
     }
-  }, [shouldOpenCamera, resetCameraTrigger]);
+  }, [shouldOpenCamera, resetCameraTrigger, openCamera]);
 
   const fetchWords = async () => {
     if (!selectedChild) return;
@@ -147,33 +174,6 @@ function CustomTabBar() {
 
   const activeTab = getActiveTab();
   const shouldShowTabBar = !pathname.includes('/settings');
-
-  const openCamera = async () => {
-    console.log('Opening camera for video recording');
-    
-    if (!cameraPermission) {
-      console.log('Camera permission not loaded yet');
-      return;
-    }
-
-    if (!cameraPermission.granted) {
-      console.log('Requesting camera permission');
-      const result = await requestCameraPermission();
-      if (!result.granted) {
-        console.log('Camera permission denied');
-        Alert.alert(
-          'Camera Permission Required',
-          'Please grant camera permission to record videos.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-    }
-
-    setIsCameraReady(false);
-    setShowCamera(true);
-    setRecordingTime(0);
-  };
 
   const handleTabPress = async (tab: TabItem, index: number) => {
     console.log('Tab pressed:', tab.name);

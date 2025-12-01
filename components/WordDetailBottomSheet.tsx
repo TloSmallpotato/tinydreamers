@@ -45,16 +45,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
     const { setTargetWord, setIsRecordingFromWordDetail } = useVideoRecording();
     const { triggerCamera } = useCameraTrigger();
 
-    useEffect(() => {
-      if (word) {
-        setIsSpoken(word.is_spoken);
-        setIsRecognised(word.is_recognised);
-        setIsRecorded(word.is_recorded);
-        fetchMoments();
-      }
-    }, [word]);
-
-    const fetchMoments = async () => {
+    const fetchMoments = useCallback(async () => {
       if (!word) return;
 
       try {
@@ -77,7 +68,16 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       } finally {
         setLoading(false);
       }
-    };
+    }, [word]);
+
+    useEffect(() => {
+      if (word) {
+        setIsSpoken(word.is_spoken);
+        setIsRecognised(word.is_recognised);
+        setIsRecorded(word.is_recorded);
+        fetchMoments();
+      }
+    }, [word, fetchMoments]);
 
     const updateWordStatus = async (field: 'is_spoken' | 'is_recognised' | 'is_recorded', value: boolean) => {
       if (!word) return;
