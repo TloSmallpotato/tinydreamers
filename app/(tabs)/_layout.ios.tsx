@@ -278,9 +278,11 @@ function CustomTabBar() {
     
     if (isRecordingFromWordDetail && targetWordId) {
       // Method 2: Save directly to the target word and return to previous page
+      console.log('Method 2: Saving video and returning to previous route');
       await saveVideoToWord(targetWordId, true);
     } else {
       // Method 1: Show word selection bottom sheet
+      console.log('Method 1: Showing word selection bottom sheet');
       await fetchWords();
       selectWordSheetRef.current?.present();
     }
@@ -309,11 +311,11 @@ function CustomTabBar() {
       
       const wordName = wordData?.word || 'word';
       
-      // Close the bottom sheet and return to previous page immediately
+      // Close the bottom sheet immediately (Method 1)
       selectWordSheetRef.current?.dismiss();
       
-      // For Method 2, navigate back to previous route
-      if (isMethod2 && previousRoute) {
+      // Navigate back to previous route immediately (both methods)
+      if (previousRoute) {
         console.log('Returning to previous route:', previousRoute);
         router.push(previousRoute as any);
       }
@@ -390,12 +392,12 @@ function CustomTabBar() {
   };
 
   const handleSelectWord = async (wordId: string) => {
+    console.log('Word selected from bottom sheet:', wordId);
     await saveVideoToWord(wordId, false);
   };
 
   const handleViewNow = () => {
     console.log('View now pressed for word:', savedWordId);
-    setToastVisible(false);
     
     // Set the target word to open and navigate to words page
     if (savedWordId) {

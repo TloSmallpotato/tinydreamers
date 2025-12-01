@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions, PanResponder } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -21,8 +21,39 @@ export default function ToastNotification({
   onViewPress,
   onHide,
 }: ToastNotificationProps) {
-  const translateY = useRef(new Animated.Value(-100)).current;
+  const translateY = useRef(new Animated.Value(-200)).current;
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Pan responder for swipe gesture
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to upward swipes
+        return Math.abs(gestureState.dy) > 5 && gestureState.dy < 0;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Only allow upward movement
+        if (gestureState.dy < 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // If swiped up more than 50 pixels, dismiss
+        if (gestureState.dy < -50) {
+          hideToast();
+        } else {
+          // Otherwise, spring back to original position
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 50,
+            friction: 8,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     if (visible) {
@@ -41,9 +72,9 @@ export default function ToastNotification({
         }, 5000);
       }
     } else {
-      // Slide up
+      // Slide up fully out of screen
       Animated.timing(translateY, {
-        toValue: -100,
+        toValue: -200,
         duration: 300,
         useNativeDriver: true,
       }).start();
@@ -57,8 +88,9 @@ export default function ToastNotification({
   }, [visible, showViewButton]);
 
   const hideToast = () => {
+    // Slide up fully out of screen
     Animated.timing(translateY, {
-      toValue: -100,
+      toValue: -200,
       duration: 300,
       useNativeDriver: true,
     }).start(() => {
@@ -68,7 +100,19 @@ export default function ToastNotification({
     });
   };
 
-  if (!visible && translateY._value === -100) {
+  const handleViewPress = () => {
+    console.log('View now pressed - dismissing toast');
+    hideToast();
+    
+    // Call the onViewPress after a brief delay to ensure animation starts
+    setTimeout(() => {
+      if (onViewPress) {
+        onViewPress();
+      }
+    }, 100);
+  };
+
+  if (!visible && translateY._value === -200) {
     return null;
   }
 
@@ -81,6 +125,7 @@ export default function ToastNotification({
         },
       ]}
       pointerEvents={visible ? 'auto' : 'none'}
+      {...panResponder.panHandlers}
     >
       <View style={styles.toast}>
         <View style={styles.iconContainer}>
@@ -95,7 +140,7 @@ export default function ToastNotification({
           {message}
         </Text>
         {showViewButton && onViewPress && (
-          <TouchableOpacity style={styles.viewButton} onPress={onViewPress}>
+          <TouchableOpacity style={styles.viewButton} onPress={handleViewPress}>
             <Text style={styles.viewButtonText}>View now</Text>
           </TouchableOpacity>
         )}
