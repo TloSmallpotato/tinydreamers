@@ -291,9 +291,20 @@ function CustomTabBar() {
     console.log('targetWordId:', targetWordId);
     
     if (isRecordingFromWordDetail && targetWordId) {
-      // Method 2: Save directly to the target word and return to previous page
-      console.log('Method 2: Saving video and returning to previous route');
-      await saveVideoToWord(targetWordId, true);
+      // Method 2: Exit immediately and save in background
+      console.log('Method 2: Exiting preview and saving video in background');
+      
+      // Navigate back to previous route immediately
+      if (previousRoute) {
+        console.log('Returning to previous route:', previousRoute);
+        router.push(previousRoute as any);
+      }
+      
+      // Clear the video preview
+      clearRecordedVideo();
+      
+      // Save video in background (non-blocking)
+      saveVideoToWord(targetWordId, true);
     } else {
       // Method 1: Show word selection bottom sheet
       console.log('Method 1: Showing word selection bottom sheet');
@@ -313,8 +324,18 @@ function CustomTabBar() {
       return;
     }
 
+    // Store video URI locally before clearing
+    const videoUriToSave = recordedVideoUri;
+    const videoDurationToSave = recordedVideoDuration || 0;
+
     try {
       console.log('Saving video to word:', wordId);
+      
+      // Show "Video saving..." toast immediately
+      setToastMessage('Video saving…');
+      setShowToastViewButton(false);
+      setSavedWordId(null);
+      setToastVisible(true);
       
       // Get word name for toast message
       const { data: wordData } = await supabase
@@ -325,23 +346,8 @@ function CustomTabBar() {
       
       const wordName = wordData?.word || 'word';
       
-      // Close the bottom sheet immediately (Method 1)
-      selectWordSheetRef.current?.dismiss();
-      
-      // Navigate back to previous route immediately (both methods)
-      if (previousRoute) {
-        console.log('Returning to previous route:', previousRoute);
-        router.push(previousRoute as any);
-      }
-      
-      // Show "Video saving..." toast
-      setToastMessage('Video saving…');
-      setShowToastViewButton(false);
-      setSavedWordId(null);
-      setToastVisible(true);
-      
       const videoFileName = `${selectedChild.id}/${Date.now()}.mp4`;
-      const videoFile = await FileSystem.readAsStringAsync(recordedVideoUri, {
+      const videoFile = await FileSystem.readAsStringAsync(videoUriToSave, {
         encoding: FileSystem.EncodingType.Base64,
       });
       
@@ -375,7 +381,7 @@ function CustomTabBar() {
           word_id: wordId,
           child_id: selectedChild.id,
           video_url: urlData.publicUrl,
-          duration: recordedVideoDuration || 0,
+          duration: videoDurationToSave,
         });
 
       if (insertError) {
@@ -396,8 +402,6 @@ function CustomTabBar() {
         setToastVisible(true);
       }, 300);
       
-      clearRecordedVideo();
-      
     } catch (error) {
       console.error('Error in saveVideoToWord:', error);
       setToastVisible(false);
@@ -407,7 +411,105 @@ function CustomTabBar() {
 
   const handleSelectWord = async (wordId: string) => {
     console.log('Word selected from bottom sheet:', wordId);
-    await saveVideoToWord(wordId, false);
+    
+    // Store video data before clearing
+    const videoUriToSave = recordedVideoUri;
+    const videoDurationToSave = recordedVideoDuration;
+    
+    // Close the bottom sheet immediately
+    selectWordSheetRef.current?.dismiss();
+    
+    // Navigate back to previous route immediately
+    if (previousRoute) {
+      console.log('Returning to previous route:', previousRoute);
+      router.push(previousRoute as any);
+    }
+    
+    // Clear the recorded video state
+    clearRecordedVideo();
+    
+    // Save video in background (non-blocking)
+    if (videoUriToSave && selectedChild) {
+      try {
+        console.log('Saving video to word:', wordId);
+        
+        // Show "Video saving..." toast immediately
+        setToastMessage('Video saving…');
+        setShowToastViewButton(false);
+        setSavedWordId(null);
+        setToastVisible(true);
+        
+        // Get word name for toast message
+        const { data: wordData } = await supabase
+          .from('words')
+          .select('word')
+          .eq('id', wordId)
+          .single();
+        
+        const wordName = wordData?.word || 'word';
+        
+        const videoFileName = `${selectedChild.id}/${Date.now()}.mp4`;
+        const videoFile = await FileSystem.readAsStringAsync(videoUriToSave, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        
+        const decode = (base64: string) => {
+          const binaryString = atob(base64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          return bytes;
+        };
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('video-moments')
+          .upload(videoFileName, decode(videoFile), {
+            contentType: 'video/mp4',
+          });
+
+        if (uploadError) {
+          console.error('Error uploading video:', uploadError);
+          throw uploadError;
+        }
+
+        const { data: urlData } = supabase.storage
+          .from('video-moments')
+          .getPublicUrl(videoFileName);
+
+        const { error: insertError } = await supabase
+          .from('moments')
+          .insert({
+            word_id: wordId,
+            child_id: selectedChild.id,
+            video_url: urlData.publicUrl,
+            duration: videoDurationToSave || 0,
+          });
+
+        if (insertError) {
+          console.error('Error saving moment:', insertError);
+          throw insertError;
+        }
+
+        console.log('Video saved successfully');
+        
+        // Hide the "saving" toast first
+        setToastVisible(false);
+        
+        // Wait a brief moment, then show the success toast
+        setTimeout(() => {
+          setToastMessage(`Video saved to "${wordName}"`);
+          setShowToastViewButton(true);
+          setSavedWordId(wordId);
+          setToastVisible(true);
+        }, 300);
+        
+      } catch (error) {
+        console.error('Error in handleSelectWord:', error);
+        setToastVisible(false);
+        Alert.alert('Error', 'Failed to save video');
+      }
+    }
   };
 
   const handleViewNow = () => {
