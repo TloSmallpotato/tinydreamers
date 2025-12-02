@@ -8,7 +8,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { useVideoRecording } from '@/contexts/VideoRecordingContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 interface Word {
   id: string;
@@ -35,7 +35,8 @@ interface WordDetailBottomSheetProps {
 
 const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheetProps>(
   ({ word, onClose, onRefresh }, ref) => {
-    const snapPoints = useMemo(() => ['85%'], []);
+    // Use a fixed height snap point instead of percentage
+    const snapPoints = useMemo(() => [screenHeight * 0.85], []);
     const [moments, setMoments] = useState<Moment[]>([]);
     const [loading, setLoading] = useState(false);
     const [isSpoken, setIsSpoken] = useState(false);
@@ -300,51 +301,53 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
               </TouchableOpacity>
             </View>
 
-            {moments.length === 0 ? (
-              <View style={styles.emptyState}>
-                <IconSymbol
-                  ios_icon_name="video.slash"
-                  android_material_icon_name="videocam-off"
-                  size={48}
-                  color={colors.textSecondary}
-                />
-                <Text style={styles.emptyText}>No moments yet</Text>
-                <Text style={styles.emptySubtext}>
-                  Tap the + button to record a video
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.momentsGrid}>
-                {moments.map((moment, index) => (
-                  <View key={index} style={styles.momentCard}>
-                    <View style={styles.momentThumbnail}>
-                      <IconSymbol
-                        ios_icon_name="play.circle.fill"
-                        android_material_icon_name="play-circle-filled"
-                        size={32}
-                        color={colors.backgroundAlt}
-                      />
-                    </View>
-                    <View style={styles.momentInfo}>
-                      <Text style={styles.momentDate}>
-                        {new Date(moment.created_at).toLocaleDateString()}
-                      </Text>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => handleDeleteMoment(moment)}
-                      >
+            <View style={styles.momentsContainer}>
+              {moments.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <IconSymbol
+                    ios_icon_name="video.slash"
+                    android_material_icon_name="videocam-off"
+                    size={48}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={styles.emptyText}>No moments yet</Text>
+                  <Text style={styles.emptySubtext}>
+                    Tap the + button to record a video
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.momentsGrid}>
+                  {moments.map((moment, index) => (
+                    <View key={index} style={styles.momentCard}>
+                      <View style={styles.momentThumbnail}>
                         <IconSymbol
-                          ios_icon_name="trash"
-                          android_material_icon_name="delete"
-                          size={16}
-                          color={colors.secondary}
+                          ios_icon_name="play.circle.fill"
+                          android_material_icon_name="play-circle-filled"
+                          size={32}
+                          color={colors.backgroundAlt}
                         />
-                      </TouchableOpacity>
+                      </View>
+                      <View style={styles.momentInfo}>
+                        <Text style={styles.momentDate}>
+                          {new Date(moment.created_at).toLocaleDateString()}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.deleteButton}
+                          onPress={() => handleDeleteMoment(moment)}
+                        >
+                          <IconSymbol
+                            ios_icon_name="trash"
+                            android_material_icon_name="delete"
+                            size={16}
+                            color={colors.secondary}
+                          />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
-                ))}
-              </View>
-            )}
+                  ))}
+                </View>
+              )}
+            </View>
           </View>
         </BottomSheetScrollView>
       </BottomSheetModal>
@@ -443,10 +446,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  momentsContainer: {
+    minHeight: 300,
+  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: 60,
+    minHeight: 300,
   },
   emptyText: {
     fontSize: 16,
