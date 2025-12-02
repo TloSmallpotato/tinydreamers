@@ -16,6 +16,7 @@ import ToastNotification from '@/components/ToastNotification';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as FileSystem from 'expo-file-system/legacy';
+import { generateVideoThumbnail, uploadThumbnailToSupabase } from '@/utils/videoThumbnail';
 
 interface TabItem {
   name: string;
@@ -341,6 +342,13 @@ function CustomTabBar() {
       
       const wordName = wordData?.word || 'word';
       
+      const thumbnailPath = await generateVideoThumbnail(videoUriToSave);
+      let uploadedThumbnailUrl: string | null = null;
+      
+      if (thumbnailPath) {
+        uploadedThumbnailUrl = await uploadThumbnailToSupabase(thumbnailPath, selectedChild.id, supabase);
+      }
+      
       const videoFileName = `${selectedChild.id}/${Date.now()}.mp4`;
       const videoFile = await FileSystem.readAsStringAsync(videoUriToSave, {
         encoding: FileSystem.EncodingType.Base64,
@@ -376,6 +384,7 @@ function CustomTabBar() {
           word_id: wordId,
           child_id: selectedChild.id,
           video_url: urlData.publicUrl,
+          thumbnail_url: uploadedThumbnailUrl,
           duration: videoDurationToSave,
         });
 
@@ -434,6 +443,13 @@ function CustomTabBar() {
         
         const wordName = wordData?.word || 'word';
         
+        const thumbnailPath = await generateVideoThumbnail(videoUriToSave);
+        let uploadedThumbnailUrl: string | null = null;
+        
+        if (thumbnailPath) {
+          uploadedThumbnailUrl = await uploadThumbnailToSupabase(thumbnailPath, selectedChild.id, supabase);
+        }
+        
         const videoFileName = `${selectedChild.id}/${Date.now()}.mp4`;
         const videoFile = await FileSystem.readAsStringAsync(videoUriToSave, {
           encoding: FileSystem.EncodingType.Base64,
@@ -469,6 +485,7 @@ function CustomTabBar() {
             word_id: wordId,
             child_id: selectedChild.id,
             video_url: urlData.publicUrl,
+            thumbnail_url: uploadedThumbnailUrl,
             duration: videoDurationToSave || 0,
           });
 

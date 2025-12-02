@@ -1,6 +1,6 @@
 
 import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -8,6 +8,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { useVideoRecording } from '@/contexts/VideoRecordingContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
+import { Image } from 'expo-image';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -184,6 +185,21 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
             console.error('Error deleting from storage:', storageError);
           }
         }
+        
+        if (moment.thumbnail_url) {
+          const thumbUrlParts = moment.thumbnail_url.split('/video-moments/');
+          if (thumbUrlParts.length > 1) {
+            const thumbFilePath = thumbUrlParts[1];
+            
+            const { error: thumbStorageError } = await supabase.storage
+              .from('video-moments')
+              .remove([thumbFilePath]);
+
+            if (thumbStorageError) {
+              console.error('Error deleting thumbnail from storage:', thumbStorageError);
+            }
+          }
+        }
 
         const { error: dbError } = await supabase
           .from('moments')
@@ -221,7 +237,10 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
 
     if (!word) return null;
 
-    const columnWidth = (screenWidth - 64) / 2;
+    const containerPadding = 40;
+    const columnGap = 12;
+    const availableWidth = screenWidth - containerPadding;
+    const columnWidth = (availableWidth - columnGap) / 2;
     const thumbnailHeight = columnWidth * (5 / 4);
 
     return (
@@ -319,7 +338,24 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
                           onPress={() => handlePlayVideo(moment)}
                           activeOpacity={0.8}
                         >
-                          <View style={styles.thumbnailPlaceholder}>
+                          {moment.thumbnail_url ? (
+                            <Image
+                              source={{ uri: moment.thumbnail_url }}
+                              style={styles.thumbnailImage}
+                              contentFit="cover"
+                              transition={200}
+                            />
+                          ) : (
+                            <View style={styles.thumbnailPlaceholder}>
+                              <IconSymbol
+                                ios_icon_name="play.circle.fill"
+                                android_material_icon_name="play-circle-filled"
+                                size={48}
+                                color={colors.backgroundAlt}
+                              />
+                            </View>
+                          )}
+                          <View style={styles.playOverlay}>
                             <IconSymbol
                               ios_icon_name="play.circle.fill"
                               android_material_icon_name="play-circle-filled"
@@ -489,11 +525,20 @@ const styles = StyleSheet.create({
   momentThumbnail: {
     width: '100%',
     backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
     position: 'relative',
+    overflow: 'hidden',
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
   },
   thumbnailPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+  },
+  playOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
