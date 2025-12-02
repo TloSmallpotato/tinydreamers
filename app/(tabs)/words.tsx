@@ -139,21 +139,24 @@ export default function WordsScreen() {
     }
   };
 
-  const handleWordPress = (word: Word) => {
+  const handleWordPress = useCallback((word: Word) => {
     console.log('Word pressed:', word.word);
     setSelectedWord(word);
-    // Present immediately without setTimeout
-    wordDetailSheetRef.current?.present();
-  };
+    // Use requestAnimationFrame to ensure the state is set before presenting
+    requestAnimationFrame(() => {
+      wordDetailSheetRef.current?.present();
+    });
+  }, []);
 
   const handleOpenAddWord = () => {
     console.log('Opening add word bottom sheet');
     addWordSheetRef.current?.present();
   };
 
-  const handleCloseWordDetail = () => {
+  const handleCloseWordDetail = useCallback(() => {
+    console.log('Closing word detail');
     setSelectedWord(null);
-  };
+  }, []);
 
   const groupedWords = groupWordsByLetter(words);
   const sortedLetters = Object.keys(groupedWords).sort();
@@ -222,10 +225,10 @@ export default function WordsScreen() {
                       onPress={() => handleWordPress(word)}
                       activeOpacity={0.7}
                     >
-                      <View style={styles.wordIcon}>
+                      <View style={styles.wordIcon} pointerEvents="none">
                         <Text style={styles.wordEmoji}>{word.emoji}</Text>
                       </View>
-                      <Text style={styles.wordText}>{word.word}</Text>
+                      <Text style={styles.wordText} pointerEvents="none">{word.word}</Text>
                       <View style={styles.wordActions} pointerEvents="none">
                         {word.is_spoken && (
                           <View style={styles.statusIndicator}>
