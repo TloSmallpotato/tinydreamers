@@ -41,7 +41,6 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
     const [loading, setLoading] = useState(false);
     const [isSpoken, setIsSpoken] = useState(false);
     const [isRecognised, setIsRecognised] = useState(false);
-    const [isRecorded, setIsRecorded] = useState(false);
     
     const { setTargetWord, setIsRecordingFromWordDetail } = useVideoRecording();
     const { triggerCamera } = useCameraTrigger();
@@ -63,6 +62,16 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
         }
 
         setMoments(data || []);
+        
+        // Automatically update "Recorded" status based on moments
+        const hasMoments = data && data.length > 0;
+        if (hasMoments && !word.is_recorded) {
+          console.log('Auto-updating word to recorded status');
+          await updateWordStatus('is_recorded', true);
+        } else if (!hasMoments && word.is_recorded) {
+          console.log('Auto-updating word to not recorded status');
+          await updateWordStatus('is_recorded', false);
+        }
       } catch (error) {
         console.error('Error in fetchMoments:', error);
         Alert.alert('Error', 'Failed to load videos');
@@ -75,7 +84,6 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       if (word) {
         setIsSpoken(word.is_spoken);
         setIsRecognised(word.is_recognised);
-        setIsRecorded(word.is_recorded);
         fetchMoments();
       }
     }, [word, fetchMoments]);
@@ -111,12 +119,6 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       const newValue = !isRecognised;
       setIsRecognised(newValue);
       await updateWordStatus('is_recognised', newValue);
-    };
-
-    const toggleRecorded = async () => {
-      const newValue = !isRecorded;
-      setIsRecorded(newValue);
-      await updateWordStatus('is_recorded', newValue);
     };
 
     const handleOpenCamera = () => {
@@ -190,7 +192,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
 
         console.log('Moment deleted successfully');
         
-        // Refresh the moments list
+        // Refresh the moments list (this will also auto-update recorded status)
         await fetchMoments();
         
         Alert.alert('Success', 'Video deleted successfully');
@@ -268,21 +270,6 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
                 />
                 <Text style={[styles.statusText, isRecognised && styles.statusTextActive]}>
                   Recognised
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.statusButton, isRecorded && styles.statusButtonActive]}
-                onPress={toggleRecorded}
-              >
-                <IconSymbol
-                  ios_icon_name="video"
-                  android_material_icon_name="videocam"
-                  size={24}
-                  color={isRecorded ? colors.backgroundAlt : colors.primary}
-                />
-                <Text style={[styles.statusText, isRecorded && styles.statusTextActive]}>
-                  Recorded
                 </Text>
               </TouchableOpacity>
             </View>

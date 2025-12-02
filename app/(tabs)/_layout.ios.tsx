@@ -735,6 +735,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 0,
+    marginTop: -4,
   },
   tabIconPlaceholder: {
     width: 56,
