@@ -142,6 +142,7 @@ export default function WordsScreen() {
   const handleWordPress = (word: Word) => {
     console.log('Word pressed:', word.word);
     setSelectedWord(word);
+    // Present immediately without setTimeout
     wordDetailSheetRef.current?.present();
   };
 
@@ -221,7 +222,7 @@ export default function WordsScreen() {
                       onPress={() => handleWordPress(word)}
                       activeOpacity={0.7}
                     >
-                      <View style={styles.wordIcon} pointerEvents="none">
+                      <View style={styles.wordIcon}>
                         <Text style={styles.wordEmoji}>{word.emoji}</Text>
                       </View>
                       <Text style={styles.wordText}>{word.word}</Text>
