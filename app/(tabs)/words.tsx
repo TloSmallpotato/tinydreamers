@@ -142,6 +142,7 @@ export default function WordsScreen() {
   const handleWordPress = (word: Word) => {
     console.log('Word pressed:', word.word);
     setSelectedWord(word);
+    // Present immediately without setTimeout
     wordDetailSheetRef.current?.present();
   };
 
@@ -225,7 +226,7 @@ export default function WordsScreen() {
                         <Text style={styles.wordEmoji}>{word.emoji}</Text>
                       </View>
                       <Text style={styles.wordText}>{word.word}</Text>
-                      <View style={styles.wordActions}>
+                      <View style={styles.wordActions} pointerEvents="none">
                         {word.is_spoken && (
                           <View style={styles.statusIndicator}>
                             <IconSymbol 
