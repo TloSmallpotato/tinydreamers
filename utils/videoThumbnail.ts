@@ -1,5 +1,5 @@
 
-import { createVideoPlayer } from 'expo-video';
+import { Video } from 'expo-av';
 import { File, Directory, Paths } from 'expo-file-system';
 
 /**
@@ -9,65 +9,17 @@ import { File, Directory, Paths } from 'expo-file-system';
  * @returns The URI of the saved thumbnail, or null if generation failed
  */
 export async function generateVideoThumbnail(videoUri: string): Promise<string | null> {
-  let player: any = null;
-  
   try {
     console.log('[Thumbnail] Starting generation for video:', videoUri);
     
-    // Create a video player instance
-    player = createVideoPlayer(videoUri);
-    
-    // Wait for the player to be ready
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Timeout waiting for video to be ready'));
-      }, 10000);
-      
-      const checkStatus = () => {
-        if (player.status === 'readyToPlay') {
-          clearTimeout(timeout);
-          console.log('[Thumbnail] Player ready');
-          resolve();
-        } else if (player.status === 'error') {
-          clearTimeout(timeout);
-          reject(new Error('Video player error'));
-        } else {
-          setTimeout(checkStatus, 100);
-        }
-      };
-      checkStatus();
-    });
-    
-    // Generate thumbnail at the first frame (0 seconds)
-    console.log('[Thumbnail] Generating thumbnail at time 0');
-    const thumbnails = await player.generateThumbnailsAsync([0], {
+    // Generate thumbnail using expo-av's Video.createThumbnailAsync
+    // This returns an actual file URI
+    const { uri: tempThumbnailUri } = await Video.createThumbnailAsync(videoUri, {
+      time: 0, // Get thumbnail from the first frame (0 milliseconds)
       quality: 0.8,
     });
     
-    if (!thumbnails || thumbnails.length === 0) {
-      console.warn('[Thumbnail] No thumbnails generated');
-      return null;
-    }
-    
-    const thumbnail = thumbnails[0];
-    console.log('[Thumbnail] Thumbnail object received:', thumbnail);
-    
-    // Get the URI from the thumbnail object
-    // The thumbnail is a VideoThumbnail instance with a getUri() method
-    let tempUri: string;
-    
-    if (typeof thumbnail === 'string') {
-      tempUri = thumbnail;
-    } else if (thumbnail && typeof thumbnail.getUri === 'function') {
-      tempUri = thumbnail.getUri();
-    } else if (thumbnail && typeof thumbnail === 'object' && 'uri' in thumbnail) {
-      tempUri = (thumbnail as any).uri;
-    } else {
-      console.error('[Thumbnail] Could not extract URI from thumbnail:', thumbnail);
-      return null;
-    }
-    
-    console.log('[Thumbnail] Temporary URI:', tempUri);
+    console.log('[Thumbnail] Temporary thumbnail generated:', tempThumbnailUri);
     
     // Create thumbnails directory in document storage (persistent)
     const thumbnailsDir = new Directory(Paths.document, 'thumbnails');
@@ -83,10 +35,10 @@ export async function generateVideoThumbnail(videoUri: string): Promise<string |
     console.log('[Thumbnail] Target persistent path:', persistentFile.uri);
     
     // Copy the temporary thumbnail to persistent storage
-    const tempFile = new File(tempUri);
+    const tempFile = new File(tempThumbnailUri);
     
     if (!tempFile.exists) {
-      console.error('[Thumbnail] Temporary file does not exist:', tempUri);
+      console.error('[Thumbnail] Temporary file does not exist:', tempThumbnailUri);
       return null;
     }
     
@@ -102,21 +54,19 @@ export async function generateVideoThumbnail(videoUri: string): Promise<string |
     console.log('[Thumbnail] Successfully saved to:', persistentFile.uri);
     console.log('[Thumbnail] File size:', persistentFile.size, 'bytes');
     
+    // Clean up the temporary file
+    try {
+      tempFile.delete();
+      console.log('[Thumbnail] Cleaned up temporary file');
+    } catch (cleanupError) {
+      console.warn('[Thumbnail] Could not delete temporary file:', cleanupError);
+    }
+    
     return persistentFile.uri;
     
   } catch (error) {
     console.error('[Thumbnail] Error generating thumbnail:', error);
     return null;
-  } finally {
-    // Always release the player to prevent memory leaks
-    if (player) {
-      try {
-        console.log('[Thumbnail] Releasing player');
-        player.release();
-      } catch (releaseError) {
-        console.error('[Thumbnail] Error releasing player:', releaseError);
-      }
-    }
   }
 }
 
