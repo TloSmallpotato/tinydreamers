@@ -1,12 +1,13 @@
 
 import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Image } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useVideoRecording } from '@/contexts/VideoRecordingContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
+import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -35,12 +36,13 @@ interface WordDetailBottomSheetProps {
 
 const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheetProps>(
   ({ word, onClose, onRefresh }, ref) => {
-    // Use a fixed height snap point instead of percentage
     const snapPoints = useMemo(() => [screenHeight * 0.85], []);
     const [moments, setMoments] = useState<Moment[]>([]);
     const [loading, setLoading] = useState(false);
     const [isSpoken, setIsSpoken] = useState(false);
     const [isRecognised, setIsRecognised] = useState(false);
+    const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
+    const [showVideoPlayer, setShowVideoPlayer] = useState(false);
     
     const { setTargetWord, setIsRecordingFromWordDetail } = useVideoRecording();
     const { triggerCamera } = useCameraTrigger();
@@ -63,7 +65,6 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
 
         setMoments(data || []);
         
-        // Automatically update "Recorded" status based on moments
         const hasMoments = data && data.length > 0;
         if (hasMoments && !word.is_recorded) {
           console.log('Auto-updating word to recorded status');
@@ -126,17 +127,25 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       
       console.log('Opening camera from word detail for word:', word.id);
       
-      // Set the target word and flag for Method 2
       setTargetWord(word.id);
       setIsRecordingFromWordDetail(true);
       
-      // Dismiss the bottom sheet
       if (ref && typeof ref !== 'function' && ref.current) {
         ref.current.dismiss();
       }
       
-      // Trigger the camera opening
       triggerCamera();
+    };
+
+    const handlePlayVideo = (moment: Moment) => {
+      console.log('Playing video:', moment.video_url);
+      setSelectedVideoUri(moment.video_url);
+      setShowVideoPlayer(true);
+    };
+
+    const handleCloseVideoPlayer = () => {
+      setShowVideoPlayer(false);
+      setSelectedVideoUri(null);
     };
 
     const handleDeleteMoment = (moment: Moment) => {
@@ -163,23 +172,19 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       try {
         console.log('Deleting moment:', moment.id);
         
-        // Extract the file path from the video URL
         const urlParts = moment.video_url.split('/video-moments/');
         if (urlParts.length > 1) {
           const filePath = urlParts[1];
           
-          // Delete from storage
           const { error: storageError } = await supabase.storage
             .from('video-moments')
             .remove([filePath]);
 
           if (storageError) {
             console.error('Error deleting from storage:', storageError);
-            // Continue even if storage deletion fails
           }
         }
 
-        // Delete from database
         const { error: dbError } = await supabase
           .from('moments')
           .delete()
@@ -192,7 +197,6 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
 
         console.log('Moment deleted successfully');
         
-        // Refresh the moments list (this will also auto-update recorded status)
         await fetchMoments();
         
         Alert.alert('Success', 'Video deleted successfully');
@@ -217,127 +221,146 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
 
     if (!word) return null;
 
+    const columnWidth = (screenWidth - 64) / 2;
+    const thumbnailHeight = columnWidth * (5 / 4);
+
     return (
-      <BottomSheetModal
-        ref={ref}
-        index={0}
-        snapPoints={snapPoints}
-        enablePanDownToClose={true}
-        enableDismissOnClose={true}
-        backdropComponent={renderBackdrop}
-        backgroundStyle={styles.bottomSheetBackground}
-        handleIndicatorStyle={styles.handleIndicator}
-        onDismiss={onClose}
-      >
-        <BottomSheetScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={styles.contentContainer}
+      <>
+        <BottomSheetModal
+          ref={ref}
+          index={0}
+          snapPoints={snapPoints}
+          enablePanDownToClose={true}
+          enableDismissOnClose={true}
+          backdropComponent={renderBackdrop}
+          backgroundStyle={styles.bottomSheetBackground}
+          handleIndicatorStyle={styles.handleIndicator}
+          onDismiss={onClose}
         >
-          <View style={[styles.wordHeader, { backgroundColor: word.color }]}>
-            <View style={styles.wordIcon}>
-              <Text style={styles.wordEmoji}>{word.emoji}</Text>
-            </View>
-            <Text style={styles.wordTitle}>{word.word}</Text>
-          </View>
-
-          <View style={styles.statusSection}>
-            <Text style={styles.sectionTitle}>Status</Text>
-            <View style={styles.statusGrid}>
-              <TouchableOpacity
-                style={[styles.statusButton, isSpoken && styles.statusButtonActive]}
-                onPress={toggleSpoken}
-              >
-                <IconSymbol
-                  ios_icon_name="speaker.wave.2"
-                  android_material_icon_name="volume-up"
-                  size={24}
-                  color={isSpoken ? colors.backgroundAlt : colors.primary}
-                />
-                <Text style={[styles.statusText, isSpoken && styles.statusTextActive]}>
-                  Spoken
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.statusButton, isRecognised && styles.statusButtonActive]}
-                onPress={toggleRecognised}
-              >
-                <IconSymbol
-                  ios_icon_name="eye"
-                  android_material_icon_name="visibility"
-                  size={24}
-                  color={isRecognised ? colors.backgroundAlt : colors.primary}
-                />
-                <Text style={[styles.statusText, isRecognised && styles.statusTextActive]}>
-                  Recognised
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.momentsSection}>
-            <View style={styles.momentsHeader}>
-              <Text style={styles.sectionTitle}>Moments ({moments.length})</Text>
-              <TouchableOpacity style={styles.addMomentButton} onPress={handleOpenCamera}>
-                <IconSymbol
-                  ios_icon_name="plus"
-                  android_material_icon_name="add"
-                  size={20}
-                  color={colors.backgroundAlt}
-                />
-              </TouchableOpacity>
+          <BottomSheetScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.contentContainer}
+          >
+            <View style={[styles.wordHeader, { backgroundColor: word.color }]}>
+              <View style={styles.wordIcon}>
+                <Text style={styles.wordEmoji}>{word.emoji}</Text>
+              </View>
+              <Text style={styles.wordTitle}>{word.word}</Text>
             </View>
 
-            <View style={styles.momentsContainer}>
-              {moments.length === 0 ? (
-                <View style={styles.emptyState}>
+            <View style={styles.statusSection}>
+              <Text style={styles.sectionTitle}>Status</Text>
+              <View style={styles.statusGrid}>
+                <TouchableOpacity
+                  style={[styles.statusButton, isSpoken && styles.statusButtonActive]}
+                  onPress={toggleSpoken}
+                >
                   <IconSymbol
-                    ios_icon_name="video.slash"
-                    android_material_icon_name="videocam-off"
-                    size={48}
-                    color={colors.textSecondary}
+                    ios_icon_name="speaker.wave.2"
+                    android_material_icon_name="volume-up"
+                    size={24}
+                    color={isSpoken ? colors.backgroundAlt : colors.primary}
                   />
-                  <Text style={styles.emptyText}>No moments yet</Text>
-                  <Text style={styles.emptySubtext}>
-                    Tap the + button to record a video
+                  <Text style={[styles.statusText, isSpoken && styles.statusTextActive]}>
+                    Spoken
                   </Text>
-                </View>
-              ) : (
-                <View style={styles.momentsGrid}>
-                  {moments.map((moment, index) => (
-                    <View key={index} style={styles.momentCard}>
-                      <View style={styles.momentThumbnail}>
-                        <IconSymbol
-                          ios_icon_name="play.circle.fill"
-                          android_material_icon_name="play-circle-filled"
-                          size={32}
-                          color={colors.backgroundAlt}
-                        />
-                      </View>
-                      <View style={styles.momentInfo}>
-                        <Text style={styles.momentDate}>
-                          {new Date(moment.created_at).toLocaleDateString()}
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.deleteButton}
-                          onPress={() => handleDeleteMoment(moment)}
-                        >
-                          <IconSymbol
-                            ios_icon_name="trash"
-                            android_material_icon_name="delete"
-                            size={16}
-                            color={colors.secondary}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.statusButton, isRecognised && styles.statusButtonActive]}
+                  onPress={toggleRecognised}
+                >
+                  <IconSymbol
+                    ios_icon_name="eye"
+                    android_material_icon_name="visibility"
+                    size={24}
+                    color={isRecognised ? colors.backgroundAlt : colors.primary}
+                  />
+                  <Text style={[styles.statusText, isRecognised && styles.statusTextActive]}>
+                    Recognised
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </BottomSheetScrollView>
-      </BottomSheetModal>
+
+            <View style={styles.momentsSection}>
+              <View style={styles.momentsHeader}>
+                <Text style={styles.sectionTitle}>Moments ({moments.length})</Text>
+                <TouchableOpacity style={styles.addMomentButton} onPress={handleOpenCamera}>
+                  <IconSymbol
+                    ios_icon_name="plus"
+                    android_material_icon_name="add"
+                    size={20}
+                    color={colors.backgroundAlt}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.momentsContainer}>
+                {moments.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <IconSymbol
+                      ios_icon_name="video.slash"
+                      android_material_icon_name="videocam-off"
+                      size={48}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={styles.emptyText}>No moments yet</Text>
+                    <Text style={styles.emptySubtext}>
+                      Tap the + button to record a video
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.momentsGrid}>
+                    {moments.map((moment, index) => (
+                      <View key={index} style={[styles.momentCard, { width: columnWidth }]}>
+                        <TouchableOpacity
+                          style={[styles.momentThumbnail, { height: thumbnailHeight }]}
+                          onPress={() => handlePlayVideo(moment)}
+                          activeOpacity={0.8}
+                        >
+                          <View style={styles.thumbnailPlaceholder}>
+                            <IconSymbol
+                              ios_icon_name="play.circle.fill"
+                              android_material_icon_name="play-circle-filled"
+                              size={48}
+                              color={colors.backgroundAlt}
+                            />
+                          </View>
+                        </TouchableOpacity>
+                        <View style={styles.momentInfo}>
+                          <Text style={styles.momentDate}>
+                            {new Date(moment.created_at).toLocaleDateString()}
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.deleteButton}
+                            onPress={() => handleDeleteMoment(moment)}
+                          >
+                            <IconSymbol
+                              ios_icon_name="trash"
+                              android_material_icon_name="delete"
+                              size={16}
+                              color={colors.secondary}
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+          </BottomSheetScrollView>
+        </BottomSheetModal>
+
+        {selectedVideoUri && (
+          <FullScreenVideoPlayer
+            visible={showVideoPlayer}
+            videoUri={selectedVideoUri}
+            onClose={handleCloseVideoPlayer}
+          />
+        )}
+      </>
     );
   }
 );
@@ -459,16 +482,22 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   momentCard: {
-    width: (screenWidth - 64) / 3,
     backgroundColor: colors.background,
     borderRadius: 12,
     overflow: 'hidden',
   },
   momentThumbnail: {
-    aspectRatio: 1,
+    width: '100%',
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  thumbnailPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   momentInfo: {
     flexDirection: 'row',

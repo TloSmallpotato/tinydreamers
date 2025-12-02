@@ -103,13 +103,11 @@ function CustomTabBar() {
   const [words, setWords] = useState<any[]>([]);
   const selectWordSheetRef = useRef<BottomSheetModal>(null);
 
-  // Toast notification state
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [showToastViewButton, setShowToastViewButton] = useState(false);
   const [savedWordId, setSavedWordId] = useState<string | null>(null);
 
-  // Track the current route before opening camera
   useEffect(() => {
     if (!showCamera && !recordedVideoUri) {
       setPreviousRoute(pathname);
@@ -153,7 +151,6 @@ function CustomTabBar() {
     setRecordingTime(0);
   }, [cameraPermission, requestCameraPermission]);
 
-  // Listen for camera trigger from WordDetailBottomSheet
   useEffect(() => {
     if (shouldOpenCamera) {
       console.log('Camera trigger detected from WordDetailBottomSheet');
@@ -283,22 +280,17 @@ function CustomTabBar() {
     console.log('targetWordId:', targetWordId);
     
     if (isRecordingFromWordDetail && targetWordId) {
-      // Method 2: Exit immediately and save in background
       console.log('Method 2: Exiting preview and saving video in background');
       
-      // Navigate back to previous route immediately
       if (previousRoute) {
         console.log('Returning to previous route:', previousRoute);
         router.push(previousRoute as any);
       }
       
-      // Clear the video preview
       clearRecordedVideo();
       
-      // Save video in background (non-blocking)
       saveVideoToWord(targetWordId, true);
     } else {
-      // Method 1: Show word selection bottom sheet
       console.log('Method 1: Showing word selection bottom sheet');
       await fetchWords();
       selectWordSheetRef.current?.present();
@@ -316,20 +308,17 @@ function CustomTabBar() {
       return;
     }
 
-    // Store video URI locally before clearing
     const videoUriToSave = recordedVideoUri;
     const videoDurationToSave = recordedVideoDuration || 0;
 
     try {
       console.log('Saving video to word:', wordId);
       
-      // Show "Video saving..." toast immediately
       setToastMessage('Video saving…');
       setShowToastViewButton(false);
       setSavedWordId(null);
       setToastVisible(true);
       
-      // Get word name for toast message
       const { data: wordData } = await supabase
         .from('words')
         .select('word')
@@ -383,10 +372,8 @@ function CustomTabBar() {
 
       console.log('Video saved successfully');
       
-      // Hide the "saving" toast first
       setToastVisible(false);
       
-      // Wait a brief moment, then show the success toast
       setTimeout(() => {
         setToastMessage(`Video saved to "${wordName}"`);
         setShowToastViewButton(true);
@@ -404,34 +391,27 @@ function CustomTabBar() {
   const handleSelectWord = async (wordId: string) => {
     console.log('Word selected from bottom sheet:', wordId);
     
-    // Store video data before clearing
     const videoUriToSave = recordedVideoUri;
     const videoDurationToSave = recordedVideoDuration;
     
-    // Close the bottom sheet immediately
     selectWordSheetRef.current?.dismiss();
     
-    // Navigate back to previous route immediately
     if (previousRoute) {
       console.log('Returning to previous route:', previousRoute);
       router.push(previousRoute as any);
     }
     
-    // Clear the recorded video state
     clearRecordedVideo();
     
-    // Save video in background (non-blocking)
     if (videoUriToSave && selectedChild) {
       try {
         console.log('Saving video to word:', wordId);
         
-        // Show "Video saving..." toast immediately
         setToastMessage('Video saving…');
         setShowToastViewButton(false);
         setSavedWordId(null);
         setToastVisible(true);
         
-        // Get word name for toast message
         const { data: wordData } = await supabase
           .from('words')
           .select('word')
@@ -485,10 +465,8 @@ function CustomTabBar() {
 
         console.log('Video saved successfully');
         
-        // Hide the "saving" toast first
         setToastVisible(false);
         
-        // Wait a brief moment, then show the success toast
         setTimeout(() => {
           setToastMessage(`Video saved to "${wordName}"`);
           setShowToastViewButton(true);
@@ -507,7 +485,6 @@ function CustomTabBar() {
   const handleViewNow = () => {
     console.log('View now pressed for word:', savedWordId);
     
-    // Set the target word to open and navigate to words page
     if (savedWordId) {
       setTargetWordIdToOpen(savedWordId);
       router.push('/(tabs)/words');
@@ -735,7 +712,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 0,
-    marginTop: -4,
+    marginTop: -12,
   },
   tabIconPlaceholder: {
     width: 56,
