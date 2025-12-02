@@ -769,7 +769,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
     color: colors.tabIconInactive,
-    marginTop: 0,
+    marginTop: -10,
   },
   tabLabelActive: {
     color: '#000000',
