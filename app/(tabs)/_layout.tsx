@@ -748,7 +748,7 @@ const styles = StyleSheet.create({
   tabItemContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    gap: 0,
   },
   tabButton: {
     width: 56,
@@ -769,10 +769,10 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
     color: colors.tabIconInactive,
-    marginTop: 2,
+    marginTop: 0,
   },
   tabLabelActive: {
-    color: colors.tabIconActive,
+    color: '#000000',
     fontWeight: '600',
   },
   addButtonWrapper: {
