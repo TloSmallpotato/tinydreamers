@@ -29,7 +29,8 @@ export async function generateVideoThumbnail(videoUri: string): Promise<string |
       checkStatus();
     });
     
-    const thumbnails = await player.generateThumbnailsAsync([0.5], {
+    // Generate thumbnail at the first frame (0 seconds = 0% of video duration)
+    const thumbnails = await player.generateThumbnailsAsync([0], {
       quality: 0.8,
     });
     
@@ -37,8 +38,17 @@ export async function generateVideoThumbnail(videoUri: string): Promise<string |
       const thumbnail = thumbnails[0];
       console.log('Thumbnail generated successfully:', thumbnail);
       
+      // The thumbnail object contains the actual image data
+      // We need to save it to a file
       const thumbnailFileName = `${Date.now()}_thumb.jpg`;
       const thumbnailPath = `${FileSystem.cacheDirectory}${thumbnailFileName}`;
+      
+      // The thumbnail from expo-video is already a file URI, so we can use it directly
+      if (thumbnail && typeof thumbnail === 'string') {
+        return thumbnail;
+      } else if (thumbnail && typeof thumbnail === 'object' && 'uri' in thumbnail) {
+        return (thumbnail as any).uri;
+      }
       
       return thumbnailPath;
     }
