@@ -16,7 +16,7 @@ import VideoPreviewModal from '@/components/VideoPreviewModal';
 import ToastNotification from '@/components/ToastNotification';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { supabase } from '@/app/integrations/supabase/client';
-import * as FileSystem from 'expo-file-system/legacy';
+import { File } from 'expo-file-system';
 import { generateVideoThumbnail, uploadThumbnailToSupabase } from '@/utils/videoThumbnail';
 
 interface TabItem {
@@ -333,29 +333,27 @@ function CustomTabBar() {
       let uploadedThumbnailUrl: string | null = null;
       
       if (thumbnailPath) {
-        console.log('Thumbnail generated, uploading to Supabase...');
+        console.log('Thumbnail generated successfully, uploading to Supabase...');
         uploadedThumbnailUrl = await uploadThumbnailToSupabase(thumbnailPath, selectedChild.id, supabase);
       } else {
         console.warn('Failed to generate thumbnail');
       }
       
+      // Upload video using the new File API
       const videoFileName = `${selectedChild.id}/${Date.now()}.mp4`;
-      const videoFile = await FileSystem.readAsStringAsync(videoUriToSave, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      const videoFile = new File(videoUriToSave);
       
-      const decode = (base64: string) => {
-        const binaryString = atob(base64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        return bytes;
-      };
+      if (!videoFile.exists) {
+        throw new Error('Video file does not exist');
+      }
       
+      // Read the video file as bytes
+      const videoBytes = await videoFile.bytes();
+      
+      // Upload directly to Supabase without Base64 conversion
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('video-moments')
-        .upload(videoFileName, decode(videoFile), {
+        .upload(videoFileName, videoBytes, {
           contentType: 'video/mp4',
         });
 
@@ -438,29 +436,27 @@ function CustomTabBar() {
         let uploadedThumbnailUrl: string | null = null;
         
         if (thumbnailPath) {
-          console.log('Thumbnail generated, uploading to Supabase...');
+          console.log('Thumbnail generated successfully, uploading to Supabase...');
           uploadedThumbnailUrl = await uploadThumbnailToSupabase(thumbnailPath, selectedChild.id, supabase);
         } else {
           console.warn('Failed to generate thumbnail');
         }
         
+        // Upload video using the new File API
         const videoFileName = `${selectedChild.id}/${Date.now()}.mp4`;
-        const videoFile = await FileSystem.readAsStringAsync(videoUriToSave, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        const videoFile = new File(videoUriToSave);
         
-        const decode = (base64: string) => {
-          const binaryString = atob(base64);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          return bytes;
-        };
+        if (!videoFile.exists) {
+          throw new Error('Video file does not exist');
+        }
         
+        // Read the video file as bytes
+        const videoBytes = await videoFile.bytes();
+        
+        // Upload directly to Supabase without Base64 conversion
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('video-moments')
-          .upload(videoFileName, decode(videoFile), {
+          .upload(videoFileName, videoBytes, {
             contentType: 'video/mp4',
           });
 
