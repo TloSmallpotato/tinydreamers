@@ -19,6 +19,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 interface TabItem {
   name: string;
+  label: string;
   route: string;
   iosIcon: string;
   androidIcon: string;
@@ -31,6 +32,7 @@ interface TabItem {
 const tabs: TabItem[] = [
   {
     name: 'books',
+    label: 'Books',
     route: '/(tabs)/books',
     iosIcon: 'book.fill',
     androidIcon: 'menu-book',
@@ -40,6 +42,7 @@ const tabs: TabItem[] = [
   },
   {
     name: 'words',
+    label: 'Words',
     route: '/(tabs)/words',
     iosIcon: 'text.bubble.fill',
     androidIcon: 'chat-bubble',
@@ -49,6 +52,7 @@ const tabs: TabItem[] = [
   },
   {
     name: 'add',
+    label: 'Add',
     route: '/(tabs)/add',
     iosIcon: 'plus',
     androidIcon: 'add',
@@ -57,6 +61,7 @@ const tabs: TabItem[] = [
   },
   {
     name: 'play',
+    label: 'Play',
     route: '/(tabs)/play',
     iosIcon: 'play.circle.fill',
     androidIcon: 'sports-esports',
@@ -66,6 +71,7 @@ const tabs: TabItem[] = [
   },
   {
     name: 'profile',
+    label: 'Profile',
     route: '/(tabs)/profile',
     iosIcon: 'face.smiling.fill',
     androidIcon: 'mood',
@@ -637,27 +643,39 @@ function CustomTabBar() {
             return (
               <TouchableOpacity
                 key={index}
-                style={[
-                  styles.tabButton,
-                  isActive && styles.tabButtonActive,
-                ]}
+                style={styles.tabItemContainer}
                 onPress={() => handleTabPress(tab, index)}
                 activeOpacity={0.8}
               >
-                {tab.iconDefault && tab.iconSelected ? (
-                  <Image
-                    source={isActive ? tab.iconSelected : tab.iconDefault}
-                    style={styles.tabIcon}
-                    resizeMode="contain"
-                  />
-                ) : (
-                  <IconSymbol
-                    ios_icon_name={tab.iosIcon}
-                    android_material_icon_name={tab.androidIcon}
-                    size={24}
-                    color={isActive ? colors.tabIconActive : colors.tabIconInactive}
-                  />
-                )}
+                <View
+                  style={[
+                    styles.tabButton,
+                    isActive && styles.tabButtonActive,
+                  ]}
+                >
+                  {tab.iconDefault && tab.iconSelected ? (
+                    <Image
+                      source={isActive ? tab.iconSelected : tab.iconDefault}
+                      style={styles.tabIcon}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <IconSymbol
+                      ios_icon_name={tab.iosIcon}
+                      android_material_icon_name={tab.androidIcon}
+                      size={24}
+                      color={isActive ? colors.tabIconActive : colors.tabIconInactive}
+                    />
+                  )}
+                </View>
+                <Text 
+                  style={[
+                    styles.tabLabel,
+                    isActive && styles.tabLabelActive
+                  ]}
+                >
+                  {tab.label}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -725,7 +743,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
     elevation: 8,
-    height: 72,
+    height: 80,
+  },
+  tabItemContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
   },
   tabButton: {
     width: 56,
@@ -741,6 +764,16 @@ const styles = StyleSheet.create({
   tabIcon: {
     width: 24,
     height: 24,
+  },
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: colors.tabIconInactive,
+    marginTop: 2,
+  },
+  tabLabelActive: {
+    color: colors.tabIconActive,
+    fontWeight: '600',
   },
   addButtonWrapper: {
     marginTop: -24,

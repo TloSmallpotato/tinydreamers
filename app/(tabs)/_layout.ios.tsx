@@ -20,6 +20,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 interface TabItem {
   name: string;
+  label: string;
   iosIcon: string;
   androidIcon: string;
   materialIcon?: keyof typeof MaterialIcons.glyphMap;
@@ -31,6 +32,7 @@ interface TabItem {
 const tabs: TabItem[] = [
   {
     name: 'books',
+    label: 'Books',
     iosIcon: 'book.fill',
     androidIcon: 'menu-book',
     materialIcon: 'menu-book',
@@ -39,6 +41,7 @@ const tabs: TabItem[] = [
   },
   {
     name: 'words',
+    label: 'Words',
     iosIcon: 'text.bubble.fill',
     androidIcon: 'chat-bubble',
     materialIcon: 'chat-bubble',
@@ -47,6 +50,7 @@ const tabs: TabItem[] = [
   },
   {
     name: 'add',
+    label: 'Add',
     iosIcon: 'plus',
     androidIcon: 'add',
     materialIcon: 'add',
@@ -54,6 +58,7 @@ const tabs: TabItem[] = [
   },
   {
     name: 'play',
+    label: 'Play',
     iosIcon: 'play.circle.fill',
     androidIcon: 'sports-esports',
     materialIcon: 'sports-esports',
@@ -62,6 +67,7 @@ const tabs: TabItem[] = [
   },
   {
     name: 'profile',
+    label: 'Profile',
     iosIcon: 'face.smiling.fill',
     androidIcon: 'mood',
     materialIcon: 'mood',
@@ -620,14 +626,24 @@ function CustomTabBar() {
             }
 
             return (
-              <View key={index} style={styles.tabIconPlaceholder} pointerEvents="none">
-                {tab.iconDefault && tab.iconSelected ? (
-                  <Image
-                    source={isActive ? tab.iconSelected : tab.iconDefault}
-                    style={styles.tabIcon}
-                    resizeMode="contain"
-                  />
-                ) : null}
+              <View key={index} style={styles.tabItemContainer} pointerEvents="none">
+                <View style={styles.tabIconPlaceholder} pointerEvents="none">
+                  {tab.iconDefault && tab.iconSelected ? (
+                    <Image
+                      source={isActive ? tab.iconSelected : tab.iconDefault}
+                      style={styles.tabIcon}
+                      resizeMode="contain"
+                    />
+                  ) : null}
+                </View>
+                <Text 
+                  style={[
+                    styles.tabLabel,
+                    isActive && styles.tabLabelActive
+                  ]}
+                >
+                  {tab.label}
+                </Text>
               </View>
             );
           })}
@@ -713,7 +729,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
     elevation: 8,
-    height: 72,
+    height: 80,
+  },
+  tabItemContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
   },
   tabIconPlaceholder: {
     width: 56,
@@ -726,6 +747,16 @@ const styles = StyleSheet.create({
   tabIcon: {
     width: 24,
     height: 24,
+  },
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: colors.tabIconInactive,
+    marginTop: 2,
+  },
+  tabLabelActive: {
+    color: colors.tabIconActive,
+    fontWeight: '600',
   },
   addButtonWrapper: {
     marginTop: -24,
