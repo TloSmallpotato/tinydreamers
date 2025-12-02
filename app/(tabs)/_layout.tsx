@@ -15,8 +15,7 @@ import VideoPreviewModal from '@/components/VideoPreviewModal';
 import ToastNotification from '@/components/ToastNotification';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { supabase } from '@/app/integrations/supabase/client';
-import { File } from 'expo-file-system';
-import { generateVideoThumbnail, uploadThumbnailToSupabase } from '@/utils/videoThumbnail';
+import { generateVideoThumbnail, uploadThumbnailToSupabase, uploadVideoToSupabase } from '@/utils/videoThumbnail';
 
 interface TabItem {
   name: string;
@@ -327,13 +326,17 @@ function CustomTabBar() {
     const videoDurationToSave = recordedVideoDuration || 0;
 
     try {
-      console.log('Saving video to word:', wordId);
+      console.log('=== Starting video save process ===');
+      console.log('Video URI:', videoUriToSave);
+      console.log('Word ID:', wordId);
+      console.log('Child ID:', selectedChild.id);
       
       setToastMessage('Video saving…');
       setShowToastViewButton(false);
       setSavedWordId(null);
       setToastVisible(true);
       
+      // Get word name for toast message
       const { data: wordData } = await supabase
         .from('words')
         .select('word')
@@ -342,60 +345,54 @@ function CustomTabBar() {
       
       const wordName = wordData?.word || 'word';
       
-      // Generate thumbnail from the first frame of the video
-      const thumbnailPath = await generateVideoThumbnail(videoUriToSave);
+      // Step 1: Generate thumbnail
+      console.log('Step 1: Generating thumbnail...');
+      const thumbnailUri = await generateVideoThumbnail(videoUriToSave);
+      
       let uploadedThumbnailUrl: string | null = null;
       
-      if (thumbnailPath) {
-        console.log('Thumbnail generated successfully, uploading to Supabase...');
-        uploadedThumbnailUrl = await uploadThumbnailToSupabase(thumbnailPath, selectedChild.id, supabase);
+      if (thumbnailUri) {
+        console.log('Step 2: Uploading thumbnail to Supabase...');
+        uploadedThumbnailUrl = await uploadThumbnailToSupabase(thumbnailUri, selectedChild.id, supabase);
+        
+        if (uploadedThumbnailUrl) {
+          console.log('✓ Thumbnail uploaded successfully:', uploadedThumbnailUrl);
+        } else {
+          console.warn('✗ Failed to upload thumbnail');
+        }
       } else {
-        console.warn('Failed to generate thumbnail');
+        console.warn('✗ Failed to generate thumbnail');
       }
       
-      // Upload video using the new File API
-      const videoFileName = `${selectedChild.id}/${Date.now()}.mp4`;
-      const videoFile = new File(videoUriToSave);
+      // Step 3: Upload video
+      console.log('Step 3: Uploading video to Supabase...');
+      const uploadedVideoUrl = await uploadVideoToSupabase(videoUriToSave, selectedChild.id, supabase);
       
-      if (!videoFile.exists) {
-        throw new Error('Video file does not exist');
+      if (!uploadedVideoUrl) {
+        throw new Error('Failed to upload video');
       }
       
-      // Read the video file as bytes
-      const videoBytes = await videoFile.bytes();
+      console.log('✓ Video uploaded successfully:', uploadedVideoUrl);
       
-      // Upload directly to Supabase without Base64 conversion
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('video-moments')
-        .upload(videoFileName, videoBytes, {
-          contentType: 'video/mp4',
-        });
-
-      if (uploadError) {
-        console.error('Error uploading video:', uploadError);
-        throw uploadError;
-      }
-
-      const { data: urlData } = supabase.storage
-        .from('video-moments')
-        .getPublicUrl(videoFileName);
-
+      // Step 4: Save to database
+      console.log('Step 4: Saving to database...');
       const { error: insertError } = await supabase
         .from('moments')
         .insert({
           word_id: wordId,
           child_id: selectedChild.id,
-          video_url: urlData.publicUrl,
+          video_url: uploadedVideoUrl,
           thumbnail_url: uploadedThumbnailUrl,
           duration: videoDurationToSave,
         });
 
       if (insertError) {
-        console.error('Error saving moment:', insertError);
+        console.error('✗ Database insert error:', insertError);
         throw insertError;
       }
 
-      console.log('Video saved successfully with thumbnail:', uploadedThumbnailUrl);
+      console.log('✓ Saved to database successfully');
+      console.log('=== Video save process complete ===');
       
       setToastVisible(false);
       
@@ -407,9 +404,9 @@ function CustomTabBar() {
       }, 300);
       
     } catch (error) {
-      console.error('Error in saveVideoToWord:', error);
+      console.error('✗ Error in saveVideoToWord:', error);
       setToastVisible(false);
-      Alert.alert('Error', 'Failed to save video');
+      Alert.alert('Error', 'Failed to save video. Please try again.');
     }
   };
 
@@ -429,91 +426,7 @@ function CustomTabBar() {
     clearRecordedVideo();
     
     if (videoUriToSave && selectedChild) {
-      try {
-        console.log('Saving video to word:', wordId);
-        
-        setToastMessage('Video saving…');
-        setShowToastViewButton(false);
-        setSavedWordId(null);
-        setToastVisible(true);
-        
-        const { data: wordData } = await supabase
-          .from('words')
-          .select('word')
-          .eq('id', wordId)
-          .single();
-        
-        const wordName = wordData?.word || 'word';
-        
-        // Generate thumbnail from the first frame of the video
-        const thumbnailPath = await generateVideoThumbnail(videoUriToSave);
-        let uploadedThumbnailUrl: string | null = null;
-        
-        if (thumbnailPath) {
-          console.log('Thumbnail generated successfully, uploading to Supabase...');
-          uploadedThumbnailUrl = await uploadThumbnailToSupabase(thumbnailPath, selectedChild.id, supabase);
-        } else {
-          console.warn('Failed to generate thumbnail');
-        }
-        
-        // Upload video using the new File API
-        const videoFileName = `${selectedChild.id}/${Date.now()}.mp4`;
-        const videoFile = new File(videoUriToSave);
-        
-        if (!videoFile.exists) {
-          throw new Error('Video file does not exist');
-        }
-        
-        // Read the video file as bytes
-        const videoBytes = await videoFile.bytes();
-        
-        // Upload directly to Supabase without Base64 conversion
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('video-moments')
-          .upload(videoFileName, videoBytes, {
-            contentType: 'video/mp4',
-          });
-
-        if (uploadError) {
-          console.error('Error uploading video:', uploadError);
-          throw uploadError;
-        }
-
-        const { data: urlData } = supabase.storage
-          .from('video-moments')
-          .getPublicUrl(videoFileName);
-
-        const { error: insertError } = await supabase
-          .from('moments')
-          .insert({
-            word_id: wordId,
-            child_id: selectedChild.id,
-            video_url: urlData.publicUrl,
-            thumbnail_url: uploadedThumbnailUrl,
-            duration: videoDurationToSave || 0,
-          });
-
-        if (insertError) {
-          console.error('Error saving moment:', insertError);
-          throw insertError;
-        }
-
-        console.log('Video saved successfully with thumbnail:', uploadedThumbnailUrl);
-        
-        setToastVisible(false);
-        
-        setTimeout(() => {
-          setToastMessage(`Video saved to "${wordName}"`);
-          setShowToastViewButton(true);
-          setSavedWordId(wordId);
-          setToastVisible(true);
-        }, 300);
-        
-      } catch (error) {
-        console.error('Error in handleSelectWord:', error);
-        setToastVisible(false);
-        Alert.alert('Error', 'Failed to save video');
-      }
+      await saveVideoToWord(wordId, false);
     }
   };
 
