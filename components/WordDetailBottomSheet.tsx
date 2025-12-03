@@ -95,7 +95,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
 
       try {
         const { error } = await supabase
-          .from('words')
+          .from('user_words')
           .update({ [field]: value, updated_at: new Date().toISOString() })
           .eq('id', word.id);
 

@@ -165,13 +165,30 @@ function CustomTabBar() {
     
     try {
       const { data, error } = await supabase
-        .from('words')
-        .select('*')
+        .from('user_words')
+        .select(`
+          id,
+          word_id,
+          color,
+          word_library (
+            word,
+            emoji
+          )
+        `)
         .eq('child_id', selectedChild.id)
-        .order('word', { ascending: true });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setWords(data || []);
+      
+      // Transform data to match expected format
+      const transformedWords = (data || []).map((uw: any) => ({
+        id: uw.id,
+        word: uw.word_library.word,
+        emoji: uw.word_library.emoji || '⭐',
+        color: uw.color,
+      }));
+      
+      setWords(transformedWords);
     } catch (error) {
       console.error('Error fetching words:', error);
     }
@@ -315,7 +332,7 @@ function CustomTabBar() {
     try {
       console.log('=== Starting video save process ===');
       console.log('Video URI:', videoUriToSave);
-      console.log('Word ID:', wordId);
+      console.log('User Word ID:', wordId);
       console.log('Child ID:', selectedChild.id);
       
       setToastMessage('Video saving…');
@@ -323,15 +340,19 @@ function CustomTabBar() {
       setSavedWordId(null);
       setToastVisible(true);
       
-      const { data: wordData } = await supabase
-        .from('words')
-        .select('word')
+      const { data: userWordData } = await supabase
+        .from('user_words')
+        .select(`
+          word_library (
+            word
+          )
+        `)
         .eq('id', wordId)
         .single();
       
-      const wordName = wordData?.word || 'word';
+      const wordName = userWordData?.word_library?.word || 'word';
       
-      // Step 1: Try to generate thumbnail (will return null for now)
+      // Step 1: Try to generate thumbnail
       console.log('Step 1: Attempting thumbnail generation...');
       const thumbnailUri = await generateVideoThumbnail(videoUriToSave);
       

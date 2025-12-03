@@ -12,6 +12,22 @@ import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useFocusEffect } from '@react-navigation/native';
 
+interface UserWord {
+  id: string;
+  word_id: string;
+  child_id: string;
+  color: string;
+  is_spoken: boolean;
+  is_recognised: boolean;
+  is_recorded: boolean;
+  created_at: string;
+  updated_at: string;
+  word_library: {
+    word: string;
+    emoji: string;
+  };
+}
+
 interface Word {
   id: string;
   child_id: string;
@@ -51,18 +67,50 @@ export default function WordsScreen() {
       console.log('Fetching words for child:', selectedChild.id);
       
       const { data, error } = await supabase
-        .from('words')
-        .select('*')
+        .from('user_words')
+        .select(`
+          id,
+          word_id,
+          child_id,
+          color,
+          is_spoken,
+          is_recognised,
+          is_recorded,
+          created_at,
+          updated_at,
+          word_library (
+            word,
+            emoji
+          )
+        `)
         .eq('child_id', selectedChild.id)
-        .order('word', { ascending: true});
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching words:', error);
         throw error;
       }
 
-      console.log('Fetched words:', data?.length || 0);
-      setWords(data || []);
+      console.log('Fetched user_words:', data?.length || 0);
+      
+      // Transform the data to match the Word interface
+      const transformedWords: Word[] = (data || []).map((uw: UserWord) => ({
+        id: uw.id,
+        child_id: uw.child_id,
+        word: uw.word_library.word,
+        emoji: uw.word_library.emoji || '⭐',
+        color: uw.color,
+        is_spoken: uw.is_spoken,
+        is_recognised: uw.is_recognised,
+        is_recorded: uw.is_recorded,
+        created_at: uw.created_at,
+        updated_at: uw.updated_at,
+      }));
+
+      // Sort by word alphabetically
+      transformedWords.sort((a, b) => a.word.localeCompare(b.word));
+      
+      setWords(transformedWords);
     } catch (error) {
       console.error('Error in fetchWords:', error);
       Alert.alert('Error', 'Failed to load words');
@@ -116,18 +164,76 @@ export default function WordsScreen() {
     try {
       console.log('Adding word:', word);
       
-      const { error } = await supabase
-        .from('words')
+      // First, check if the word exists in word_library (case-insensitive)
+      const { data: existingWords, error: searchError } = await supabase
+        .from('word_library')
+        .select('id, word, emoji')
+        .ilike('word', word);
+
+      if (searchError) {
+        console.error('Error searching word library:', searchError);
+        throw searchError;
+      }
+
+      let wordLibraryId: string;
+      let wordEmoji = emoji;
+
+      if (existingWords && existingWords.length > 0) {
+        // Word exists in library, use it
+        console.log('Word exists in library:', existingWords[0]);
+        wordLibraryId = existingWords[0].id;
+        wordEmoji = existingWords[0].emoji || emoji;
+      } else {
+        // Word doesn't exist, create it in word_library
+        console.log('Creating new word in library');
+        const { data: newWord, error: insertError } = await supabase
+          .from('word_library')
+          .insert({
+            word,
+            emoji,
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error inserting word to library:', insertError);
+          throw insertError;
+        }
+
+        wordLibraryId = newWord.id;
+      }
+
+      // Check if user already has this word
+      const { data: existingUserWord, error: userWordCheckError } = await supabase
+        .from('user_words')
+        .select('id')
+        .eq('word_id', wordLibraryId)
+        .eq('child_id', selectedChild.id)
+        .maybeSingle();
+
+      if (userWordCheckError) {
+        console.error('Error checking user word:', userWordCheckError);
+        throw userWordCheckError;
+      }
+
+      if (existingUserWord) {
+        Alert.alert('Word Already Added', 'This word is already in your list');
+        addWordSheetRef.current?.dismiss();
+        return;
+      }
+
+      // Create user_word association
+      const { error: userWordError } = await supabase
+        .from('user_words')
         .insert({
+          word_id: wordLibraryId,
           child_id: selectedChild.id,
-          word,
-          emoji,
           color,
         });
 
-      if (error) {
-        console.error('Error adding word:', error);
-        throw error;
+      if (userWordError) {
+        console.error('Error adding user word:', userWordError);
+        throw userWordError;
       }
 
       console.log('Word added successfully');
