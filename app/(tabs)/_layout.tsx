@@ -345,8 +345,8 @@ function CustomTabBar() {
       
       const wordName = wordData?.word || 'word';
       
-      // Step 1: Generate thumbnail
-      console.log('Step 1: Generating thumbnail...');
+      // Step 1: Try to generate thumbnail (will return null for now)
+      console.log('Step 1: Attempting thumbnail generation...');
       const thumbnailUri = await generateVideoThumbnail(videoUriToSave);
       
       let uploadedThumbnailUrl: string | null = null;
@@ -361,11 +361,11 @@ function CustomTabBar() {
           console.warn('✗ Failed to upload thumbnail');
         }
       } else {
-        console.warn('✗ Failed to generate thumbnail');
+        console.log('ℹ No thumbnail generated (feature not implemented yet)');
       }
       
-      // Step 3: Upload video
-      console.log('Step 3: Uploading video to Supabase...');
+      // Step 2: Upload video
+      console.log('Step 2: Uploading video to Supabase...');
       const uploadedVideoUrl = await uploadVideoToSupabase(videoUriToSave, selectedChild.id, supabase);
       
       if (!uploadedVideoUrl) {
@@ -374,8 +374,8 @@ function CustomTabBar() {
       
       console.log('✓ Video uploaded successfully:', uploadedVideoUrl);
       
-      // Step 4: Save to database
-      console.log('Step 4: Saving to database...');
+      // Step 3: Save to database
+      console.log('Step 3: Saving to database...');
       const { error: insertError } = await supabase
         .from('moments')
         .insert({

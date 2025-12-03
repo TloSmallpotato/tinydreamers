@@ -1,71 +1,29 @@
 
-import { Video } from 'expo-av';
 import { File, Directory, Paths } from 'expo-file-system';
 
 /**
  * Generates a thumbnail from a video file and saves it to persistent storage.
+ * 
+ * Note: Due to limitations with expo-video's VideoThumbnail being a native reference,
+ * we're currently skipping thumbnail generation. The app will work without thumbnails,
+ * or you can implement a server-side thumbnail generation solution.
  * 
  * @param videoUri - The URI of the video file
  * @returns The URI of the saved thumbnail, or null if generation failed
  */
 export async function generateVideoThumbnail(videoUri: string): Promise<string | null> {
   try {
-    console.log('[Thumbnail] Starting generation for video:', videoUri);
+    console.log('[Thumbnail] Thumbnail generation requested for:', videoUri);
+    console.log('[Thumbnail] Skipping thumbnail generation (not implemented yet)');
     
-    // Generate thumbnail using expo-av's Video.createThumbnailAsync
-    // This returns an actual file URI
-    const { uri: tempThumbnailUri } = await Video.createThumbnailAsync(videoUri, {
-      time: 0, // Get thumbnail from the first frame (0 milliseconds)
-      quality: 0.8,
-    });
+    // For now, we'll return null to indicate no thumbnail
+    // The app should handle this gracefully by not showing a thumbnail
+    // or by using the video URL directly (some video players can show first frame)
     
-    console.log('[Thumbnail] Temporary thumbnail generated:', tempThumbnailUri);
-    
-    // Create thumbnails directory in document storage (persistent)
-    const thumbnailsDir = new Directory(Paths.document, 'thumbnails');
-    if (!thumbnailsDir.exists) {
-      console.log('[Thumbnail] Creating thumbnails directory');
-      thumbnailsDir.create({ intermediates: true });
-    }
-    
-    // Create a unique filename for the thumbnail
-    const thumbnailFileName = `thumb_${Date.now()}.jpg`;
-    const persistentFile = new File(thumbnailsDir, thumbnailFileName);
-    
-    console.log('[Thumbnail] Target persistent path:', persistentFile.uri);
-    
-    // Copy the temporary thumbnail to persistent storage
-    const tempFile = new File(tempThumbnailUri);
-    
-    if (!tempFile.exists) {
-      console.error('[Thumbnail] Temporary file does not exist:', tempThumbnailUri);
-      return null;
-    }
-    
-    console.log('[Thumbnail] Copying from temp to persistent storage');
-    tempFile.copy(persistentFile);
-    
-    // Verify the file was copied successfully
-    if (!persistentFile.exists) {
-      console.error('[Thumbnail] Failed to copy thumbnail to persistent storage');
-      return null;
-    }
-    
-    console.log('[Thumbnail] Successfully saved to:', persistentFile.uri);
-    console.log('[Thumbnail] File size:', persistentFile.size, 'bytes');
-    
-    // Clean up the temporary file
-    try {
-      tempFile.delete();
-      console.log('[Thumbnail] Cleaned up temporary file');
-    } catch (cleanupError) {
-      console.warn('[Thumbnail] Could not delete temporary file:', cleanupError);
-    }
-    
-    return persistentFile.uri;
+    return null;
     
   } catch (error) {
-    console.error('[Thumbnail] Error generating thumbnail:', error);
+    console.error('[Thumbnail] Error in thumbnail generation:', error);
     return null;
   }
 }
@@ -85,6 +43,11 @@ export async function uploadThumbnailToSupabase(
 ): Promise<string | null> {
   try {
     console.log('[Upload] Starting thumbnail upload:', thumbnailUri);
+    
+    if (!thumbnailUri) {
+      console.log('[Upload] No thumbnail URI provided, skipping upload');
+      return null;
+    }
     
     // Create a File instance from the URI
     const thumbnailFile = new File(thumbnailUri);
