@@ -1,29 +1,41 @@
 
-import { File, Directory, Paths } from 'expo-file-system';
+import { File } from 'expo-file-system';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 
 /**
- * Generates a thumbnail from a video file and saves it to persistent storage.
- * 
- * Note: Due to limitations with expo-video's VideoThumbnail being a native reference,
- * we're currently skipping thumbnail generation. The app will work without thumbnails,
- * or you can implement a server-side thumbnail generation solution.
+ * Generates a thumbnail from a video file using expo-video-thumbnails.
+ * This creates an actual image file that can be uploaded to Supabase.
  * 
  * @param videoUri - The URI of the video file
- * @returns The URI of the saved thumbnail, or null if generation failed
+ * @returns The URI of the generated thumbnail file, or null if generation failed
  */
 export async function generateVideoThumbnail(videoUri: string): Promise<string | null> {
   try {
-    console.log('[Thumbnail] Thumbnail generation requested for:', videoUri);
-    console.log('[Thumbnail] Skipping thumbnail generation (not implemented yet)');
+    console.log('[Thumbnail] Starting thumbnail generation for:', videoUri);
     
-    // For now, we'll return null to indicate no thumbnail
-    // The app should handle this gracefully by not showing a thumbnail
-    // or by using the video URL directly (some video players can show first frame)
+    // Generate thumbnail at the first frame (time 0)
+    const { uri } = await VideoThumbnails.getThumbnailAsync(
+      videoUri,
+      {
+        time: 0, // Get thumbnail from the first frame
+        quality: 0.8, // Good quality (0-1 scale)
+      }
+    );
     
-    return null;
+    console.log('[Thumbnail] Thumbnail generated successfully:', uri);
+    
+    // Verify the file exists
+    const thumbnailFile = new File(uri);
+    if (!thumbnailFile.exists) {
+      console.error('[Thumbnail] Generated thumbnail file does not exist');
+      return null;
+    }
+    
+    console.log('[Thumbnail] Thumbnail file size:', thumbnailFile.size, 'bytes');
+    return uri;
     
   } catch (error) {
-    console.error('[Thumbnail] Error in thumbnail generation:', error);
+    console.error('[Thumbnail] Error generating thumbnail:', error);
     return null;
   }
 }
