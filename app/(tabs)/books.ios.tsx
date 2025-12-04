@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -13,15 +13,20 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { searchGoogleBooks, BookSearchResult } from '@/utils/googleBooksApi';
+import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
 
 interface SavedBook {
   id: string;
   book_id: string;
+  rating: string | null;
+  tags: string[];
+  would_recommend: boolean;
   book: {
     id: string;
     google_books_id: string;
@@ -43,6 +48,9 @@ export default function BooksScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [savedBooks, setSavedBooks] = useState<SavedBook[]>([]);
   const [isLoadingBooks, setIsLoadingBooks] = useState(true);
+  const [selectedBook, setSelectedBook] = useState<SavedBook | null>(null);
+  
+  const bookDetailRef = useRef<BottomSheetModal>(null);
 
   // Fetch saved books for the selected child
   const fetchSavedBooks = useCallback(async () => {
@@ -59,6 +67,9 @@ export default function BooksScreen() {
         .select(`
           id,
           book_id,
+          rating,
+          tags,
+          would_recommend,
           book:books_library (
             id,
             google_books_id,
@@ -196,39 +207,13 @@ export default function BooksScreen() {
     }
   };
 
-  const handleDeleteBook = async (userBookId: string, bookTitle: string) => {
-    Alert.alert(
-      'Remove Book',
-      `Remove "${bookTitle}" from library?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from('user_books')
-                .delete()
-                .eq('id', userBookId);
+  const handleBookPress = (book: SavedBook) => {
+    setSelectedBook(book);
+    bookDetailRef.current?.present();
+  };
 
-              if (error) {
-                console.error('Error deleting book:', error);
-                return;
-              }
-
-              // Refresh the books list
-              await fetchSavedBooks();
-            } catch (error) {
-              console.error('Error in handleDeleteBook:', error);
-            }
-          },
-        },
-      ]
-    );
+  const handleCloseBookDetail = () => {
+    setSelectedBook(null);
   };
 
   return (
@@ -348,7 +333,7 @@ export default function BooksScreen() {
                 <TouchableOpacity
                   key={`${savedBook.id}-${index}`}
                   style={styles.bookCard}
-                  onLongPress={() => handleDeleteBook(savedBook.id, savedBook.book.title)}
+                  onPress={() => handleBookPress(savedBook)}
                   activeOpacity={0.7}
                 >
                   {savedBook.book.cover_url ? (
@@ -375,6 +360,13 @@ export default function BooksScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      <BookDetailBottomSheet
+        ref={bookDetailRef}
+        userBook={selectedBook}
+        onClose={handleCloseBookDetail}
+        onRefresh={fetchSavedBooks}
+      />
     </View>
   );
 }

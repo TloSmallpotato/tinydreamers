@@ -1,0 +1,602 @@
+
+import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, ScrollView, TextInput } from 'react-native';
+import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
+import { colors } from '@/styles/commonStyles';
+import { IconSymbol } from '@/components/IconSymbol';
+import { supabase } from '@/app/integrations/supabase/client';
+import { Image } from 'expo-image';
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+interface Book {
+  id: string;
+  google_books_id: string;
+  title: string;
+  authors: string;
+  cover_url: string;
+  thumbnail_url: string;
+  description: string;
+  published_date: string;
+  page_count: number;
+}
+
+interface UserBook {
+  id: string;
+  book_id: string;
+  rating: string | null;
+  tags: string[];
+  would_recommend: boolean;
+  book: Book;
+}
+
+interface BookDetailBottomSheetProps {
+  userBook: UserBook | null;
+  onClose: () => void;
+  onRefresh: () => void;
+}
+
+type RatingType = 'not_vibing' | 'like_it' | 'love_it' | null;
+
+const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheetProps>(
+  ({ userBook, onClose, onRefresh }, ref) => {
+    const snapPoints = useMemo(() => [screenHeight * 0.85], []);
+    const [rating, setRating] = useState<RatingType>(null);
+    const [wouldRecommend, setWouldRecommend] = useState(false);
+    const [tags, setTags] = useState<string[]>([]);
+    const [newTag, setNewTag] = useState('');
+    const [showMenu, setShowMenu] = useState(false);
+
+    useEffect(() => {
+      if (userBook) {
+        setRating((userBook.rating as RatingType) || null);
+        setWouldRecommend(userBook.would_recommend || false);
+        setTags(userBook.tags || []);
+      }
+    }, [userBook]);
+
+    const updateBookData = async (field: 'rating' | 'would_recommend' | 'tags', value: any) => {
+      if (!userBook) return;
+
+      try {
+        const { error } = await supabase
+          .from('user_books')
+          .update({ [field]: value, updated_at: new Date().toISOString() })
+          .eq('id', userBook.id);
+
+        if (error) {
+          console.error('Error updating book:', error);
+          throw error;
+        }
+
+        onRefresh();
+      } catch (error) {
+        console.error('Error in updateBookData:', error);
+        Alert.alert('Error', 'Failed to update book');
+      }
+    };
+
+    const handleRatingPress = async (newRating: RatingType) => {
+      const finalRating = rating === newRating ? null : newRating;
+      setRating(finalRating);
+      await updateBookData('rating', finalRating);
+    };
+
+    const toggleRecommend = async () => {
+      const newValue = !wouldRecommend;
+      setWouldRecommend(newValue);
+      await updateBookData('would_recommend', newValue);
+    };
+
+    const handleAddTag = async () => {
+      if (!newTag.trim()) return;
+      
+      const trimmedTag = newTag.trim().toLowerCase();
+      if (tags.includes(trimmedTag)) {
+        setNewTag('');
+        return;
+      }
+
+      const updatedTags = [...tags, trimmedTag];
+      setTags(updatedTags);
+      setNewTag('');
+      await updateBookData('tags', updatedTags);
+    };
+
+    const handleRemoveTag = async (tagToRemove: string) => {
+      const updatedTags = tags.filter(tag => tag !== tagToRemove);
+      setTags(updatedTags);
+      await updateBookData('tags', updatedTags);
+    };
+
+    const handleDeleteBook = () => {
+      setShowMenu(false);
+      
+      Alert.alert(
+        'Remove Book',
+        `Remove "${userBook?.book.title}" from library? This action cannot be undone.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: async () => {
+              await deleteBook();
+            },
+          },
+        ]
+      );
+    };
+
+    const deleteBook = async () => {
+      if (!userBook) return;
+
+      try {
+        const { error } = await supabase
+          .from('user_books')
+          .delete()
+          .eq('id', userBook.id);
+
+        if (error) {
+          console.error('Error deleting book:', error);
+          throw error;
+        }
+
+        if (ref && typeof ref !== 'function' && ref.current) {
+          ref.current.dismiss();
+        }
+
+        onRefresh();
+        Alert.alert('Success', 'Book removed from library');
+      } catch (error) {
+        console.error('Error in deleteBook:', error);
+        Alert.alert('Error', 'Failed to remove book');
+      }
+    };
+
+    const renderBackdrop = useCallback(
+      (props: any) => (
+        <BottomSheetBackdrop
+          {...props}
+          disappearsOnIndex={-1}
+          appearsOnIndex={0}
+          opacity={0.5}
+          pressBehavior="close"
+        />
+      ),
+      []
+    );
+
+    if (!userBook) return null;
+
+    const book = userBook.book;
+
+    return (
+      <BottomSheetModal
+        ref={ref}
+        index={0}
+        snapPoints={snapPoints}
+        enablePanDownToClose={true}
+        enableDismissOnClose={true}
+        backdropComponent={renderBackdrop}
+        backgroundStyle={styles.bottomSheetBackground}
+        handleIndicatorStyle={styles.handleIndicator}
+        onDismiss={onClose}
+      >
+        <BottomSheetScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+        >
+          {/* Header with Menu */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Book Details</Text>
+            <TouchableOpacity
+              style={styles.menuButton}
+              onPress={() => setShowMenu(!showMenu)}
+            >
+              <IconSymbol
+                ios_icon_name="ellipsis.circle"
+                android_material_icon_name="more-vert"
+                size={28}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Menu Dropdown */}
+          {showMenu && (
+            <View style={styles.menuDropdown}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={handleDeleteBook}
+              >
+                <IconSymbol
+                  ios_icon_name="trash"
+                  android_material_icon_name="delete"
+                  size={20}
+                  color={colors.secondary}
+                />
+                <Text style={styles.menuItemText}>Delete Book</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Book Cover */}
+          <View style={styles.coverContainer}>
+            {book.cover_url ? (
+              <Image
+                source={{ uri: book.cover_url }}
+                style={styles.bookCover}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+                priority="high"
+              />
+            ) : (
+              <View style={[styles.bookCover, styles.placeholderCover]}>
+                <IconSymbol
+                  ios_icon_name="book.fill"
+                  android_material_icon_name="book"
+                  size={80}
+                  color={colors.textSecondary}
+                />
+              </View>
+            )}
+          </View>
+
+          {/* Book Info */}
+          <View style={styles.bookInfo}>
+            <Text style={styles.bookTitle}>{book.title}</Text>
+            <Text style={styles.bookAuthor}>{book.authors}</Text>
+            {book.published_date && (
+              <Text style={styles.bookMeta}>Published: {book.published_date}</Text>
+            )}
+            {book.page_count > 0 && (
+              <Text style={styles.bookMeta}>{book.page_count} pages</Text>
+            )}
+          </View>
+
+          {/* Description */}
+          {book.description && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Description</Text>
+              <Text style={styles.description}>{book.description}</Text>
+            </View>
+          )}
+
+          {/* Tags */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Tags</Text>
+            <View style={styles.tagsContainer}>
+              {tags.map((tag, index) => (
+                <View key={index} style={styles.tag}>
+                  <Text style={styles.tagText}>{tag}</Text>
+                  <TouchableOpacity
+                    onPress={() => handleRemoveTag(tag)}
+                    style={styles.tagRemove}
+                  >
+                    <IconSymbol
+                      ios_icon_name="xmark"
+                      android_material_icon_name="close"
+                      size={14}
+                      color={colors.backgroundAlt}
+                    />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+            <View style={styles.addTagContainer}>
+              <TextInput
+                style={styles.tagInput}
+                placeholder="Add a tag..."
+                placeholderTextColor={colors.textSecondary}
+                value={newTag}
+                onChangeText={setNewTag}
+                onSubmitEditing={handleAddTag}
+                returnKeyType="done"
+              />
+              <TouchableOpacity
+                style={styles.addTagButton}
+                onPress={handleAddTag}
+              >
+                <IconSymbol
+                  ios_icon_name="plus"
+                  android_material_icon_name="add"
+                  size={20}
+                  color={colors.backgroundAlt}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Rating */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>How did your kids like it?</Text>
+            <View style={styles.ratingContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.ratingButton,
+                  rating === 'not_vibing' && styles.ratingButtonActive,
+                ]}
+                onPress={() => handleRatingPress('not_vibing')}
+              >
+                <Text style={styles.ratingEmoji}>😕</Text>
+                <Text
+                  style={[
+                    styles.ratingText,
+                    rating === 'not_vibing' && styles.ratingTextActive,
+                  ]}
+                >
+                  Didn&apos;t vibe
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.ratingButton,
+                  rating === 'like_it' && styles.ratingButtonActive,
+                ]}
+                onPress={() => handleRatingPress('like_it')}
+              >
+                <Text style={styles.ratingEmoji}>😊</Text>
+                <Text
+                  style={[
+                    styles.ratingText,
+                    rating === 'like_it' && styles.ratingTextActive,
+                  ]}
+                >
+                  Liked it
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.ratingButton,
+                  rating === 'love_it' && styles.ratingButtonActive,
+                ]}
+                onPress={() => handleRatingPress('love_it')}
+              >
+                <Text style={styles.ratingEmoji}>😍</Text>
+                <Text
+                  style={[
+                    styles.ratingText,
+                    rating === 'love_it' && styles.ratingTextActive,
+                  ]}
+                >
+                  Loved it
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Would Recommend */}
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={[
+                styles.recommendButton,
+                wouldRecommend && styles.recommendButtonActive,
+              ]}
+              onPress={toggleRecommend}
+            >
+              <IconSymbol
+                ios_icon_name={wouldRecommend ? 'heart.fill' : 'heart'}
+                android_material_icon_name={wouldRecommend ? 'favorite' : 'favorite-border'}
+                size={24}
+                color={wouldRecommend ? colors.backgroundAlt : colors.primary}
+              />
+              <Text
+                style={[
+                  styles.recommendText,
+                  wouldRecommend && styles.recommendTextActive,
+                ]}
+              >
+                Would Recommend
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </BottomSheetScrollView>
+      </BottomSheetModal>
+    );
+  }
+);
+
+const styles = StyleSheet.create({
+  bottomSheetBackground: {
+    backgroundColor: colors.backgroundAlt,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  handleIndicator: {
+    backgroundColor: colors.primary,
+    width: 40,
+    height: 4,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingBottom: 40,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 10,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  menuButton: {
+    padding: 4,
+  },
+  menuDropdown: {
+    backgroundColor: colors.background,
+    marginHorizontal: 20,
+    marginBottom: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.secondary,
+  },
+  coverContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  bookCover: {
+    width: screenWidth * 0.5,
+    height: screenWidth * 0.7,
+    borderRadius: 12,
+  },
+  placeholderCover: {
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bookInfo: {
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  bookTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.primary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  bookAuthor: {
+    fontSize: 18,
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  bookMeta: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.primary,
+    marginBottom: 12,
+  },
+  description: {
+    fontSize: 16,
+    color: colors.text,
+    lineHeight: 24,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.buttonBlue,
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingLeft: 12,
+    paddingRight: 8,
+    gap: 6,
+  },
+  tagText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.backgroundAlt,
+  },
+  tagRemove: {
+    padding: 2,
+  },
+  addTagContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tagInput: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.primary,
+  },
+  addTagButton: {
+    backgroundColor: colors.buttonBlue,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  ratingButton: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  ratingButtonActive: {
+    backgroundColor: colors.buttonBlue,
+  },
+  ratingEmoji: {
+    fontSize: 32,
+  },
+  ratingText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'center',
+  },
+  ratingTextActive: {
+    color: colors.backgroundAlt,
+  },
+  recommendButton: {
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  recommendButtonActive: {
+    backgroundColor: colors.secondary,
+  },
+  recommendText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  recommendTextActive: {
+    color: colors.backgroundAlt,
+  },
+});
+
+export default BookDetailBottomSheet;
