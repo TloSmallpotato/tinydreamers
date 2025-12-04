@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Keyboard,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -20,14 +21,18 @@ import { searchGoogleBooks, BookSearchResult } from '@/utils/googleBooksApi';
 
 interface SavedBook {
   id: string;
-  google_books_id: string;
-  title: string;
-  authors: string;
-  cover_url: string;
-  thumbnail_url: string;
-  description: string;
-  published_date: string;
-  page_count: number;
+  book_id: string;
+  book: {
+    id: string;
+    google_books_id: string;
+    title: string;
+    authors: string;
+    cover_url: string;
+    thumbnail_url: string;
+    description: string;
+    published_date: string;
+    page_count: number;
+  };
 }
 
 export default function BooksScreen() {
@@ -50,8 +55,22 @@ export default function BooksScreen() {
     try {
       setIsLoadingBooks(true);
       const { data, error } = await supabase
-        .from('books')
-        .select('*')
+        .from('user_books')
+        .select(`
+          id,
+          book_id,
+          book:books_library (
+            id,
+            google_books_id,
+            title,
+            authors,
+            cover_url,
+            thumbnail_url,
+            description,
+            published_date,
+            page_count
+          )
+        `)
         .eq('child_id', selectedChild.id)
         .order('created_at', { ascending: false });
 
@@ -97,39 +116,71 @@ export default function BooksScreen() {
     }
 
     try {
-      // Check if book already exists for this child
-      const { data: existingBook } = await supabase
-        .from('books')
+      // Step 1: Check if book exists in books_library
+      let { data: existingBook, error: fetchError } = await supabase
+        .from('books_library')
         .select('id')
-        .eq('child_id', selectedChild.id)
         .eq('google_books_id', book.googleBooksId)
         .single();
 
-      if (existingBook) {
-        console.log('Book already added');
+      let bookId: string;
+
+      if (fetchError && fetchError.code === 'PGRST116') {
+        // Book doesn't exist, create it
+        const { data: newBook, error: insertError } = await supabase
+          .from('books_library')
+          .insert({
+            google_books_id: book.googleBooksId,
+            title: book.title,
+            authors: book.authors,
+            cover_url: book.coverUrl,
+            thumbnail_url: book.thumbnailUrl,
+            description: book.description,
+            published_date: book.publishedDate,
+            page_count: book.pageCount,
+          })
+          .select('id')
+          .single();
+
+        if (insertError) {
+          console.error('Error creating book:', insertError);
+          return;
+        }
+
+        bookId = newBook.id;
+      } else if (existingBook) {
+        bookId = existingBook.id;
+      } else {
+        console.error('Error fetching book:', fetchError);
+        return;
+      }
+
+      // Step 2: Check if user already has this book
+      const { data: existingUserBook } = await supabase
+        .from('user_books')
+        .select('id')
+        .eq('child_id', selectedChild.id)
+        .eq('book_id', bookId)
+        .single();
+
+      if (existingUserBook) {
+        console.log('Book already added to library');
         setSearchQuery('');
         setShowDropdown(false);
         Keyboard.dismiss();
         return;
       }
 
-      // Add book to database
-      const { error } = await supabase
-        .from('books')
+      // Step 3: Create user_book relationship
+      const { error: relationError } = await supabase
+        .from('user_books')
         .insert({
           child_id: selectedChild.id,
-          google_books_id: book.googleBooksId,
-          title: book.title,
-          authors: book.authors,
-          cover_url: book.coverUrl,
-          thumbnail_url: book.thumbnailUrl,
-          description: book.description,
-          published_date: book.publishedDate,
-          page_count: book.pageCount,
+          book_id: bookId,
         });
 
-      if (error) {
-        console.error('Error adding book:', error);
+      if (relationError) {
+        console.error('Error adding book to library:', relationError);
         return;
       }
 
@@ -143,6 +194,41 @@ export default function BooksScreen() {
     } catch (error) {
       console.error('Error in handleSelectBook:', error);
     }
+  };
+
+  const handleDeleteBook = async (userBookId: string, bookTitle: string) => {
+    Alert.alert(
+      'Remove Book',
+      `Remove "${bookTitle}" from library?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('user_books')
+                .delete()
+                .eq('id', userBookId);
+
+              if (error) {
+                console.error('Error deleting book:', error);
+                return;
+              }
+
+              // Refresh the books list
+              await fetchSavedBooks();
+            } catch (error) {
+              console.error('Error in handleDeleteBook:', error);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -258,11 +344,16 @@ export default function BooksScreen() {
             </View>
           ) : (
             <View style={styles.booksGrid}>
-              {savedBooks.map((book, index) => (
-                <View key={`${book.id}-${index}`} style={styles.bookCard}>
-                  {book.cover_url ? (
+              {savedBooks.map((savedBook, index) => (
+                <TouchableOpacity
+                  key={`${savedBook.id}-${index}`}
+                  style={styles.bookCard}
+                  onLongPress={() => handleDeleteBook(savedBook.id, savedBook.book.title)}
+                  activeOpacity={0.7}
+                >
+                  {savedBook.book.cover_url ? (
                     <Image
-                      source={{ uri: book.cover_url }}
+                      source={{ uri: savedBook.book.cover_url }}
                       style={styles.bookCoverLarge}
                       contentFit="contain"
                       cachePolicy="memory-disk"
@@ -278,7 +369,7 @@ export default function BooksScreen() {
                       />
                     </View>
                   )}
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           )}

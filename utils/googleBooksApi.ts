@@ -30,25 +30,53 @@ export interface BookSearchResult {
 }
 
 /**
- * Enhances Google Books image URL to get higher resolution
- * Google Books allows zoom parameter to increase image quality
+ * Enhances Google Books image URL to get maximum resolution
+ * Google Books allows various parameters to increase image quality
  */
-function enhanceImageUrl(url: string | undefined): string {
+function enhanceImageUrl(url: string | undefined, isHighRes: boolean = false): string {
   if (!url) return '';
   
-  // Replace http with https
+  // Replace http with https for security
   let enhancedUrl = url.replace('http://', 'https://');
   
-  // Remove existing zoom parameter if present
+  // Remove existing parameters that might limit quality
   enhancedUrl = enhancedUrl.replace(/&zoom=\d+/, '');
+  enhancedUrl = enhancedUrl.replace(/&edge=curl/, '');
+  enhancedUrl = enhancedUrl.replace(/&fife=.*$/, '');
   
-  // Add zoom=1 for higher quality (zoom=0 is default, zoom=1 gives better quality)
-  // Also increase the image size by replacing 'zoom=1' with larger dimensions
-  enhancedUrl = enhancedUrl.replace('&edge=curl', '');
-  
-  // For thumbnail URLs, we can increase quality by adding zoom parameter
-  if (enhancedUrl.includes('books.google.com')) {
-    enhancedUrl += '&zoom=1';
+  // For high-res images (main display), request maximum quality
+  if (isHighRes) {
+    // If it's a Google Books image, we can manipulate the URL for better quality
+    if (enhancedUrl.includes('books.google.com')) {
+      // Add zoom parameter for higher quality (zoom=1 gives better quality than default)
+      enhancedUrl += '&zoom=3';
+      
+      // Add printsec parameter to get better quality
+      if (!enhancedUrl.includes('printsec=')) {
+        enhancedUrl += '&printsec=frontcover';
+      }
+      
+      // Request larger image size
+      enhancedUrl = enhancedUrl.replace(/&img=\d+/, '&img=1');
+      enhancedUrl = enhancedUrl.replace(/&w=\d+/, '&w=800');
+      enhancedUrl = enhancedUrl.replace(/&h=\d+/, '&h=1200');
+    }
+    
+    // For Google's image serving infrastructure (if using fife)
+    if (enhancedUrl.includes('googleusercontent.com')) {
+      // Use fife parameters for maximum quality
+      // w800-h1200 requests an image up to 800px wide and 1200px tall
+      enhancedUrl += '=w800-h1200-n';
+    }
+  } else {
+    // For thumbnails, use moderate quality
+    if (enhancedUrl.includes('books.google.com')) {
+      enhancedUrl += '&zoom=1';
+    }
+    
+    if (enhancedUrl.includes('googleusercontent.com')) {
+      enhancedUrl += '=w200-h300-n';
+    }
   }
   
   return enhancedUrl;
@@ -70,7 +98,7 @@ function getBestImageUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks']): st
                imageLinks.smallThumbnail || 
                '';
   
-  return enhanceImageUrl(url);
+  return enhanceImageUrl(url, true);
 }
 
 /**
@@ -85,7 +113,7 @@ function getThumbnailUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks']): st
                imageLinks.smallThumbnail || 
                '';
   
-  return enhanceImageUrl(url);
+  return enhanceImageUrl(url, false);
 }
 
 export async function searchGoogleBooks(query: string): Promise<BookSearchResult[]> {
@@ -95,8 +123,9 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
 
   try {
     const encodedQuery = encodeURIComponent(query.trim());
+    // Request books with images and specify we want high-quality results
     const response = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=10&printType=books`
+      `https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=10&printType=books&projection=full`
     );
 
     if (!response.ok) {
