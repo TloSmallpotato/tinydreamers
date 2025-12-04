@@ -5,16 +5,15 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Modal,
   Animated,
   Dimensions,
   TouchableWithoutFeedback,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
+import { LinearGradient } from 'expo-linear-gradient';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface AddOptionsModalProps {
   visible: boolean;
@@ -32,26 +31,37 @@ export default function AddOptionsModal({
   onCaptureMoment,
 }: AddOptionsModalProps) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
+  const slideAnim1 = useRef(new Animated.Value(20)).current;
+  const slideAnim2 = useRef(new Animated.Value(20)).current;
+  const slideAnim3 = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
     if (visible) {
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 250,
+          duration: 200,
           useNativeDriver: true,
         }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
+        Animated.spring(slideAnim1, {
           toValue: 0,
-          duration: 300,
+          tension: 80,
+          friction: 8,
+          delay: 50,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim2, {
+          toValue: 0,
+          tension: 80,
+          friction: 8,
+          delay: 100,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim3, {
+          toValue: 0,
+          tension: 80,
+          friction: 8,
+          delay: 150,
           useNativeDriver: true,
         }),
       ]).start();
@@ -59,209 +69,191 @@ export default function AddOptionsModal({
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: 200,
+          duration: 150,
           useNativeDriver: true,
         }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.8,
-          duration: 200,
+        Animated.timing(slideAnim1, {
+          toValue: 20,
+          duration: 150,
           useNativeDriver: true,
         }),
-        Animated.timing(slideAnim, {
-          toValue: 50,
-          duration: 200,
+        Animated.timing(slideAnim2, {
+          toValue: 20,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim3, {
+          toValue: 20,
+          duration: 150,
           useNativeDriver: true,
         }),
       ]).start();
     }
-  }, [visible, fadeAnim, scaleAnim, slideAnim]);
+  }, [visible, fadeAnim, slideAnim1, slideAnim2, slideAnim3]);
+
+  if (!visible) {
+    return null;
+  }
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
-          <Animated.View
-            style={[
-              styles.overlayBackground,
-              {
-                opacity: fadeAnim,
-              },
-            ]}
-          >
-            <BlurView intensity={20} style={StyleSheet.absoluteFill} />
-          </Animated.View>
+    <TouchableWithoutFeedback onPress={onClose}>
+      <Animated.View
+        style={[
+          styles.overlay,
+          {
+            opacity: fadeAnim,
+          },
+        ]}
+      >
+        <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+          <View style={styles.floatingButtonsContainer}>
+            {/* First Row: Add Book and Add Word */}
+            <View style={styles.firstRow}>
+              <Animated.View
+                style={[
+                  styles.buttonWrapper,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim1 }],
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  style={styles.smallButton}
+                  onPress={onAddBook}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['#4A4A8A', '#6B5B95']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.gradientButton}
+                  >
+                    <Text style={styles.buttonText}>Add a new book</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
 
-          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+              <Animated.View
+                style={[
+                  styles.buttonWrapper,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim2 }],
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  style={styles.smallButton}
+                  onPress={onAddWord}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['#8B4A5A', '#A0616A']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.gradientButton}
+                  >
+                    <Text style={styles.buttonText}>Add a new word</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+
+            {/* Second Row: Capture Moment */}
             <Animated.View
               style={[
-                styles.modalContainer,
+                styles.largeButtonWrapper,
                 {
                   opacity: fadeAnim,
-                  transform: [
-                    { scale: scaleAnim },
-                    { translateY: slideAnim },
-                  ],
+                  transform: [{ translateY: slideAnim3 }],
                 },
               ]}
             >
-              <View style={styles.modalContent}>
-                <View style={styles.header}>
-                  <Text style={styles.headerTitle}>Add New</Text>
-                </View>
-
-                <View style={styles.optionsContainer}>
-                  <View style={styles.firstRow}>
-                    <TouchableOpacity
-                      style={styles.smallButton}
-                      onPress={onAddBook}
-                      activeOpacity={0.8}
-                    >
-                      <View style={[styles.iconContainer, { backgroundColor: colors.secondary }]}>
-                        <IconSymbol
-                          ios_icon_name="book.fill"
-                          android_material_icon_name="menu-book"
-                          size={32}
-                          color={colors.backgroundAlt}
-                        />
-                      </View>
-                      <Text style={styles.buttonLabel}>Add a book</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.smallButton}
-                      onPress={onAddWord}
-                      activeOpacity={0.8}
-                    >
-                      <View style={[styles.iconContainer, { backgroundColor: colors.accent }]}>
-                        <IconSymbol
-                          ios_icon_name="text.bubble.fill"
-                          android_material_icon_name="chat-bubble"
-                          size={32}
-                          color={colors.backgroundAlt}
-                        />
-                      </View>
-                      <Text style={styles.buttonLabel}>Add a word</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.largeButton}
-                    onPress={onCaptureMoment}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.largeIconContainer, { backgroundColor: colors.primary }]}>
-                      <IconSymbol
-                        ios_icon_name="video.fill"
-                        android_material_icon_name="videocam"
-                        size={48}
-                        color={colors.backgroundAlt}
-                      />
-                    </View>
-                    <Text style={styles.largeButtonLabel}>Capture a moment</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              <TouchableOpacity
+                style={styles.largeButton}
+                onPress={onCaptureMoment}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={['#2C5F5F', '#4A7C7C', '#6B9999']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.gradientButtonLarge}
+                >
+                  <Text style={styles.largeButtonText}>Capture a new moment</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             </Animated.View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+          </View>
+        </TouchableWithoutFeedback>
+      </Animated.View>
+    </TouchableWithoutFeedback>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  overlayBackground: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContainer: {
-    width: SCREEN_WIDTH * 0.85,
-    maxWidth: 400,
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 24,
-    overflow: 'hidden',
-    boxShadow: '0px 10px 40px rgba(0, 0, 0, 0.3)',
-    elevation: 10,
-  },
-  modalContent: {
-    padding: 24,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    marginBottom: 24,
+    zIndex: 9999,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  optionsContainer: {
-    gap: 16,
+  floatingButtonsContainer: {
+    position: 'absolute',
+    bottom: 110,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    gap: 12,
   },
   firstRow: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
+  },
+  buttonWrapper: {
+    flex: 1,
   },
   smallButton: {
+    height: 80,
+    borderRadius: 20,
+    overflow: 'hidden',
+    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.3)',
+    elevation: 8,
+  },
+  gradientButton: {
     flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 140,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.08)',
-    elevation: 3,
-  },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
+    paddingHorizontal: 16,
   },
-  buttonLabel: {
+  buttonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
     textAlign: 'center',
   },
+  largeButtonWrapper: {
+    width: '100%',
+  },
   largeButton: {
-    backgroundColor: colors.background,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 160,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.08)',
-    elevation: 3,
+    height: 100,
+    borderRadius: 20,
+    overflow: 'hidden',
+    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.3)',
+    elevation: 8,
   },
-  largeIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
+  gradientButtonLarge: {
+    flex: 1,
     justifyContent: 'center',
-    marginBottom: 16,
+    alignItems: 'center',
+    paddingHorizontal: 24,
   },
-  largeButtonLabel: {
-    fontSize: 18,
+  largeButtonText: {
+    fontSize: 20,
     fontWeight: '700',
-    color: colors.text,
+    color: colors.backgroundAlt,
     textAlign: 'center',
   },
 });

@@ -1,5 +1,5 @@
 
-import React, { forwardRef, useMemo, useState, useCallback, useEffect } from 'react';
+import React, { forwardRef, useMemo, useState, useCallback, useEffect, useImperativeHandle } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
@@ -100,6 +100,38 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
     const snapPoints = useMemo(() => ['50%'], []);
     const [word, setWord] = useState('');
     const inputRef = React.useRef<TextInput>(null);
+    const internalRef = React.useRef<BottomSheetModal>(null);
+
+    // Expose both present and dismiss methods
+    useImperativeHandle(ref, () => ({
+      present: () => {
+        console.log('AddWordBottomSheet: present() called');
+        internalRef.current?.present();
+      },
+      dismiss: () => {
+        console.log('AddWordBottomSheet: dismiss() called');
+        internalRef.current?.dismiss();
+      },
+      close: () => {
+        console.log('AddWordBottomSheet: close() called');
+        internalRef.current?.close();
+      },
+      snapToIndex: (index: number) => {
+        internalRef.current?.snapToIndex(index);
+      },
+      snapToPosition: (position: string | number) => {
+        internalRef.current?.snapToPosition(position);
+      },
+      expand: () => {
+        internalRef.current?.expand();
+      },
+      collapse: () => {
+        internalRef.current?.collapse();
+      },
+      forceClose: () => {
+        internalRef.current?.forceClose();
+      },
+    }));
 
     const renderBackdrop = useCallback(
       (props: any) => (
@@ -117,9 +149,19 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
     const handleSheetChanges = useCallback((index: number) => {
       console.log('AddWordBottomSheet index changed:', index);
       if (index === 0) {
+        // Focus the input with multiple attempts to ensure it works
         setTimeout(() => {
           inputRef.current?.focus();
         }, 100);
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 300);
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 500);
+      } else if (index === -1) {
+        // Sheet is closed, clear the word
+        setWord('');
       }
     }, []);
 
@@ -133,12 +175,13 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
         console.log('Adding word:', trimmedWord, emoji, color);
         onAddWord(trimmedWord, emoji, color);
         setWord('');
+        internalRef.current?.dismiss();
       }
     };
 
     return (
       <BottomSheetModal
-        ref={ref}
+        ref={internalRef}
         index={0}
         snapPoints={snapPoints}
         enablePanDownToClose={true}
@@ -169,6 +212,8 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
               placeholderTextColor={colors.textSecondary}
               autoCapitalize="words"
               autoFocus={true}
+              returnKeyType="done"
+              onSubmitEditing={handleAdd}
             />
           </View>
 

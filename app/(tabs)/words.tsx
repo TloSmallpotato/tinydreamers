@@ -60,8 +60,14 @@ export default function WordsScreen() {
   // Handle add word trigger from Add modal
   useEffect(() => {
     if (shouldOpenAddWord) {
-      console.log('Opening add word bottom sheet');
+      console.log('shouldOpenAddWord triggered - opening add word bottom sheet');
+      // Use multiple timeouts to ensure the modal opens
       setTimeout(() => {
+        console.log('Attempting to present AddWordBottomSheet');
+        addWordSheetRef.current?.present();
+      }, 100);
+      setTimeout(() => {
+        console.log('Second attempt to present AddWordBottomSheet');
         addWordSheetRef.current?.present();
       }, 300);
       resetAddWord();
@@ -268,7 +274,7 @@ export default function WordsScreen() {
   }, []);
 
   const handleOpenAddWord = () => {
-    console.log('Opening add word bottom sheet');
+    console.log('Opening add word bottom sheet from + button');
     addWordSheetRef.current?.present();
   };
 
