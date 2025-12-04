@@ -10,9 +10,11 @@ import { useVideoRecording } from '@/contexts/VideoRecordingContext';
 import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import { useWordNavigation } from '@/contexts/WordNavigationContext';
+import { useAddNavigation } from '@/contexts/AddNavigationContext';
 import SelectWordBottomSheet from '@/components/SelectWordBottomSheet';
 import VideoPreviewModal from '@/components/VideoPreviewModal';
 import ToastNotification from '@/components/ToastNotification';
+import AddOptionsModal from '@/components/AddOptionsModal';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { supabase } from '@/app/integrations/supabase/client';
 import { generateVideoThumbnail, uploadThumbnailToSupabase, uploadVideoToSupabase } from '@/utils/videoThumbnail';
@@ -92,6 +94,7 @@ function CustomTabBar() {
   const cameraRef = useRef<CameraView>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [previousRoute, setPreviousRoute] = useState<string>('/(tabs)/profile');
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const scaleAnims = useRef(
     tabs.map(() => new Animated.Value(1))
@@ -108,6 +111,7 @@ function CustomTabBar() {
   const { selectedChild } = useChild();
   const { shouldOpenCamera, resetCameraTrigger } = useCameraTrigger();
   const { setTargetWordIdToOpen } = useWordNavigation();
+  const { triggerBookSearch, triggerAddWord } = useAddNavigation();
   const [words, setWords] = useState<any[]>([]);
   const selectWordSheetRef = useRef<BottomSheetModal>(null);
 
@@ -230,12 +234,32 @@ function CustomTabBar() {
     ]).start();
 
     if (tab.isAddButton) {
-      console.log('Add button pressed - opening camera');
-      await openCamera();
+      console.log('Add button pressed - showing options modal');
+      setShowAddModal(true);
     } else {
       console.log('Navigating to:', tab.route);
       router.push(tab.route as any);
     }
+  };
+
+  const handleAddBook = () => {
+    console.log('Add book selected');
+    setShowAddModal(false);
+    triggerBookSearch();
+    router.push('/(tabs)/books');
+  };
+
+  const handleAddWord = () => {
+    console.log('Add word selected');
+    setShowAddModal(false);
+    triggerAddWord();
+    router.push('/(tabs)/words');
+  };
+
+  const handleCaptureMoment = async () => {
+    console.log('Capture moment selected');
+    setShowAddModal(false);
+    await openCamera();
   };
 
   const handleCameraReady = () => {
@@ -613,6 +637,14 @@ function CustomTabBar() {
           })}
         </View>
       </View>
+
+      <AddOptionsModal
+        visible={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onAddBook={handleAddBook}
+        onAddWord={handleAddWord}
+        onCaptureMoment={handleCaptureMoment}
+      />
 
       <SelectWordBottomSheet
         ref={selectWordSheetRef}

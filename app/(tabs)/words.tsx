@@ -6,6 +6,7 @@ import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useWordNavigation } from '@/contexts/WordNavigationContext';
+import { useAddNavigation } from '@/contexts/AddNavigationContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
@@ -48,12 +49,24 @@ interface GroupedWords {
 export default function WordsScreen() {
   const { selectedChild } = useChild();
   const { targetWordIdToOpen, clearTargetWordIdToOpen } = useWordNavigation();
+  const { shouldOpenAddWord, resetAddWord } = useAddNavigation();
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
 
   const addWordSheetRef = useRef<BottomSheetModal>(null);
   const wordDetailSheetRef = useRef<BottomSheetModal>(null);
+
+  // Handle add word trigger from Add modal
+  useEffect(() => {
+    if (shouldOpenAddWord) {
+      console.log('Opening add word bottom sheet');
+      setTimeout(() => {
+        addWordSheetRef.current?.present();
+      }, 300);
+      resetAddWord();
+    }
+  }, [shouldOpenAddWord, resetAddWord]);
 
   const fetchWords = useCallback(async () => {
     if (!selectedChild) {

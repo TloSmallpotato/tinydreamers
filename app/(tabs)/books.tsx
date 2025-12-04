@@ -18,6 +18,7 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
+import { useAddNavigation } from '@/contexts/AddNavigationContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { searchGoogleBooks, BookSearchResult } from '@/utils/googleBooksApi';
 import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
@@ -43,6 +44,7 @@ interface SavedBook {
 
 export default function BooksScreen() {
   const { selectedChild } = useChild();
+  const { shouldFocusBookSearch, resetBookSearch } = useAddNavigation();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<BookSearchResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -52,6 +54,18 @@ export default function BooksScreen() {
   const [selectedBook, setSelectedBook] = useState<SavedBook | null>(null);
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
+  const searchInputRef = useRef<TextInput>(null);
+
+  // Handle focus trigger from Add modal
+  useEffect(() => {
+    if (shouldFocusBookSearch) {
+      console.log('Focusing book search input');
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 300);
+      resetBookSearch();
+    }
+  }, [shouldFocusBookSearch, resetBookSearch]);
 
   // Fetch saved books for the selected child
   const fetchSavedBooks = useCallback(async () => {
@@ -248,6 +262,7 @@ export default function BooksScreen() {
                 color={colors.primary} 
               />
               <TextInput
+                ref={searchInputRef}
                 style={styles.searchInput}
                 placeholder="Search to add a book"
                 placeholderTextColor={colors.primary}
