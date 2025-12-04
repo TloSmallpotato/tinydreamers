@@ -210,7 +210,8 @@ export default function BooksScreen() {
                           <Image
                             source={{ uri: book.thumbnailUrl }}
                             style={styles.bookCoverSmall}
-                            contentFit="cover"
+                            contentFit="contain"
+                            cachePolicy="memory-disk"
                           />
                         ) : (
                           <View style={[styles.bookCoverSmall, styles.placeholderCover]}>
@@ -263,7 +264,9 @@ export default function BooksScreen() {
                     <Image
                       source={{ uri: book.cover_url }}
                       style={styles.bookCoverLarge}
-                      contentFit="cover"
+                      contentFit="contain"
+                      cachePolicy="memory-disk"
+                      priority="high"
                     />
                   ) : (
                     <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
@@ -351,6 +354,8 @@ const styles = StyleSheet.create({
   },
   bookCoverContainer: {
     marginRight: 12,
+    backgroundColor: colors.background,
+    borderRadius: 8,
   },
   bookCoverSmall: {
     width: 50,
@@ -411,14 +416,16 @@ const styles = StyleSheet.create({
     aspectRatio: 0.7,
     borderRadius: 16,
     marginBottom: 16,
+    backgroundColor: colors.backgroundAlt,
     boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
     elevation: 3,
     overflow: 'hidden',
+    padding: 8,
   },
   bookCoverLarge: {
     width: '100%',
     height: '100%',
-    borderRadius: 16,
+    borderRadius: 12,
   },
   placeholderCoverLarge: {
     backgroundColor: colors.background,
