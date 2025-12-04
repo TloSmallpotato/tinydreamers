@@ -1,5 +1,5 @@
 
-import React, { forwardRef, useMemo, useState, useCallback } from 'react';
+import React, { forwardRef, useMemo, useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
@@ -15,13 +15,10 @@ const COLOR_OPTIONS = [
   colors.cardOrange,
 ];
 
-// Simple emoji mapping based on common words
 const getEmojiForWord = (word: string): string => {
   const lowerWord = word.toLowerCase().trim();
   
-  // Common word to emoji mappings
   const emojiMap: { [key: string]: string } = {
-    // Food & Drink
     'apple': '🍎', 'banana': '🍌', 'orange': '🍊', 'grape': '🍇', 'watermelon': '🍉',
     'strawberry': '🍓', 'cherry': '🍒', 'peach': '🍑', 'pineapple': '🍍', 'kiwi': '🥝',
     'bread': '🍞', 'cheese': '🧀', 'meat': '🍖', 'pizza': '🍕', 'burger': '🍔',
@@ -29,8 +26,6 @@ const getEmojiForWord = (word: string): string => {
     'milk': '🥛', 'water': '💧', 'juice': '🧃', 'coffee': '☕', 'tea': '🍵',
     'cake': '🍰', 'cookie': '🍪', 'candy': '🍬', 'chocolate': '🍫', 'ice cream': '🍦',
     'egg': '🥚', 'carrot': '🥕', 'corn': '🌽', 'potato': '🥔', 'tomato': '🍅',
-    
-    // Animals
     'dog': '🐶', 'cat': '🐱', 'mouse': '🐭', 'hamster': '🐹', 'rabbit': '🐰',
     'fox': '🦊', 'bear': '🐻', 'panda': '🐼', 'koala': '🐨', 'tiger': '🐯',
     'lion': '🦁', 'cow': '🐮', 'pig': '🐷', 'frog': '🐸', 'monkey': '🐵',
@@ -38,77 +33,50 @@ const getEmojiForWord = (word: string): string => {
     'fish': '🐟', 'whale': '🐋', 'dolphin': '🐬', 'shark': '🦈', 'octopus': '🐙',
     'butterfly': '🦋', 'bee': '🐝', 'ladybug': '🐞', 'snail': '🐌', 'turtle': '🐢',
     'elephant': '🐘', 'giraffe': '🦒', 'zebra': '🦓', 'horse': '🐴', 'unicorn': '🦄',
-    
-    // Transportation
     'car': '🚗', 'bus': '🚌', 'train': '🚂', 'plane': '✈️', 'boat': '⛵',
     'bike': '🚲', 'motorcycle': '🏍️', 'truck': '🚚', 'taxi': '🚕', 'ambulance': '🚑',
     'fire truck': '🚒', 'police': '🚓', 'helicopter': '🚁', 'rocket': '🚀', 'ship': '🚢',
-    
-    // Nature
     'tree': '🌳', 'flower': '🌸', 'rose': '🌹', 'sunflower': '🌻', 'tulip': '🌷',
     'sun': '☀️', 'moon': '🌙', 'star': '⭐', 'cloud': '☁️', 'rain': '🌧️',
     'snow': '❄️', 'fire': '🔥', 'water': '💧', 'wind': '💨', 'rainbow': '🌈',
     'mountain': '⛰️', 'beach': '🏖️', 'ocean': '🌊', 'leaf': '🍃', 'plant': '🌱',
-    
-    // Objects
     'ball': '⚽', 'book': '📚', 'pen': '✏️', 'pencil': '✏️', 'crayon': '🖍️',
     'phone': '📱', 'computer': '💻', 'tv': '📺', 'camera': '📷', 'watch': '⌚',
     'clock': '🕐', 'key': '🔑', 'door': '🚪', 'window': '🪟', 'chair': '🪑',
     'table': '🪑', 'bed': '🛏️', 'lamp': '💡', 'gift': '🎁', 'balloon': '🎈',
     'toy': '🧸', 'puzzle': '🧩', 'game': '🎮', 'music': '🎵', 'guitar': '🎸',
     'drum': '🥁', 'trumpet': '🎺', 'violin': '🎻', 'piano': '🎹', 'microphone': '🎤',
-    
-    // Places
     'home': '🏠', 'house': '🏠', 'school': '🏫', 'hospital': '🏥', 'store': '🏪',
     'park': '🏞️', 'playground': '🛝', 'beach': '🏖️', 'castle': '🏰', 'church': '⛪',
-    
-    // Body Parts
     'hand': '✋', 'foot': '🦶', 'eye': '👁️', 'ear': '👂', 'nose': '👃',
     'mouth': '👄', 'teeth': '🦷', 'hair': '💇', 'heart': '❤️', 'brain': '🧠',
-    
-    // Clothing
     'shirt': '👕', 'pants': '👖', 'dress': '👗', 'shoe': '👞', 'hat': '🎩',
     'sock': '🧦', 'glove': '🧤', 'coat': '🧥', 'scarf': '🧣', 'glasses': '👓',
-    
-    // Actions & Emotions
     'happy': '😊', 'sad': '😢', 'love': '❤️', 'laugh': '😂', 'cry': '😭',
     'sleep': '😴', 'eat': '🍽️', 'drink': '🥤', 'play': '🎮', 'run': '🏃',
     'walk': '🚶', 'jump': '🦘', 'dance': '💃', 'sing': '🎤', 'read': '📖',
-    
-    // Colors
     'red': '🔴', 'blue': '🔵', 'green': '🟢', 'yellow': '🟡', 'orange': '🟠',
     'purple': '🟣', 'pink': '🩷', 'brown': '🟤', 'black': '⚫', 'white': '⚪',
-    
-    // Numbers
     'one': '1️⃣', 'two': '2️⃣', 'three': '3️⃣', 'four': '4️⃣', 'five': '5️⃣',
     'six': '6️⃣', 'seven': '7️⃣', 'eight': '8️⃣', 'nine': '9️⃣', 'ten': '🔟',
-    
-    // Family
     'mom': '👩', 'dad': '👨', 'baby': '👶', 'boy': '👦', 'girl': '👧',
     'grandma': '👵', 'grandpa': '👴', 'family': '👨‍👩‍👧‍👦', 'brother': '👦', 'sister': '👧',
-    
-    // Weather
     'sunny': '☀️', 'cloudy': '☁️', 'rainy': '🌧️', 'snowy': '❄️', 'windy': '💨',
     'storm': '⛈️', 'thunder': '⚡', 'hot': '🔥', 'cold': '🧊', 'warm': '🌡️',
-    
-    // Time
     'morning': '🌅', 'day': '☀️', 'night': '🌙', 'evening': '🌆', 'today': '📅',
     'tomorrow': '📆', 'yesterday': '📅', 'time': '⏰', 'hour': '🕐', 'minute': '⏱️',
   };
   
-  // Check for exact match
   if (emojiMap[lowerWord]) {
     return emojiMap[lowerWord];
   }
   
-  // Check for partial matches
   for (const [key, emoji] of Object.entries(emojiMap)) {
     if (lowerWord.includes(key) || key.includes(lowerWord)) {
       return emoji;
     }
   }
   
-  // Default emoji based on first letter
   const firstChar = lowerWord.charAt(0);
   const defaultEmojis: { [key: string]: string } = {
     'a': '🍎', 'b': '🎈', 'c': '🐱', 'd': '🐶', 'e': '🥚',
@@ -123,7 +91,7 @@ const getEmojiForWord = (word: string): string => {
 };
 
 const getColorForLetter = (letter: string): string => {
-  const letterIndex = letter.toUpperCase().charCodeAt(0) - 65; // A=0, B=1, etc.
+  const letterIndex = letter.toUpperCase().charCodeAt(0) - 65;
   return COLOR_OPTIONS[letterIndex % COLOR_OPTIONS.length];
 };
 
@@ -131,6 +99,7 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
   ({ onAddWord }, ref) => {
     const snapPoints = useMemo(() => ['50%'], []);
     const [word, setWord] = useState('');
+    const inputRef = React.useRef<TextInput>(null);
 
     const renderBackdrop = useCallback(
       (props: any) => (
@@ -144,6 +113,15 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
       ),
       []
     );
+
+    const handleSheetChanges = useCallback((index: number) => {
+      console.log('AddWordBottomSheet index changed:', index);
+      if (index === 0) {
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 100);
+      }
+    }, []);
 
     const handleAdd = () => {
       if (word.trim()) {
@@ -171,6 +149,7 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
         keyboardBehavior="interactive"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
+        onChange={handleSheetChanges}
       >
         <BottomSheetScrollView 
           style={styles.scrollView}
@@ -182,12 +161,14 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
           <View style={styles.form}>
             <Text style={styles.label}>Word</Text>
             <TextInput
+              ref={inputRef}
               style={styles.input}
               value={word}
               onChangeText={setWord}
               placeholder="Enter word"
               placeholderTextColor={colors.textSecondary}
               autoCapitalize="words"
+              autoFocus={true}
             />
           </View>
 

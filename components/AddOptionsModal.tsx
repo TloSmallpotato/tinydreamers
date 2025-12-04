@@ -97,7 +97,7 @@ export default function AddOptionsModal({
             <BlurView intensity={20} style={StyleSheet.absoluteFill} />
           </Animated.View>
 
-          <TouchableWithoutFeedback>
+          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <Animated.View
               style={[
                 styles.modalContainer,
@@ -113,22 +113,9 @@ export default function AddOptionsModal({
               <View style={styles.modalContent}>
                 <View style={styles.header}>
                   <Text style={styles.headerTitle}>Add New</Text>
-                  <TouchableOpacity
-                    style={styles.closeButton}
-                    onPress={onClose}
-                    activeOpacity={0.7}
-                  >
-                    <IconSymbol
-                      ios_icon_name="xmark"
-                      android_material_icon_name="close"
-                      size={24}
-                      color={colors.textSecondary}
-                    />
-                  </TouchableOpacity>
                 </View>
 
                 <View style={styles.optionsContainer}>
-                  {/* First Row: Add Book and Add Word */}
                   <View style={styles.firstRow}>
                     <TouchableOpacity
                       style={styles.smallButton}
@@ -163,7 +150,6 @@ export default function AddOptionsModal({
                     </TouchableOpacity>
                   </View>
 
-                  {/* Second Row: Capture a Moment (Larger) */}
                   <TouchableOpacity
                     style={styles.largeButton}
                     onPress={onCaptureMoment}
@@ -213,7 +199,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
   },
@@ -221,14 +207,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: colors.text,
-  },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   optionsContainer: {
     gap: 16,
