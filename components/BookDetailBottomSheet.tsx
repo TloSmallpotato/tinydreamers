@@ -47,22 +47,28 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     const [newTag, setNewTag] = useState('');
     const [showMenu, setShowMenu] = useState(false);
 
+    // Cache the current book data to prevent flickering
+    const [cachedUserBook, setCachedUserBook] = useState<UserBook | null>(null);
+
+    // Update cached data when userBook changes
     useEffect(() => {
       if (userBook) {
+        setCachedUserBook(userBook);
         setRating((userBook.rating as RatingType) || null);
         setWouldRecommend(userBook.would_recommend || false);
         setTags(userBook.tags || []);
+        setShowMenu(false);
       }
     }, [userBook]);
 
-    const updateBookData = async (field: 'rating' | 'would_recommend' | 'tags', value: any) => {
-      if (!userBook) return;
+    const updateBookData = useCallback(async (field: 'rating' | 'would_recommend' | 'tags', value: any) => {
+      if (!cachedUserBook) return;
 
       try {
         const { error } = await supabase
           .from('user_books')
           .update({ [field]: value, updated_at: new Date().toISOString() })
-          .eq('id', userBook.id);
+          .eq('id', cachedUserBook.id);
 
         if (error) {
           console.error('Error updating book:', error);
@@ -74,21 +80,21 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         console.error('Error in updateBookData:', error);
         Alert.alert('Error', 'Failed to update book');
       }
-    };
+    }, [cachedUserBook, onRefresh]);
 
-    const handleRatingPress = async (newRating: RatingType) => {
+    const handleRatingPress = useCallback(async (newRating: RatingType) => {
       const finalRating = rating === newRating ? null : newRating;
       setRating(finalRating);
       await updateBookData('rating', finalRating);
-    };
+    }, [rating, updateBookData]);
 
-    const toggleRecommend = async () => {
+    const toggleRecommend = useCallback(async () => {
       const newValue = !wouldRecommend;
       setWouldRecommend(newValue);
       await updateBookData('would_recommend', newValue);
-    };
+    }, [wouldRecommend, updateBookData]);
 
-    const handleAddTag = async () => {
+    const handleAddTag = useCallback(async () => {
       if (!newTag.trim()) return;
       
       const trimmedTag = newTag.trim().toLowerCase();
@@ -101,20 +107,20 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       setTags(updatedTags);
       setNewTag('');
       await updateBookData('tags', updatedTags);
-    };
+    }, [newTag, tags, updateBookData]);
 
-    const handleRemoveTag = async (tagToRemove: string) => {
+    const handleRemoveTag = useCallback(async (tagToRemove: string) => {
       const updatedTags = tags.filter(tag => tag !== tagToRemove);
       setTags(updatedTags);
       await updateBookData('tags', updatedTags);
-    };
+    }, [tags, updateBookData]);
 
-    const handleDeleteBook = () => {
+    const handleDeleteBook = useCallback(() => {
       setShowMenu(false);
       
       Alert.alert(
         'Remove Book',
-        `Remove "${userBook?.book.title}" from library? This action cannot be undone.`,
+        `Remove "${cachedUserBook?.book.title}" from library? This action cannot be undone.`,
         [
           {
             text: 'Cancel',
@@ -129,16 +135,16 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
           },
         ]
       );
-    };
+    }, [cachedUserBook]);
 
-    const deleteBook = async () => {
-      if (!userBook) return;
+    const deleteBook = useCallback(async () => {
+      if (!cachedUserBook) return;
 
       try {
         const { error } = await supabase
           .from('user_books')
           .delete()
-          .eq('id', userBook.id);
+          .eq('id', cachedUserBook.id);
 
         if (error) {
           console.error('Error deleting book:', error);
@@ -155,7 +161,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         console.error('Error in deleteBook:', error);
         Alert.alert('Error', 'Failed to remove book');
       }
-    };
+    }, [cachedUserBook, ref, onRefresh]);
 
     const renderBackdrop = useCallback(
       (props: any) => (
@@ -170,9 +176,15 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       []
     );
 
-    if (!userBook) return null;
+    const handleDismiss = useCallback(() => {
+      setShowMenu(false);
+      onClose();
+    }, [onClose]);
 
-    const book = userBook.book;
+    // Don't return null - keep the component mounted with cached data
+    if (!cachedUserBook) return null;
+
+    const book = cachedUserBook.book;
 
     return (
       <BottomSheetModal
@@ -181,10 +193,11 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         snapPoints={snapPoints}
         enablePanDownToClose={true}
         enableDismissOnClose={true}
+        enableDynamicSizing={false}
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
-        onDismiss={onClose}
+        onDismiss={handleDismiss}
       >
         <BottomSheetScrollView 
           style={styles.scrollView}
