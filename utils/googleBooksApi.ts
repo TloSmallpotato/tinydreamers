@@ -34,85 +34,104 @@ export interface BookSearchResult {
 }
 
 /**
- * Enhances Google Books image URL to get maximum resolution
- * Google Books allows various parameters to increase image quality
+ * Gets the highest quality image URL from Google Books imageLinks
+ * Prioritizes larger images and enhances URLs for maximum quality
  */
-function enhanceImageUrl(url: string | undefined, isHighRes: boolean = false): string {
+function getHighQualityImageUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks']): string {
+  if (!imageLinks) return '';
+  
+  // Priority order: largest to smallest
+  // Try to get the highest resolution available
+  let url = imageLinks.extraLarge || 
+            imageLinks.large || 
+            imageLinks.medium || 
+            imageLinks.small || 
+            imageLinks.thumbnail || 
+            imageLinks.smallThumbnail || 
+            '';
+  
   if (!url) return '';
   
-  // Replace http with https for security
-  let enhancedUrl = url.replace('http://', 'https://');
+  // Ensure HTTPS
+  url = url.replace('http://', 'https://');
   
-  // Remove existing zoom parameter to replace it
-  enhancedUrl = enhancedUrl.replace(/&zoom=\d+/, '');
-  enhancedUrl = enhancedUrl.replace(/\?zoom=\d+/, '');
+  // Remove any existing zoom or size parameters
+  url = url.replace(/&zoom=\d+/g, '');
+  url = url.replace(/\?zoom=\d+/g, '');
+  url = url.replace(/&fife=.*/g, '');
+  url = url.replace(/\?fife=.*/g, '');
   
-  // For high-res images (main display), request maximum quality
-  if (isHighRes) {
-    // If it's a Google Books image, we can manipulate the URL for better quality
-    if (enhancedUrl.includes('books.google.com')) {
-      // Add zoom parameter for higher quality
-      // zoom=1 is standard, zoom=3 is higher quality
-      if (enhancedUrl.includes('?')) {
-        enhancedUrl += '&zoom=1';
-      } else {
-        enhancedUrl += '?zoom=1';
-      }
-    }
-  } else {
-    // For thumbnails, use zoom=1 for good quality
-    if (enhancedUrl.includes('books.google.com')) {
-      if (enhancedUrl.includes('?')) {
-        enhancedUrl += '&zoom=1';
-      } else {
-        enhancedUrl += '?zoom=1';
-      }
+  // For Google Books images, we can request higher quality
+  if (url.includes('books.google.com')) {
+    // Remove the edge parameter which limits size
+    url = url.replace(/&edge=curl/g, '');
+    url = url.replace(/\?edge=curl/g, '');
+    
+    // Add parameters for maximum quality
+    // zoom=0 gives us the highest resolution available
+    const separator = url.includes('?') ? '&' : '?';
+    url = `${url}${separator}zoom=0&printsec=frontcover`;
+  }
+  
+  // For Google User Content images (lh3.googleusercontent.com)
+  if (url.includes('googleusercontent.com')) {
+    // Remove size restrictions
+    url = url.replace(/=s\d+/g, '');
+    url = url.replace(/=w\d+/g, '');
+    url = url.replace(/=h\d+/g, '');
+    
+    // Request high quality with no size limit
+    // s0 means original size, no scaling
+    if (!url.includes('=s')) {
+      url = `${url}=s0`;
     }
   }
   
-  return enhancedUrl;
-}
-
-/**
- * Gets the best available image URL from Google Books imageLinks
- * Prioritizes larger images for better quality
- * Returns the raw URL without enhancement for better compatibility
- */
-function getBestImageUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks']): string {
-  if (!imageLinks) return '';
-  
-  // Priority order: try all available sizes
-  // Use the raw URLs from Google Books API as they work best
-  const url = imageLinks.thumbnail || 
-               imageLinks.smallThumbnail || 
-               imageLinks.small || 
-               imageLinks.medium || 
-               imageLinks.large || 
-               imageLinks.extraLarge || 
-               '';
-  
-  // Just ensure HTTPS, don't modify the URL further
-  return url ? url.replace('http://', 'https://') : '';
+  console.log('Enhanced image URL:', url);
+  return url;
 }
 
 /**
  * Gets thumbnail URL for dropdown preview
- * Uses the same logic as getBestImageUrl for consistency
+ * Uses medium quality for faster loading in lists
  */
 function getThumbnailUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks']): string {
   if (!imageLinks) return '';
   
-  // Use the same URL as cover for consistency
-  // The Image component will handle sizing
-  const url = imageLinks.thumbnail || 
-               imageLinks.smallThumbnail || 
-               imageLinks.small || 
-               imageLinks.medium || 
-               imageLinks.large || 
-               imageLinks.extraLarge || 
-               '';
+  // For thumbnails, use medium quality for faster loading
+  let url = imageLinks.thumbnail || 
+            imageLinks.small || 
+            imageLinks.medium || 
+            imageLinks.smallThumbnail || 
+            '';
   
-  return url ? url.replace('http://', 'https://') : '';
+  if (!url) return '';
+  
+  // Ensure HTTPS
+  url = url.replace('http://', 'https://');
+  
+  // For Google Books images, use zoom=1 for good quality thumbnails
+  if (url.includes('books.google.com')) {
+    url = url.replace(/&zoom=\d+/g, '');
+    url = url.replace(/\?zoom=\d+/g, '');
+    url = url.replace(/&edge=curl/g, '');
+    url = url.replace(/\?edge=curl/g, '');
+    
+    const separator = url.includes('?') ? '&' : '?';
+    url = `${url}${separator}zoom=1`;
+  }
+  
+  // For Google User Content images
+  if (url.includes('googleusercontent.com')) {
+    url = url.replace(/=s\d+/g, '');
+    url = url.replace(/=w\d+/g, '');
+    url = url.replace(/=h\d+/g, '');
+    
+    // Request 400px width for thumbnails (good balance of quality and speed)
+    url = `${url}=w400`;
+  }
+  
+  return url;
 }
 
 /**
@@ -125,7 +144,7 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
 
   try {
     const encodedQuery = encodeURIComponent(query.trim());
-    // Request books with images and specify we want high-quality results
+    // Request full projection to get all available image sizes
     const response = await fetch(
       `https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=10&printType=books&projection=full`
     );
@@ -143,12 +162,18 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
 
     return data.items
       .map((item: GoogleBook) => {
-        const coverUrl = getBestImageUrl(item.volumeInfo.imageLinks);
+        const coverUrl = getHighQualityImageUrl(item.volumeInfo.imageLinks);
         const thumbnailUrl = getThumbnailUrl(item.volumeInfo.imageLinks);
         
         // Log for debugging
         if (!coverUrl) {
           console.log('No image found for book:', item.volumeInfo.title);
+        } else {
+          console.log('Book image URLs:', {
+            title: item.volumeInfo.title,
+            coverUrl,
+            thumbnailUrl,
+          });
         }
         
         return {
@@ -162,8 +187,6 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
           pageCount: item.volumeInfo.pageCount || 0,
         };
       })
-      // Filter out books without images if needed, or keep them all
-      // For now, keep all books even without images
       .filter((book: BookSearchResult) => book.title && book.authors);
   } catch (error) {
     console.error('Error searching Google Books:', error);
@@ -185,7 +208,7 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
     
     console.log('Searching for ISBN:', cleanISBN);
     
-    // Search by ISBN using the isbn: prefix
+    // Search by ISBN using the isbn: prefix with full projection
     const response = await fetch(
       `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanISBN}&projection=full`
     );
@@ -204,10 +227,15 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
 
     // Get the first result (should be the most relevant)
     const item: GoogleBook = data.items[0];
-    const coverUrl = getBestImageUrl(item.volumeInfo.imageLinks);
+    const coverUrl = getHighQualityImageUrl(item.volumeInfo.imageLinks);
     const thumbnailUrl = getThumbnailUrl(item.volumeInfo.imageLinks);
 
     console.log('Found book:', item.volumeInfo.title);
+    console.log('Book image URLs:', {
+      title: item.volumeInfo.title,
+      coverUrl,
+      thumbnailUrl,
+    });
 
     return {
       googleBooksId: item.id,

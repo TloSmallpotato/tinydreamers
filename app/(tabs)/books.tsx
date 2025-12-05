@@ -58,10 +58,21 @@ export default function BooksScreen() {
   const [selectedBook, setSelectedBook] = useState<SavedBook | null>(null);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [showScanner, setShowScanner] = useState(false);
+  const [isAddingBook, setIsAddingBook] = useState(false);
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const searchInputRef = useRef<TextInput>(null);
   const hasProcessedAutoOpen = useRef(false);
+  const addBookTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (addBookTimeoutRef.current) {
+        clearTimeout(addBookTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Handle autoOpen parameter from navigation - runs every time screen comes into focus
   useFocusEffect(
@@ -179,12 +190,23 @@ export default function BooksScreen() {
   }, [searchQuery]);
 
   const handleSelectBook = async (book: BookSearchResult) => {
+    // Prevent duplicate additions
+    if (isAddingBook) {
+      console.log('Already adding a book - ignoring duplicate request');
+      return;
+    }
+
     if (!selectedChild) {
       console.log('No child selected');
+      Alert.alert('No Child Selected', 'Please select a child before adding books.');
       return;
     }
 
     try {
+      // Set flag to prevent duplicate additions
+      setIsAddingBook(true);
+      console.log('Adding book:', book.title);
+
       // Step 1: Check if book exists in books_library
       let { data: existingBook, error: fetchError } = await supabase
         .from('books_library')
@@ -217,6 +239,8 @@ export default function BooksScreen() {
 
         if (insertError) {
           console.error('Error creating book:', insertError);
+          Alert.alert('Error', 'Failed to add book. Please try again.');
+          setIsAddingBook(false);
           return;
         }
 
@@ -225,6 +249,8 @@ export default function BooksScreen() {
         bookId = existingBook.id;
       } else {
         console.error('Error fetching book:', fetchError);
+        Alert.alert('Error', 'Failed to add book. Please try again.');
+        setIsAddingBook(false);
         return;
       }
 
@@ -242,6 +268,7 @@ export default function BooksScreen() {
         setSearchQuery('');
         setShowDropdown(false);
         Keyboard.dismiss();
+        setIsAddingBook(false);
         return;
       }
 
@@ -255,6 +282,8 @@ export default function BooksScreen() {
 
       if (relationError) {
         console.error('Error adding book to library:', relationError);
+        Alert.alert('Error', 'Failed to add book to library. Please try again.');
+        setIsAddingBook(false);
         return;
       }
 
@@ -268,20 +297,36 @@ export default function BooksScreen() {
 
       // Show success message
       Alert.alert('Success', 'Book added to your library!');
+
+      console.log('Book added successfully');
     } catch (error) {
       console.error('Error in handleSelectBook:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      // Reset the flag after a short delay to prevent rapid re-additions
+      addBookTimeoutRef.current = setTimeout(() => {
+        console.log('Resetting isAddingBook flag');
+        setIsAddingBook(false);
+      }, 2000);
     }
   };
 
   const handleBarcodeScanned = async (isbn: string) => {
     console.log('ISBN scanned:', isbn);
     
+    // Prevent duplicate processing
+    if (isAddingBook) {
+      console.log('Already adding a book - ignoring barcode scan');
+      return;
+    }
+    
     if (!selectedChild) {
       Alert.alert('No Child Selected', 'Please select a child before adding books.');
       return;
     }
 
-    // Show loading state
+    // Set flag immediately
+    setIsAddingBook(true);
     setIsSearching(true);
 
     try {
@@ -295,6 +340,7 @@ export default function BooksScreen() {
           [{ text: 'OK' }]
         );
         setIsSearching(false);
+        setIsAddingBook(false);
         return;
       }
 
@@ -303,6 +349,7 @@ export default function BooksScreen() {
     } catch (error) {
       console.error('Error handling barcode scan:', error);
       Alert.alert('Error', 'An error occurred while searching for the book. Please try again.');
+      setIsAddingBook(false);
     } finally {
       setIsSearching(false);
     }
@@ -377,6 +424,7 @@ export default function BooksScreen() {
                     }
                   }}
                   onBlur={handleSearchBlur}
+                  editable={!isAddingBook}
                 />
                 {isSearching && (
                   <ActivityIndicator size="small" color={colors.primary} />
@@ -384,15 +432,16 @@ export default function BooksScreen() {
               </View>
 
               <TouchableOpacity
-                style={styles.cameraButton}
+                style={[styles.cameraButton, isAddingBook && styles.cameraButtonDisabled]}
                 onPress={() => setShowScanner(true)}
                 activeOpacity={0.7}
+                disabled={isAddingBook}
               >
                 <IconSymbol
                   ios_icon_name="barcode.viewfinder"
                   android_material_icon_name="qr_code_scanner"
                   size={24}
-                  color={colors.backgroundAlt}
+                  color={isAddingBook ? colors.textSecondary : colors.backgroundAlt}
                 />
               </TouchableOpacity>
             </View>
@@ -409,6 +458,7 @@ export default function BooksScreen() {
                       key={`${book.googleBooksId}-${index}`}
                       style={styles.dropdownItem}
                       onPress={() => handleSelectBook(book)}
+                      disabled={isAddingBook}
                     >
                       <View style={styles.bookCoverContainer}>
                         {book.thumbnailUrl || book.coverUrl ? (
@@ -417,6 +467,7 @@ export default function BooksScreen() {
                             style={styles.bookCoverSmall}
                             contentFit="cover"
                             cachePolicy="memory-disk"
+                            priority="high"
                             transition={200}
                             onError={() => console.log('Dropdown image error:', book.title)}
                           />
@@ -578,6 +629,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)',
     elevation: 4,
+  },
+  cameraButtonDisabled: {
+    backgroundColor: colors.backgroundAlt,
+    opacity: 0.5,
   },
   dropdown: {
     position: 'absolute',

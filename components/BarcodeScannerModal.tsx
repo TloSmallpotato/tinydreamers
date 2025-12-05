@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -26,37 +26,100 @@ export default function BarcodeScannerModal({
 }: BarcodeScannerModalProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastScannedISBNRef = useRef<string>('');
 
   useEffect(() => {
     if (visible) {
+      console.log('Scanner modal opened - resetting state');
       setScanned(false);
+      setIsProcessing(false);
+      lastScannedISBNRef.current = '';
+      
+      // Clear any existing timeout
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+        processingTimeoutRef.current = null;
+      }
     }
   }, [visible]);
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleBarCodeScanned = ({ type, data }: BarcodeScanningResult) => {
-    if (scanned) return;
+    // Prevent multiple scans
+    if (scanned || isProcessing) {
+      console.log('Scan blocked - already processing:', { scanned, isProcessing });
+      return;
+    }
 
     console.log('Barcode scanned:', { type, data });
-    setScanned(true);
 
     // Extract ISBN from barcode data
-    // ISBNs can be in EAN-13 format (starting with 978 or 979) or ISBN-10
     let isbn = data;
 
     // Clean up the ISBN (remove dashes, spaces)
     isbn = isbn.replace(/[-\s]/g, '');
 
+    // Check if this is the same ISBN we just scanned (within the last 3 seconds)
+    if (isbn === lastScannedISBNRef.current) {
+      console.log('Duplicate scan detected - ignoring');
+      return;
+    }
+
     // Validate ISBN format
     if (isbn.length === 13 && (isbn.startsWith('978') || isbn.startsWith('979'))) {
       // Valid EAN-13 ISBN
       console.log('Valid ISBN-13:', isbn);
+      
+      // Set flags immediately to prevent duplicate processing
+      setScanned(true);
+      setIsProcessing(true);
+      lastScannedISBNRef.current = isbn;
+      
+      // Call the callback
       onBarcodeScanned(isbn);
+      
+      // Close the modal
       onClose();
+      
+      // Reset processing flag after 3 seconds (safety timeout)
+      processingTimeoutRef.current = setTimeout(() => {
+        console.log('Processing timeout - resetting flags');
+        setIsProcessing(false);
+        lastScannedISBNRef.current = '';
+      }, 3000);
+      
     } else if (isbn.length === 10) {
       // Valid ISBN-10
       console.log('Valid ISBN-10:', isbn);
+      
+      // Set flags immediately to prevent duplicate processing
+      setScanned(true);
+      setIsProcessing(true);
+      lastScannedISBNRef.current = isbn;
+      
+      // Call the callback
       onBarcodeScanned(isbn);
+      
+      // Close the modal
       onClose();
+      
+      // Reset processing flag after 3 seconds (safety timeout)
+      processingTimeoutRef.current = setTimeout(() => {
+        console.log('Processing timeout - resetting flags');
+        setIsProcessing(false);
+        lastScannedISBNRef.current = '';
+      }, 3000);
+      
     } else {
       // Invalid ISBN format
       Alert.alert(
@@ -65,11 +128,18 @@ export default function BarcodeScannerModal({
         [
           {
             text: 'Try Again',
-            onPress: () => setScanned(false),
+            onPress: () => {
+              setScanned(false);
+              setIsProcessing(false);
+            },
           },
           {
             text: 'Cancel',
-            onPress: onClose,
+            onPress: () => {
+              setScanned(false);
+              setIsProcessing(false);
+              onClose();
+            },
             style: 'cancel',
           },
         ]
@@ -182,10 +252,10 @@ export default function BarcodeScannerModal({
 
           <View style={styles.instructions}>
             <Text style={styles.instructionText}>
-              Position the barcode within the frame
+              {isProcessing ? 'Processing...' : 'Position the barcode within the frame'}
             </Text>
             <Text style={styles.instructionSubtext}>
-              Scan the ISBN barcode on the back of the book
+              {isProcessing ? 'Please wait' : 'Scan the ISBN barcode on the back of the book'}
             </Text>
           </View>
         </View>
