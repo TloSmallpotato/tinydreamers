@@ -71,12 +71,13 @@ export default function BooksScreen() {
         console.log('autoOpen parameter detected - focusing book search input');
         hasProcessedAutoOpen.current = true;
         
+        // Clear the parameter immediately
+        router.replace('/(tabs)/books');
+        
         // Use requestAnimationFrame to ensure the screen is fully rendered
         requestAnimationFrame(() => {
           setTimeout(() => {
             searchInputRef.current?.focus();
-            // Clear the parameter by replacing the route without it
-            router.replace('/(tabs)/books');
           }, 100);
         });
       }
@@ -88,6 +89,12 @@ export default function BooksScreen() {
       };
     }, [params.autoOpen, router])
   );
+
+  // Reset the flag when search input loses focus (modal closed)
+  const handleSearchBlur = useCallback(() => {
+    console.log('Search input blurred - resetting hasProcessedAutoOpen flag');
+    hasProcessedAutoOpen.current = false;
+  }, []);
 
   // Handle focus trigger from Add modal (legacy method)
   useEffect(() => {
@@ -327,6 +334,7 @@ export default function BooksScreen() {
                     setShowDropdown(true);
                   }
                 }}
+                onBlur={handleSearchBlur}
               />
               {isSearching && (
                 <ActivityIndicator size="small" color={colors.primary} />

@@ -68,12 +68,13 @@ export default function WordsScreen() {
         console.log('autoOpen parameter detected - opening add word bottom sheet');
         hasProcessedAutoOpen.current = true;
         
+        // Clear the parameter immediately
+        router.replace('/(tabs)/words');
+        
         // Use requestAnimationFrame to ensure the screen is fully rendered
         requestAnimationFrame(() => {
           setTimeout(() => {
             addWordSheetRef.current?.present();
-            // Clear the parameter by replacing the route without it
-            router.replace('/(tabs)/words');
           }, 100);
         });
       }
@@ -295,6 +296,12 @@ export default function WordsScreen() {
     setSelectedWord(null);
   }, []);
 
+  // Reset the flag when the bottom sheet is dismissed
+  const handleAddWordSheetDismiss = useCallback(() => {
+    console.log('Add word bottom sheet dismissed - resetting hasProcessedAutoOpen flag');
+    hasProcessedAutoOpen.current = false;
+  }, []);
+
   const groupedWords = groupWordsByLetter(words);
   const sortedLetters = Object.keys(groupedWords).sort();
 
@@ -415,7 +422,11 @@ export default function WordsScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <AddWordBottomSheet ref={addWordSheetRef} onAddWord={handleAddWord} />
+      <AddWordBottomSheet 
+        ref={addWordSheetRef} 
+        onAddWord={handleAddWord}
+        onDismiss={handleAddWordSheetDismiss}
+      />
       <WordDetailBottomSheet
         ref={wordDetailSheetRef}
         word={selectedWord}

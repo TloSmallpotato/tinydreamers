@@ -1,11 +1,12 @@
 
-import React, { forwardRef, useMemo, useState, useCallback, useEffect, useImperativeHandle } from 'react';
+import React, { forwardRef, useMemo, useState, useCallback, useImperativeHandle } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 
 interface AddWordBottomSheetProps {
   onAddWord: (word: string, emoji: string, color: string) => void;
+  onDismiss?: () => void;
 }
 
 const COLOR_OPTIONS = [
@@ -96,7 +97,7 @@ const getColorForLetter = (letter: string): string => {
 };
 
 const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>(
-  ({ onAddWord }, ref) => {
+  ({ onAddWord, onDismiss }, ref) => {
     const snapPoints = useMemo(() => ['50%'], []);
     const [word, setWord] = useState('');
     const inputRef = React.useRef<TextInput>(null);
@@ -160,10 +161,13 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
           inputRef.current?.focus();
         }, 500);
       } else if (index === -1) {
-        // Sheet is closed, clear the word
+        // Sheet is closed, clear the word and call onDismiss
         setWord('');
+        if (onDismiss) {
+          onDismiss();
+        }
       }
-    }, []);
+    }, [onDismiss]);
 
     const handleAdd = () => {
       if (word.trim()) {
