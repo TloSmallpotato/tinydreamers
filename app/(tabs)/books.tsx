@@ -22,6 +22,7 @@ import { useAddNavigation } from '@/contexts/AddNavigationContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { searchGoogleBooks, BookSearchResult } from '@/utils/googleBooksApi';
 import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 interface SavedBook {
   id: string;
@@ -45,6 +46,8 @@ interface SavedBook {
 export default function BooksScreen() {
   const { selectedChild } = useChild();
   const { shouldFocusBookSearch, resetBookSearch } = useAddNavigation();
+  const { autoOpen } = useLocalSearchParams();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<BookSearchResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -57,10 +60,27 @@ export default function BooksScreen() {
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const searchInputRef = useRef<TextInput>(null);
 
-  // Handle focus trigger from Add modal
+  // Handle autoOpen parameter from navigation - runs every time screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (autoOpen === 'true') {
+        console.log('autoOpen parameter detected - focusing book search input');
+        // Use requestAnimationFrame to ensure the screen is fully rendered
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            searchInputRef.current?.focus();
+            // Clear the parameter by replacing the route without it
+            router.replace('/(tabs)/books');
+          }, 100);
+        });
+      }
+    }, [autoOpen, router])
+  );
+
+  // Handle focus trigger from Add modal (legacy method)
   useEffect(() => {
     if (shouldFocusBookSearch) {
-      console.log('Focusing book search input');
+      console.log('Focusing book search input from context');
       setTimeout(() => {
         searchInputRef.current?.focus();
       }, 300);

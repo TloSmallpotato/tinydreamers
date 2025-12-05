@@ -10,7 +10,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 interface UserWord {
   id: string;
@@ -49,6 +49,7 @@ export default function WordsScreen() {
   const { selectedChild } = useChild();
   const { targetWordIdToOpen, clearTargetWordIdToOpen } = useWordNavigation();
   const { autoOpen } = useLocalSearchParams();
+  const router = useRouter();
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
@@ -56,17 +57,22 @@ export default function WordsScreen() {
   const addWordSheetRef = useRef<BottomSheetModal>(null);
   const wordDetailSheetRef = useRef<BottomSheetModal>(null);
 
-  // Handle autoOpen parameter from navigation
-  useEffect(() => {
-    console.log('autoOpen parameter changed:', autoOpen);
-    if (autoOpen === 'true') {
-      console.log('autoOpen parameter detected - opening add word bottom sheet');
-      // Slight delay ensures the screen fully mounts before opening modal
-      setTimeout(() => {
-        addWordSheetRef.current?.present();
-      }, 100);
-    }
-  }, [autoOpen]); // Added autoOpen to dependency array
+  // Handle autoOpen parameter from navigation - runs every time screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (autoOpen === 'true') {
+        console.log('autoOpen parameter detected - opening add word bottom sheet');
+        // Use requestAnimationFrame to ensure the screen is fully rendered
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            addWordSheetRef.current?.present();
+            // Clear the parameter by replacing the route without it
+            router.replace('/(tabs)/words');
+          }, 100);
+        });
+      }
+    }, [autoOpen, router])
+  );
 
   const fetchWords = useCallback(async () => {
     if (!selectedChild) {

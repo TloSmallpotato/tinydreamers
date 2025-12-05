@@ -245,8 +245,11 @@ function CustomTabBar() {
   const handleAddBook = () => {
     console.log('Add book selected - navigating with autoOpen param');
     setShowAddModal(false);
-    triggerBookSearch();
-    router.push('/(tabs)/books');
+    // Navigate to books screen with autoOpen parameter
+    router.push({
+      pathname: '/(tabs)/books',
+      params: { autoOpen: 'true' },
+    } as any);
   };
 
   const handleAddWord = () => {
