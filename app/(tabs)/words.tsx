@@ -61,15 +61,19 @@ export default function WordsScreen() {
   useEffect(() => {
     if (shouldOpenAddWord) {
       console.log('shouldOpenAddWord triggered - opening add word bottom sheet');
-      // Use multiple timeouts to ensure the modal opens
+      // Use multiple timeouts to ensure the modal opens and focuses
       setTimeout(() => {
-        console.log('Attempting to present AddWordBottomSheet');
+        console.log('Attempting to present AddWordBottomSheet (100ms)');
         addWordSheetRef.current?.present();
       }, 100);
       setTimeout(() => {
-        console.log('Second attempt to present AddWordBottomSheet');
+        console.log('Second attempt to present AddWordBottomSheet (300ms)');
         addWordSheetRef.current?.present();
       }, 300);
+      setTimeout(() => {
+        console.log('Third attempt to present AddWordBottomSheet (500ms)');
+        addWordSheetRef.current?.present();
+      }, 500);
       resetAddWord();
     }
   }, [shouldOpenAddWord, resetAddWord]);
