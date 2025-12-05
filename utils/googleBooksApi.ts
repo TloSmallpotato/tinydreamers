@@ -1,4 +1,6 @@
 
+import { supabase } from '@/app/integrations/supabase/client';
+
 export interface GoogleBook {
   id: string;
   volumeInfo: {
@@ -78,15 +80,25 @@ async function searchGoogleCustomSearch(
   try {
     console.log('Searching Google Custom Search via Edge Function:', query);
 
+    // Get the current session to include auth token
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add authorization header if user is logged in
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+
     // Call the Supabase Edge Function instead of making direct API calls
     // This keeps the API keys secure on the server
     const response = await fetch(
       'https://vxglluxqhceajceizbbm.supabase.co/functions/v1/search-book-cover',
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           query,
           fileType,
@@ -96,6 +108,8 @@ async function searchGoogleCustomSearch(
 
     if (!response.ok) {
       console.error('Edge Function error:', response.status);
+      const errorText = await response.text();
+      console.error('Error details:', errorText);
       return null;
     }
 
