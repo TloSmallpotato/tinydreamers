@@ -15,6 +15,10 @@ export interface GoogleBook {
       large?: string;
       extraLarge?: string;
     };
+    industryIdentifiers?: Array<{
+      type: string;
+      identifier: string;
+    }>;
   };
 }
 
@@ -111,6 +115,9 @@ function getThumbnailUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks']): st
   return url ? url.replace('http://', 'https://') : '';
 }
 
+/**
+ * Searches for books by text query
+ */
 export async function searchGoogleBooks(query: string): Promise<BookSearchResult[]> {
   if (!query || query.trim().length < 2) {
     return [];
@@ -161,5 +168,59 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
   } catch (error) {
     console.error('Error searching Google Books:', error);
     return [];
+  }
+}
+
+/**
+ * Searches for a book by ISBN
+ */
+export async function searchBookByISBN(isbn: string): Promise<BookSearchResult | null> {
+  if (!isbn || isbn.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    // Clean up ISBN (remove dashes, spaces)
+    const cleanISBN = isbn.replace(/[-\s]/g, '');
+    
+    console.log('Searching for ISBN:', cleanISBN);
+    
+    // Search by ISBN using the isbn: prefix
+    const response = await fetch(
+      `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanISBN}&projection=full`
+    );
+
+    if (!response.ok) {
+      console.error('Google Books API error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (!data.items || data.items.length === 0) {
+      console.log('No book found for ISBN:', cleanISBN);
+      return null;
+    }
+
+    // Get the first result (should be the most relevant)
+    const item: GoogleBook = data.items[0];
+    const coverUrl = getBestImageUrl(item.volumeInfo.imageLinks);
+    const thumbnailUrl = getThumbnailUrl(item.volumeInfo.imageLinks);
+
+    console.log('Found book:', item.volumeInfo.title);
+
+    return {
+      googleBooksId: item.id,
+      title: item.volumeInfo.title || 'Unknown Title',
+      authors: item.volumeInfo.authors?.join(', ') || 'Unknown Author',
+      coverUrl,
+      thumbnailUrl,
+      description: item.volumeInfo.description || '',
+      publishedDate: item.volumeInfo.publishedDate || '',
+      pageCount: item.volumeInfo.pageCount || 0,
+    };
+  } catch (error) {
+    console.error('Error searching book by ISBN:', error);
+    return null;
   }
 }

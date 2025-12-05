@@ -20,8 +20,9 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useAddNavigation } from '@/contexts/AddNavigationContext';
 import { supabase } from '@/app/integrations/supabase/client';
-import { searchGoogleBooks, BookSearchResult } from '@/utils/googleBooksApi';
+import { searchGoogleBooks, searchBookByISBN, BookSearchResult } from '@/utils/googleBooksApi';
 import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
+import BarcodeScannerModal from '@/components/BarcodeScannerModal';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 interface SavedBook {
@@ -56,6 +57,7 @@ export default function BooksScreen() {
   const [isLoadingBooks, setIsLoadingBooks] = useState(true);
   const [selectedBook, setSelectedBook] = useState<SavedBook | null>(null);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const [showScanner, setShowScanner] = useState(false);
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const searchInputRef = useRef<TextInput>(null);
@@ -236,6 +238,7 @@ export default function BooksScreen() {
 
       if (existingUserBook) {
         console.log('Book already added to library');
+        Alert.alert('Already Added', 'This book is already in your library.');
         setSearchQuery('');
         setShowDropdown(false);
         Keyboard.dismiss();
@@ -262,8 +265,46 @@ export default function BooksScreen() {
       setSearchQuery('');
       setShowDropdown(false);
       Keyboard.dismiss();
+
+      // Show success message
+      Alert.alert('Success', 'Book added to your library!');
     } catch (error) {
       console.error('Error in handleSelectBook:', error);
+    }
+  };
+
+  const handleBarcodeScanned = async (isbn: string) => {
+    console.log('ISBN scanned:', isbn);
+    
+    if (!selectedChild) {
+      Alert.alert('No Child Selected', 'Please select a child before adding books.');
+      return;
+    }
+
+    // Show loading state
+    setIsSearching(true);
+
+    try {
+      // Search for book by ISBN
+      const book = await searchBookByISBN(isbn);
+
+      if (!book) {
+        Alert.alert(
+          'Book Not Found',
+          'We couldn\'t find a book with this ISBN. Try searching manually or scanning a different barcode.',
+          [{ text: 'OK' }]
+        );
+        setIsSearching(false);
+        return;
+      }
+
+      // Add the book
+      await handleSelectBook(book);
+    } catch (error) {
+      console.error('Error handling barcode scan:', error);
+      Alert.alert('Error', 'An error occurred while searching for the book. Please try again.');
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -315,30 +356,45 @@ export default function BooksScreen() {
           </View>
 
           <View style={styles.searchContainer}>
-            <View style={commonStyles.searchBar}>
-              <IconSymbol 
-                ios_icon_name="magnifyingglass" 
-                android_material_icon_name="search" 
-                size={20} 
-                color={colors.primary} 
-              />
-              <TextInput
-                ref={searchInputRef}
-                style={styles.searchInput}
-                placeholder="Search to add a book"
-                placeholderTextColor={colors.primary}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onFocus={() => {
-                  if (searchResults.length > 0) {
-                    setShowDropdown(true);
-                  }
-                }}
-                onBlur={handleSearchBlur}
-              />
-              {isSearching && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
+            <View style={styles.searchRow}>
+              <View style={commonStyles.searchBar}>
+                <IconSymbol 
+                  ios_icon_name="magnifyingglass" 
+                  android_material_icon_name="search" 
+                  size={20} 
+                  color={colors.primary} 
+                />
+                <TextInput
+                  ref={searchInputRef}
+                  style={styles.searchInput}
+                  placeholder="Search to add a book"
+                  placeholderTextColor={colors.primary}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  onFocus={() => {
+                    if (searchResults.length > 0) {
+                      setShowDropdown(true);
+                    }
+                  }}
+                  onBlur={handleSearchBlur}
+                />
+                {isSearching && (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={styles.cameraButton}
+                onPress={() => setShowScanner(true)}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  ios_icon_name="barcode.viewfinder"
+                  android_material_icon_name="qr_code_scanner"
+                  size={24}
+                  color={colors.backgroundAlt}
+                />
+              </TouchableOpacity>
             </View>
 
             {showDropdown && searchResults.length > 0 && (
@@ -455,6 +511,12 @@ export default function BooksScreen() {
         onClose={handleCloseBookDetail}
         onRefresh={fetchSavedBooks}
       />
+
+      <BarcodeScannerModal
+        visible={showScanner}
+        onClose={() => setShowScanner(false)}
+        onBarcodeScanned={handleBarcodeScanned}
+      />
     </View>
   );
 }
@@ -496,15 +558,30 @@ const styles = StyleSheet.create({
     zIndex: 1000,
     marginBottom: 20,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   searchInput: {
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
     color: colors.primary,
   },
+  cameraButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)',
+    elevation: 4,
+  },
   dropdown: {
     position: 'absolute',
-    top: 60,
+    top: 68,
     left: 0,
     right: 0,
     backgroundColor: colors.backgroundAlt,
