@@ -265,7 +265,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
               <Image
                 source={{ uri: imageUrl }}
                 style={styles.bookCover}
-                contentFit="cover"
+                contentFit="contain"
                 cachePolicy="memory-disk"
                 priority="high"
                 transition={200}

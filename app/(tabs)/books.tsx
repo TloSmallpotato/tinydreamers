@@ -382,7 +382,7 @@ export default function BooksScreen() {
                       <Image
                         source={{ uri: imageUrl }}
                         style={styles.bookCoverLarge}
-                        contentFit="cover"
+                        contentFit="contain"
                         cachePolicy="memory-disk"
                         priority="high"
                         transition={200}
@@ -547,24 +547,23 @@ const styles = StyleSheet.create({
   bookCard: {
     width: '47%',
     aspectRatio: 0.7,
-    borderRadius: 16,
     marginBottom: 16,
-    backgroundColor: colors.backgroundAlt,
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
-    overflow: 'hidden',
-    padding: 8,
+    overflow: 'visible',
   },
   bookCoverLarge: {
     width: '100%',
     height: '100%',
     borderRadius: 12,
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
   placeholderCoverLarge: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundAlt,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 12,
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
   placeholderText: {
     fontSize: 12,
