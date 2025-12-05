@@ -56,23 +56,6 @@ export interface BookSearchResult {
 }
 
 /**
- * Gets LibraryThing cover URL by ISBN
- * LibraryThing provides high-quality cover images by redirecting to sources like Amazon
- * @param isbn - The ISBN (10 or 13 digits)
- * @param size - Size of the cover (small, medium, large)
- */
-function getLibraryThingCoverUrl(isbn: string, size: 'small' | 'medium' | 'large' = 'large'): string {
-  if (!isbn) return '';
-  
-  const cleanISBN = isbn.replace(/[-\s]/g, '');
-  
-  // LibraryThing cover API - no dev key needed for basic usage
-  // The API redirects to the actual image location (Amazon, etc.)
-  // Size options: small (75px), medium (188px), large (no limit)
-  return `https://covers.librarything.com/devkey/1/large/isbn/${cleanISBN}`;
-}
-
-/**
  * Checks if a LibraryThing cover image exists and gets the final URL
  * @param isbn - The ISBN to check
  */
@@ -113,14 +96,12 @@ async function checkLibraryThingCover(isbn: string): Promise<{ exists: boolean; 
 
 /**
  * Gets the best available cover image URL
- * Priority: LibraryThing > Google Books > OpenLibrary
+ * Only uses LibraryThing - no fallback to Google Books or OpenLibrary
  */
 async function getBestCoverUrl(
-  isbn: string | undefined,
-  googleImageLinks: GoogleBook['volumeInfo']['imageLinks'] | undefined,
-  openLibraryCoverId?: number
+  isbn: string | undefined
 ): Promise<{ coverUrl: string; thumbnailUrl: string; source: string }> {
-  // Try LibraryThing first if we have an ISBN
+  // Only try LibraryThing if we have an ISBN
   if (isbn) {
     const cleanISBN = isbn.replace(/[-\s]/g, '');
     console.log('Checking LibraryThing for ISBN:', cleanISBN);
@@ -137,136 +118,9 @@ async function getBestCoverUrl(
     }
   }
   
-  // Fallback to Google Books
-  if (googleImageLinks) {
-    console.log('Using Google Books cover as fallback');
-    const coverUrl = getHighQualityImageUrl(googleImageLinks);
-    const thumbnailUrl = getThumbnailUrl(googleImageLinks);
-    if (coverUrl) {
-      return { coverUrl, thumbnailUrl, source: 'google' };
-    }
-  }
-  
-  // Fallback to OpenLibrary
-  if (openLibraryCoverId) {
-    console.log('Using OpenLibrary cover as fallback');
-    const coverUrl = getOpenLibraryCoverUrl(openLibraryCoverId, 'L');
-    const thumbnailUrl = getOpenLibraryCoverUrl(openLibraryCoverId, 'M');
-    return { coverUrl, thumbnailUrl, source: 'openlibrary' };
-  }
-  
+  // No fallback - return empty strings if LibraryThing doesn't have the cover
+  console.log('No cover image available - LibraryThing did not have a high-res image');
   return { coverUrl: '', thumbnailUrl: '', source: 'none' };
-}
-
-/**
- * Gets the highest quality image URL from Google Books imageLinks
- * Prioritizes "large" size specifically as it provides the best quality from Google Books
- */
-function getHighQualityImageUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks']): string {
-  if (!imageLinks) return '';
-  
-  // Priority order: large is the sweet spot for Google Books quality
-  // Note: extraLarge is often not available, and large provides excellent quality
-  let url = imageLinks.large || 
-            imageLinks.medium || 
-            imageLinks.extraLarge || 
-            imageLinks.small || 
-            imageLinks.thumbnail || 
-            imageLinks.smallThumbnail || 
-            '';
-  
-  if (!url) return '';
-  
-  // Ensure HTTPS
-  url = url.replace('http://', 'https://');
-  
-  // Remove any existing zoom or size parameters
-  url = url.replace(/&zoom=\d+/g, '');
-  url = url.replace(/\?zoom=\d+/g, '');
-  url = url.replace(/&fife=.*/g, '');
-  url = url.replace(/\?fife=.*/g, '');
-  
-  // For Google Books images, we can request higher quality
-  if (url.includes('books.google.com')) {
-    // Remove the edge parameter which limits size
-    url = url.replace(/&edge=curl/g, '');
-    url = url.replace(/\?edge=curl/g, '');
-    
-    // Add parameters for maximum quality
-    // zoom=0 gives us the highest resolution available
-    const separator = url.includes('?') ? '&' : '?';
-    url = `${url}${separator}zoom=0&printsec=frontcover`;
-  }
-  
-  // For Google User Content images (lh3.googleusercontent.com)
-  if (url.includes('googleusercontent.com')) {
-    // Remove size restrictions
-    url = url.replace(/=s\d+/g, '');
-    url = url.replace(/=w\d+/g, '');
-    url = url.replace(/=h\d+/g, '');
-    
-    // Request high quality with no size limit
-    // s0 means original size, no scaling
-    if (!url.includes('=s')) {
-      url = `${url}=s0`;
-    }
-  }
-  
-  console.log('Enhanced Google Books image URL:', url);
-  return url;
-}
-
-/**
- * Gets thumbnail URL for dropdown preview
- * Uses medium quality for faster loading in lists
- */
-function getThumbnailUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks']): string {
-  if (!imageLinks) return '';
-  
-  // For thumbnails, use medium quality for faster loading
-  let url = imageLinks.thumbnail || 
-            imageLinks.small || 
-            imageLinks.medium || 
-            imageLinks.smallThumbnail || 
-            '';
-  
-  if (!url) return '';
-  
-  // Ensure HTTPS
-  url = url.replace('http://', 'https://');
-  
-  // For Google Books images, use zoom=1 for good quality thumbnails
-  if (url.includes('books.google.com')) {
-    url = url.replace(/&zoom=\d+/g, '');
-    url = url.replace(/\?zoom=\d+/g, '');
-    url = url.replace(/&edge=curl/g, '');
-    url = url.replace(/\?edge=curl/g, '');
-    
-    const separator = url.includes('?') ? '&' : '?';
-    url = `${url}${separator}zoom=1`;
-  }
-  
-  // For Google User Content images
-  if (url.includes('googleusercontent.com')) {
-    url = url.replace(/=s\d+/g, '');
-    url = url.replace(/=w\d+/g, '');
-    url = url.replace(/=h\d+/g, '');
-    
-    // Request 400px width for thumbnails (good balance of quality and speed)
-    url = `${url}=w400`;
-  }
-  
-  return url;
-}
-
-/**
- * Gets OpenLibrary cover URL
- * @param coverId - The cover ID from OpenLibrary
- * @param size - Size of the cover (S, M, L)
- */
-function getOpenLibraryCoverUrl(coverId: number | undefined, size: 'S' | 'M' | 'L' = 'L'): string {
-  if (!coverId) return '';
-  return `https://covers.openlibrary.org/b/id/${coverId}-${size}.jpg`;
 }
 
 /**
@@ -309,11 +163,7 @@ async function searchOpenLibrary(query: string): Promise<BookSearchResult[]> {
     const results = await Promise.all(
       data.docs.map(async (doc: OpenLibraryBook) => {
         const isbn = doc.isbn?.[0];
-        const { coverUrl, thumbnailUrl } = await getBestCoverUrl(
-          isbn,
-          undefined,
-          doc.cover_i
-        );
+        const { coverUrl, thumbnailUrl } = await getBestCoverUrl(isbn);
         
         // Use the work key as the ID (remove /works/ prefix)
         const bookId = doc.key.replace('/works/', '');
@@ -372,11 +222,7 @@ async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult |
       description = data.description.value;
     }
 
-    const { coverUrl, thumbnailUrl } = await getBestCoverUrl(
-      cleanISBN,
-      undefined,
-      data.covers?.[0]
-    );
+    const { coverUrl, thumbnailUrl } = await getBestCoverUrl(cleanISBN);
 
     return {
       googleBooksId: `openlibrary-${cleanISBN}`,
@@ -398,7 +244,7 @@ async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult |
 /**
  * Searches for books by text query
  * Uses Google Books API first, falls back to OpenLibrary if no results
- * Prioritizes LibraryThing for cover images
+ * Only uses LibraryThing for cover images (no fallback)
  */
 export async function searchGoogleBooks(query: string): Promise<BookSearchResult[]> {
   if (!query || query.trim().length < 2) {
@@ -430,15 +276,11 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
     const googleResults = await Promise.all(
       data.items.map(async (item: GoogleBook) => {
         const isbn = extractISBN(item.volumeInfo);
-        const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
-          isbn,
-          item.volumeInfo.imageLinks,
-          undefined
-        );
+        const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(isbn);
         
         // Log for debugging
         if (!coverUrl) {
-          console.log('No image found for book:', item.volumeInfo.title);
+          console.log('No image found for book:', item.volumeInfo.title, '- LibraryThing does not have a high-res image');
         } else {
           console.log('Book image URLs:', {
             title: item.volumeInfo.title,
@@ -474,7 +316,7 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
 /**
  * Searches for a book by ISBN
  * Uses Google Books API first, falls back to OpenLibrary if not found
- * Prioritizes LibraryThing for cover images
+ * Only uses LibraryThing for cover images (no fallback)
  */
 export async function searchBookByISBN(isbn: string): Promise<BookSearchResult | null> {
   if (!isbn || isbn.trim().length === 0) {
@@ -510,11 +352,7 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
     // Get the first result (should be the most relevant)
     const item: GoogleBook = data.items[0];
     const itemISBN = extractISBN(item.volumeInfo) || cleanISBN;
-    const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
-      itemISBN,
-      item.volumeInfo.imageLinks,
-      undefined
-    );
+    const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(itemISBN);
 
     console.log('Found book on Google Books:', item.volumeInfo.title);
     console.log('Book image URLs:', {
