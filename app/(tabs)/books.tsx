@@ -59,17 +59,23 @@ export default function BooksScreen() {
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [showScanner, setShowScanner] = useState(false);
   const [isAddingBook, setIsAddingBook] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const searchInputRef = useRef<TextInput>(null);
   const hasProcessedAutoOpen = useRef(false);
   const addBookTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastClickedBookIdRef = useRef<string | null>(null);
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Cleanup timeout on unmount
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
       if (addBookTimeoutRef.current) {
         clearTimeout(addBookTimeoutRef.current);
+      }
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
       }
     };
   }, []);
@@ -356,18 +362,50 @@ export default function BooksScreen() {
   };
 
   const handleBookPress = useCallback((book: SavedBook) => {
-    console.log('Book pressed:', book.book.title);
-    // Present the modal first, then set the selected book
-    // This prevents the first tap from being consumed by a re-render
+    console.log('Book pressed:', book.book.title, 'Modal open:', isModalOpen, 'Last clicked:', lastClickedBookIdRef.current);
+    
+    // If modal is already open, ignore the press
+    if (isModalOpen) {
+      console.log('Modal already open - ignoring press');
+      return;
+    }
+
+    // If clicking the same book within 500ms, ignore (debounce)
+    if (lastClickedBookIdRef.current === book.id) {
+      console.log('Same book clicked within debounce period - ignoring');
+      return;
+    }
+
+    // Clear any existing timeout
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+    }
+
+    // Set the last clicked book ID
+    lastClickedBookIdRef.current = book.id;
+
+    // Reset the last clicked book ID after 500ms
+    clickTimeoutRef.current = setTimeout(() => {
+      lastClickedBookIdRef.current = null;
+    }, 500);
+
+    // Set modal as opening
+    setIsModalOpen(true);
+    
+    // Set the selected book
     setSelectedBook(book);
+    
     // Use requestAnimationFrame to ensure state is set before presenting
     requestAnimationFrame(() => {
       bookDetailRef.current?.present();
     });
-  }, []);
+  }, [isModalOpen]);
 
   const handleCloseBookDetail = () => {
+    console.log('Closing book detail modal');
     setSelectedBook(null);
+    setIsModalOpen(false);
+    lastClickedBookIdRef.current = null;
   };
 
   const handleImageError = (bookId: string) => {
