@@ -62,6 +62,7 @@ export default function BooksScreen() {
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const searchInputRef = useRef<TextInput>(null);
   const hasProcessedAutoOpen = useRef(false);
+  const isAddingBook = useRef(false);
 
   // Handle autoOpen parameter from navigation - runs every time screen comes into focus
   useFocusEffect(
@@ -184,7 +185,16 @@ export default function BooksScreen() {
       return;
     }
 
+    // Prevent concurrent executions
+    if (isAddingBook.current) {
+      console.log('Already adding a book, skipping duplicate call');
+      return;
+    }
+
     try {
+      isAddingBook.current = true;
+      console.log('Starting to add book:', book.title);
+
       // Step 1: Check if book exists in books_library
       let { data: existingBook, error: fetchError } = await supabase
         .from('books_library')
@@ -258,6 +268,8 @@ export default function BooksScreen() {
         return;
       }
 
+      console.log('Book successfully added to library');
+
       // Refresh the books list
       await fetchSavedBooks();
 
@@ -270,12 +282,24 @@ export default function BooksScreen() {
       Alert.alert('Success', 'Book added to your library!');
     } catch (error) {
       console.error('Error in handleSelectBook:', error);
+    } finally {
+      // Reset the flag after a short delay to prevent rapid re-triggers
+      setTimeout(() => {
+        isAddingBook.current = false;
+        console.log('Reset isAddingBook flag');
+      }, 1000);
     }
   };
 
   const handleBarcodeScanned = async (isbn: string) => {
     console.log('ISBN scanned:', isbn);
     
+    // Prevent concurrent executions
+    if (isAddingBook.current) {
+      console.log('Already processing a barcode scan, ignoring duplicate');
+      return;
+    }
+
     if (!selectedChild) {
       Alert.alert('No Child Selected', 'Please select a child before adding books.');
       return;
@@ -285,6 +309,9 @@ export default function BooksScreen() {
     setIsSearching(true);
 
     try {
+      isAddingBook.current = true;
+      console.log('Starting barcode scan processing');
+
       // Search for book by ISBN
       const book = await searchBookByISBN(isbn);
 
@@ -295,6 +322,7 @@ export default function BooksScreen() {
           [{ text: 'OK' }]
         );
         setIsSearching(false);
+        isAddingBook.current = false;
         return;
       }
 
@@ -303,6 +331,7 @@ export default function BooksScreen() {
     } catch (error) {
       console.error('Error handling barcode scan:', error);
       Alert.alert('Error', 'An error occurred while searching for the book. Please try again.');
+      isAddingBook.current = false;
     } finally {
       setIsSearching(false);
     }
