@@ -10,7 +10,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 interface UserWord {
   id: string;
@@ -48,12 +48,24 @@ interface GroupedWords {
 export default function WordsScreen() {
   const { selectedChild } = useChild();
   const { targetWordIdToOpen, clearTargetWordIdToOpen } = useWordNavigation();
+  const { autoOpen } = useLocalSearchParams();
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
 
   const addWordSheetRef = useRef<BottomSheetModal>(null);
   const wordDetailSheetRef = useRef<BottomSheetModal>(null);
+
+  // Handle autoOpen parameter from navigation
+  useEffect(() => {
+    if (autoOpen === 'true') {
+      console.log('autoOpen parameter detected - opening add word bottom sheet');
+      // Slight delay ensures the screen fully mounts before opening modal
+      setTimeout(() => {
+        addWordSheetRef.current?.present();
+      }, 100);
+    }
+  }, [autoOpen]);
 
   const fetchWords = useCallback(async () => {
     if (!selectedChild) {

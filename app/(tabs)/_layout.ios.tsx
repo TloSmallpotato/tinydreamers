@@ -104,7 +104,7 @@ function CustomTabBar() {
   const { selectedChild } = useChild();
   const { shouldOpenCamera, resetCameraTrigger } = useCameraTrigger();
   const { setTargetWordIdToOpen } = useWordNavigation();
-  const { triggerBookSearch, triggerAddWord } = useAddNavigation();
+  const { triggerBookSearch } = useAddNavigation();
   const [words, setWords] = useState<any[]>([]);
   const selectWordSheetRef = useRef<BottomSheetModal>(null);
 
@@ -230,17 +230,20 @@ function CustomTabBar() {
   };
 
   const handleAddBook = () => {
-    console.log('Add book selected');
+    console.log('Add book selected - navigating with autoOpen param');
     setShowAddModal(false);
     triggerBookSearch();
     router.push('/(tabs)/books');
   };
 
   const handleAddWord = () => {
-    console.log('Add word selected');
+    console.log('Add word selected - navigating with autoOpen param');
     setShowAddModal(false);
-    triggerAddWord();
-    router.push('/(tabs)/words');
+    // Navigate to words screen with autoOpen parameter
+    router.push({
+      pathname: '/(tabs)/words',
+      params: { autoOpen: 'true' },
+    } as any);
   };
 
   const handleCaptureMoment = async () => {

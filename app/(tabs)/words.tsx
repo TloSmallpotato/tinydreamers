@@ -6,12 +6,11 @@ import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useWordNavigation } from '@/contexts/WordNavigationContext';
-import { useAddNavigation } from '@/contexts/AddNavigationContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 interface UserWord {
   id: string;
@@ -49,45 +48,24 @@ interface GroupedWords {
 export default function WordsScreen() {
   const { selectedChild } = useChild();
   const { targetWordIdToOpen, clearTargetWordIdToOpen } = useWordNavigation();
-  const { shouldOpenAddWord, resetAddWord } = useAddNavigation();
+  const { autoOpen } = useLocalSearchParams();
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
 
   const addWordSheetRef = useRef<BottomSheetModal>(null);
   const wordDetailSheetRef = useRef<BottomSheetModal>(null);
-  const hasTriggeredAddWord = useRef(false);
 
-  // Handle add word trigger from Add modal
-  useFocusEffect(
-    useCallback(() => {
-      console.log('Words screen focused, shouldOpenAddWord:', shouldOpenAddWord);
-      
-      if (shouldOpenAddWord && !hasTriggeredAddWord.current) {
-        console.log('shouldOpenAddWord triggered - opening add word bottom sheet');
-        hasTriggeredAddWord.current = true;
-        
-        // Use requestAnimationFrame to ensure the screen is fully rendered
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            console.log('Attempting to present AddWordBottomSheet');
-            addWordSheetRef.current?.present();
-          }, 100);
-        });
-        
-        // Reset the trigger after a delay
-        setTimeout(() => {
-          resetAddWord();
-          hasTriggeredAddWord.current = false;
-        }, 500);
-      }
-      
-      return () => {
-        // Cleanup on unfocus
-        hasTriggeredAddWord.current = false;
-      };
-    }, [shouldOpenAddWord, resetAddWord])
-  );
+  // Handle autoOpen parameter from navigation
+  useEffect(() => {
+    if (autoOpen === 'true') {
+      console.log('autoOpen parameter detected - opening add word bottom sheet');
+      // Slight delay ensures the screen fully mounts before opening modal
+      setTimeout(() => {
+        addWordSheetRef.current?.present();
+      }, 100);
+    }
+  }, [autoOpen]);
 
   const fetchWords = useCallback(async () => {
     if (!selectedChild) {
