@@ -6,19 +6,28 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Image } from 'expo-image';
+import { getBookCoverUrl } from '@/utils/bookCoverStorage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+interface BookCover {
+  id: string;
+  storage_path: string;
+  width: number;
+  height: number;
+  file_size: number;
+  is_low_res: boolean;
+}
 
 interface Book {
   id: string;
   google_books_id: string;
   title: string;
   authors: string;
-  cover_url: string;
-  thumbnail_url: string;
   description: string;
   published_date: string;
   page_count: number;
+  book_cover?: BookCover;
 }
 
 interface UserBook {
@@ -189,17 +198,10 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     }, []);
 
     const getImageUrl = useCallback(() => {
-      if (!cachedUserBook) return null;
-      const book = cachedUserBook.book;
-      
-      // Try cover_url first, then thumbnail_url as fallback
-      if (book.cover_url && !imageError) {
-        return book.cover_url;
+      if (!cachedUserBook?.book.book_cover || imageError) {
+        return null;
       }
-      if (book.thumbnail_url) {
-        return book.thumbnail_url;
-      }
-      return null;
+      return getBookCoverUrl(cachedUserBook.book.book_cover.storage_path);
     }, [cachedUserBook, imageError]);
 
     // Don't return null - keep the component mounted with cached data
@@ -207,6 +209,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
     const book = cachedUserBook.book;
     const imageUrl = getImageUrl();
+    const isLowRes = book.book_cover?.is_low_res;
 
     return (
       <BottomSheetModal
@@ -262,15 +265,28 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
           {/* Book Cover */}
           <View style={styles.coverContainer}>
             {imageUrl ? (
-              <Image
-                source={{ uri: imageUrl }}
-                style={styles.bookCover}
-                contentFit="contain"
-                cachePolicy="memory-disk"
-                priority="high"
-                transition={200}
-                onError={handleImageError}
-              />
+              <View style={styles.coverWrapper}>
+                <Image
+                  source={{ uri: imageUrl }}
+                  style={styles.bookCover}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                  priority="high"
+                  transition={200}
+                  onError={handleImageError}
+                />
+                {isLowRes && (
+                  <View style={styles.lowResBadge}>
+                    <IconSymbol
+                      ios_icon_name="exclamationmark.triangle.fill"
+                      android_material_icon_name="warning"
+                      size={14}
+                      color={colors.backgroundAlt}
+                    />
+                    <Text style={styles.lowResText}>Low Resolution</Text>
+                  </View>
+                )}
+              </View>
             ) : (
               <View style={[styles.bookCover, styles.placeholderCover]}>
                 <IconSymbol
@@ -295,6 +311,12 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
             )}
             {book.page_count > 0 && (
               <Text style={styles.bookMeta}>{book.page_count} pages</Text>
+            )}
+            {book.book_cover && (
+              <Text style={styles.bookMeta}>
+                Cover: {book.book_cover.width}x{book.book_cover.height}px 
+                ({Math.round(book.book_cover.file_size / 1024)}KB)
+              </Text>
             )}
           </View>
 
@@ -497,6 +519,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
   },
+  coverWrapper: {
+    position: 'relative',
+  },
   bookCover: {
     width: screenWidth * 0.5,
     height: screenWidth * 0.7,
@@ -514,6 +539,23 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 12,
+  },
+  lowResBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255, 152, 0, 0.95)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  lowResText: {
+    color: colors.backgroundAlt,
+    fontSize: 11,
+    fontWeight: '700',
   },
   bookInfo: {
     paddingHorizontal: 20,

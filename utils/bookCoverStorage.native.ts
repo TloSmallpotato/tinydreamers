@@ -1,93 +1,115 @@
 
 import { supabase } from '@/app/integrations/supabase/client';
-import * as FileSystem from 'expo-file-system/legacy';
 
-/**
- * Downloads an image from a URL and saves it temporarily
- * @param url - The URL of the image to download
- * @returns The local file URI
- */
-async function downloadImage(url: string): Promise<string> {
-  const filename = `temp_cover_${Date.now()}.png`;
-  const fileUri = `${FileSystem.cacheDirectory}${filename}`;
-
-  console.log('Downloading image to:', fileUri);
-
-  const downloadResult = await FileSystem.downloadAsync(url, fileUri);
-  
-  if (downloadResult.status !== 200) {
-    throw new Error(`Failed to download image: ${downloadResult.status}`);
-  }
-
-  return downloadResult.uri;
+export interface BookCover {
+  id: string;
+  book_id: string;
+  storage_path: string;
+  width: number;
+  height: number;
+  file_size: number;
+  is_low_res: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
- * Uploads a book cover image to Supabase Storage
- * @param coverUrl - The URL of the cover image to download and upload
- * @param bookId - The ID of the book (used for the filename)
- * @returns The storage path of the uploaded image
+ * Processes and uploads a book cover image via Edge Function
+ * The Edge Function handles:
+ * - Downloading the image from the URL
+ * - Converting to PNG format
+ * - Optimizing to be under 2MB
+ * - Detecting low resolution (<800px in either dimension)
+ * - Uploading to Supabase Storage
+ * - Saving metadata to book_covers table
+ * 
+ * @param coverUrl - The URL of the cover image to download and process
+ * @param bookId - The ID of the book in the books_library table
+ * @returns The book cover metadata or null if failed
  */
-export async function uploadBookCover(
+export async function processAndUploadBookCover(
   coverUrl: string,
   bookId: string
-): Promise<string | null> {
+): Promise<BookCover | null> {
   try {
-    console.log('Downloading book cover from:', coverUrl);
+    console.log('Processing book cover via Edge Function:', coverUrl);
     
-    // Download the image to a temporary location
-    const localUri = await downloadImage(coverUrl);
-
-    // Read the file as base64
-    const base64 = await FileSystem.readAsStringAsync(localUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    // Convert base64 to blob
-    const byteCharacters = atob(base64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: 'image/png' });
-
-    // Generate a unique filename
-    const filename = `${bookId}.png`;
-    const storagePath = `covers/${filename}`;
-
-    console.log('Uploading book cover to storage:', storagePath);
-
-    // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
-      .from('book-covers')
-      .upload(storagePath, blob, {
-        contentType: 'image/png',
-        upsert: true, // Replace if already exists
-      });
-
-    if (error) {
-      console.error('Error uploading book cover:', error);
+    // Get the current session for authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.access_token) {
+      console.error('No active session - user must be authenticated');
       return null;
     }
 
-    // Clean up temporary file
-    try {
-      await FileSystem.deleteAsync(localUri, { idempotent: true });
-    } catch (cleanupError) {
-      console.warn('Failed to clean up temporary file:', cleanupError);
+    // Call the Edge Function to process the cover
+    const response = await fetch(
+      'https://vxglluxqhceajceizbbm.supabase.co/functions/v1/process-book-cover',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          coverUrl,
+          bookId,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Edge Function error:', errorData);
+      return null;
     }
 
-    console.log('Book cover uploaded successfully:', data.path);
-    return data.path;
+    const data = await response.json();
+
+    if (!data.success) {
+      console.error('Failed to process book cover:', data.error);
+      return null;
+    }
+
+    console.log('Book cover processed successfully:', data.cover);
+    return data.cover;
   } catch (error) {
-    console.error('Error in uploadBookCover:', error);
+    console.error('Error in processAndUploadBookCover:', error);
     return null;
   }
 }
 
 /**
- * Gets the public URL for a book cover from Supabase Storage
+ * Gets the book cover for a specific book
+ * @param bookId - The ID of the book
+ * @returns The book cover metadata or null if not found
+ */
+export async function getBookCover(bookId: string): Promise<BookCover | null> {
+  try {
+    const { data, error } = await supabase
+      .from('book_covers')
+      .select('*')
+      .eq('book_id', bookId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No cover found
+        return null;
+      }
+      console.error('Error fetching book cover:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getBookCover:', error);
+    return null;
+  }
+}
+
+/**
+ * Gets the public URL for a book cover
  * @param storagePath - The storage path of the cover image
  * @returns The public URL of the cover image
  */
@@ -100,22 +122,42 @@ export function getBookCoverUrl(storagePath: string): string {
 }
 
 /**
- * Deletes a book cover from Supabase Storage
- * @param storagePath - The storage path of the cover image to delete
+ * Deletes a book cover from storage and database
+ * @param bookId - The ID of the book
  * @returns True if successful, false otherwise
  */
-export async function deleteBookCover(storagePath: string): Promise<boolean> {
+export async function deleteBookCover(bookId: string): Promise<boolean> {
   try {
-    const { error } = await supabase.storage
-      .from('book-covers')
-      .remove([storagePath]);
+    // Get the cover metadata first
+    const cover = await getBookCover(bookId);
+    
+    if (!cover) {
+      console.log('No cover found to delete');
+      return true;
+    }
 
-    if (error) {
-      console.error('Error deleting book cover:', error);
+    // Delete from storage
+    const { error: storageError } = await supabase.storage
+      .from('book-covers')
+      .remove([cover.storage_path]);
+
+    if (storageError) {
+      console.error('Error deleting from storage:', storageError);
+      // Continue to delete from database anyway
+    }
+
+    // Delete from database
+    const { error: dbError } = await supabase
+      .from('book_covers')
+      .delete()
+      .eq('book_id', bookId);
+
+    if (dbError) {
+      console.error('Error deleting from database:', dbError);
       return false;
     }
 
-    console.log('Book cover deleted successfully:', storagePath);
+    console.log('Book cover deleted successfully');
     return true;
   } catch (error) {
     console.error('Error in deleteBookCover:', error);
@@ -124,41 +166,24 @@ export async function deleteBookCover(storagePath: string): Promise<boolean> {
 }
 
 /**
- * Uploads a book cover and updates the books_library table
- * @param coverUrl - The URL of the cover image to download and upload
- * @param bookId - The ID of the book in the books_library table
- * @returns True if successful, false otherwise
+ * Gets all low resolution book covers
+ * @returns Array of book covers that are low resolution
  */
-export async function uploadAndSaveBookCover(
-  coverUrl: string,
-  bookId: string
-): Promise<boolean> {
+export async function getLowResolutionCovers(): Promise<BookCover[]> {
   try {
-    // Upload the cover image
-    const storagePath = await uploadBookCover(coverUrl, bookId);
-    
-    if (!storagePath) {
-      console.error('Failed to upload book cover');
-      return false;
-    }
-
-    // Update the books_library table with the storage path
-    const { error } = await supabase
-      .from('books_library')
-      .update({ cover_storage_path: storagePath })
-      .eq('id', bookId);
+    const { data, error } = await supabase
+      .from('book_covers')
+      .select('*')
+      .eq('is_low_res', true);
 
     if (error) {
-      console.error('Error updating books_library:', error);
-      // Try to clean up the uploaded file
-      await deleteBookCover(storagePath);
-      return false;
+      console.error('Error fetching low res covers:', error);
+      return [];
     }
 
-    console.log('Book cover saved successfully for book:', bookId);
-    return true;
+    return data || [];
   } catch (error) {
-    console.error('Error in uploadAndSaveBookCover:', error);
-    return false;
+    console.error('Error in getLowResolutionCovers:', error);
+    return [];
   }
 }
