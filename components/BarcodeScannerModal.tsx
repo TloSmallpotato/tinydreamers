@@ -27,24 +27,16 @@ export default function BarcodeScannerModal({
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
 
-  // Reset scanned state when modal becomes visible
   useEffect(() => {
     if (visible) {
-      console.log('Scanner modal opened - resetting scanned state');
       setScanned(false);
     }
   }, [visible]);
 
   const handleBarCodeScanned = ({ type, data }: BarcodeScanningResult) => {
-    if (scanned) {
-      console.log('Barcode already scanned, ignoring duplicate scan');
-      return;
-    }
+    if (scanned) return;
 
-    console.log('=== BARCODE DETECTED ===');
-    console.log('Barcode type:', type);
-    console.log('Barcode data:', data);
-    
+    console.log('Barcode scanned:', { type, data });
     setScanned(true);
 
     // Extract ISBN from barcode data
@@ -53,39 +45,31 @@ export default function BarcodeScannerModal({
 
     // Clean up the ISBN (remove dashes, spaces)
     isbn = isbn.replace(/[-\s]/g, '');
-    console.log('Cleaned ISBN:', isbn);
 
     // Validate ISBN format
     if (isbn.length === 13 && (isbn.startsWith('978') || isbn.startsWith('979'))) {
       // Valid EAN-13 ISBN
-      console.log('Valid ISBN-13 detected:', isbn);
+      console.log('Valid ISBN-13:', isbn);
       onBarcodeScanned(isbn);
       onClose();
     } else if (isbn.length === 10) {
       // Valid ISBN-10
-      console.log('Valid ISBN-10 detected:', isbn);
+      console.log('Valid ISBN-10:', isbn);
       onBarcodeScanned(isbn);
       onClose();
     } else {
       // Invalid ISBN format
-      console.log('Invalid ISBN format:', isbn);
       Alert.alert(
         'Invalid Barcode',
         'This doesn\'t appear to be a valid ISBN barcode. Please try scanning the barcode on the back of the book.',
         [
           {
             text: 'Try Again',
-            onPress: () => {
-              console.log('User chose to try again');
-              setScanned(false);
-            },
+            onPress: () => setScanned(false),
           },
           {
             text: 'Cancel',
-            onPress: () => {
-              console.log('User cancelled scan');
-              onClose();
-            },
+            onPress: onClose,
             style: 'cancel',
           },
         ]
@@ -203,11 +187,6 @@ export default function BarcodeScannerModal({
             <Text style={styles.instructionSubtext}>
               Scan the ISBN barcode on the back of the book
             </Text>
-            {scanned && (
-              <Text style={styles.processingText}>
-                Processing...
-              </Text>
-            )}
           </View>
         </View>
       </View>
@@ -300,16 +279,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.backgroundAlt,
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  processingText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.secondary,
-    textAlign: 'center',
-    marginTop: 16,
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,

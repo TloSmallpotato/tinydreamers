@@ -62,7 +62,6 @@ export default function BooksScreen() {
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const searchInputRef = useRef<TextInput>(null);
   const hasProcessedAutoOpen = useRef(false);
-  const isAddingBook = useRef(false);
 
   // Handle autoOpen parameter from navigation - runs every time screen comes into focus
   useFocusEffect(
@@ -185,16 +184,7 @@ export default function BooksScreen() {
       return;
     }
 
-    // Prevent concurrent executions
-    if (isAddingBook.current) {
-      console.log('Already adding a book, skipping duplicate call');
-      return;
-    }
-
     try {
-      isAddingBook.current = true;
-      console.log('Starting to add book:', book.title);
-
       // Step 1: Check if book exists in books_library
       let { data: existingBook, error: fetchError } = await supabase
         .from('books_library')
@@ -268,8 +258,6 @@ export default function BooksScreen() {
         return;
       }
 
-      console.log('Book successfully added to library');
-
       // Refresh the books list
       await fetchSavedBooks();
 
@@ -282,75 +270,41 @@ export default function BooksScreen() {
       Alert.alert('Success', 'Book added to your library!');
     } catch (error) {
       console.error('Error in handleSelectBook:', error);
-    } finally {
-      // Reset the flag after a short delay to prevent rapid re-triggers
-      setTimeout(() => {
-        isAddingBook.current = false;
-        console.log('Reset isAddingBook flag');
-      }, 1000);
     }
   };
 
   const handleBarcodeScanned = async (isbn: string) => {
-    console.log('=== BARCODE SCAN START ===');
     console.log('ISBN scanned:', isbn);
-    console.log('isAddingBook.current:', isAddingBook.current);
-    console.log('selectedChild:', selectedChild?.name);
     
-    // Prevent concurrent executions
-    if (isAddingBook.current) {
-      console.log('Already processing a barcode scan, ignoring duplicate');
-      return;
-    }
-
-    // Check for selected child first, before setting the flag
     if (!selectedChild) {
-      console.log('No child selected - showing alert');
       Alert.alert('No Child Selected', 'Please select a child before adding books.');
       return;
     }
-
-    // Set the flag AFTER validation checks
-    isAddingBook.current = true;
-    console.log('Set isAddingBook.current to true');
 
     // Show loading state
     setIsSearching(true);
 
     try {
-      console.log('Starting barcode scan processing');
-
       // Search for book by ISBN
-      console.log('Calling searchBookByISBN...');
       const book = await searchBookByISBN(isbn);
-      console.log('searchBookByISBN result:', book ? book.title : 'null');
 
       if (!book) {
-        console.log('Book not found - showing alert');
         Alert.alert(
           'Book Not Found',
           'We couldn\'t find a book with this ISBN. Try searching manually or scanning a different barcode.',
           [{ text: 'OK' }]
         );
+        setIsSearching(false);
         return;
       }
 
       // Add the book
-      console.log('Calling handleSelectBook...');
       await handleSelectBook(book);
-      console.log('handleSelectBook completed');
     } catch (error) {
       console.error('Error handling barcode scan:', error);
       Alert.alert('Error', 'An error occurred while searching for the book. Please try again.');
     } finally {
-      console.log('Barcode scan finally block - resetting states');
       setIsSearching(false);
-      // Reset the flag after a short delay
-      setTimeout(() => {
-        isAddingBook.current = false;
-        console.log('Reset isAddingBook flag in finally block');
-      }, 1000);
-      console.log('=== BARCODE SCAN END ===');
     }
   };
 
@@ -431,10 +385,7 @@ export default function BooksScreen() {
 
               <TouchableOpacity
                 style={styles.cameraButton}
-                onPress={() => {
-                  console.log('Camera button pressed');
-                  setShowScanner(true);
-                }}
+                onPress={() => setShowScanner(true)}
                 activeOpacity={0.7}
               >
                 <IconSymbol
@@ -563,10 +514,7 @@ export default function BooksScreen() {
 
       <BarcodeScannerModal
         visible={showScanner}
-        onClose={() => {
-          console.log('Scanner modal closed');
-          setShowScanner(false);
-        }}
+        onClose={() => setShowScanner(false)}
         onBarcodeScanned={handleBarcodeScanned}
       />
     </View>
