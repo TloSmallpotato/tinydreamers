@@ -46,6 +46,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     const [tags, setTags] = useState<string[]>([]);
     const [newTag, setNewTag] = useState('');
     const [showMenu, setShowMenu] = useState(false);
+    const [imageError, setImageError] = useState(false);
 
     // Cache the current book data to prevent flickering
     const [cachedUserBook, setCachedUserBook] = useState<UserBook | null>(null);
@@ -58,6 +59,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         setWouldRecommend(userBook.would_recommend || false);
         setTags(userBook.tags || []);
         setShowMenu(false);
+        setImageError(false);
       }
     }, [userBook]);
 
@@ -181,10 +183,30 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       onClose();
     }, [onClose]);
 
+    const handleImageError = useCallback(() => {
+      console.log('Image failed to load in detail view');
+      setImageError(true);
+    }, []);
+
+    const getImageUrl = useCallback(() => {
+      if (!cachedUserBook) return null;
+      const book = cachedUserBook.book;
+      
+      // Try cover_url first, then thumbnail_url as fallback
+      if (book.cover_url && !imageError) {
+        return book.cover_url;
+      }
+      if (book.thumbnail_url) {
+        return book.thumbnail_url;
+      }
+      return null;
+    }, [cachedUserBook, imageError]);
+
     // Don't return null - keep the component mounted with cached data
     if (!cachedUserBook) return null;
 
     const book = cachedUserBook.book;
+    const imageUrl = getImageUrl();
 
     return (
       <BottomSheetModal
@@ -239,13 +261,15 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
           {/* Book Cover */}
           <View style={styles.coverContainer}>
-            {book.cover_url ? (
+            {imageUrl ? (
               <Image
-                source={{ uri: book.cover_url }}
+                source={{ uri: imageUrl }}
                 style={styles.bookCover}
-                contentFit="contain"
+                contentFit="cover"
                 cachePolicy="memory-disk"
                 priority="high"
+                transition={200}
+                onError={handleImageError}
               />
             ) : (
               <View style={[styles.bookCover, styles.placeholderCover]}>
@@ -255,6 +279,9 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
                   size={80}
                   color={colors.textSecondary}
                 />
+                <Text style={styles.placeholderTitle} numberOfLines={3}>
+                  {book.title}
+                </Text>
               </View>
             )}
           </View>
@@ -479,6 +506,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 16,
+  },
+  placeholderTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 12,
   },
   bookInfo: {
     paddingHorizontal: 20,

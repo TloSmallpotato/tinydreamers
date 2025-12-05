@@ -52,6 +52,7 @@ export default function BooksScreen() {
   const [savedBooks, setSavedBooks] = useState<SavedBook[]>([]);
   const [isLoadingBooks, setIsLoadingBooks] = useState(true);
   const [selectedBook, setSelectedBook] = useState<SavedBook | null>(null);
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const searchInputRef = useRef<TextInput>(null);
@@ -123,6 +124,7 @@ export default function BooksScreen() {
       if (searchQuery.trim().length >= 2) {
         setIsSearching(true);
         const results = await searchGoogleBooks(searchQuery);
+        console.log('Search results:', results.length, 'books found');
         setSearchResults(results);
         setShowDropdown(results.length > 0);
         setIsSearching(false);
@@ -153,6 +155,10 @@ export default function BooksScreen() {
 
       if (fetchError && fetchError.code === 'PGRST116') {
         // Book doesn't exist, create it
+        console.log('Creating new book:', book.title);
+        console.log('Cover URL:', book.coverUrl);
+        console.log('Thumbnail URL:', book.thumbnailUrl);
+        
         const { data: newBook, error: insertError } = await supabase
           .from('books_library')
           .insert({
@@ -231,6 +237,22 @@ export default function BooksScreen() {
     setSelectedBook(null);
   };
 
+  const handleImageError = (bookId: string) => {
+    console.log('Image failed to load for book:', bookId);
+    setImageErrors(prev => new Set(prev).add(bookId));
+  };
+
+  const getImageUrl = (book: SavedBook['book']) => {
+    // Try cover_url first, then thumbnail_url as fallback
+    if (book.cover_url && !imageErrors.has(book.id)) {
+      return book.cover_url;
+    }
+    if (book.thumbnail_url && !imageErrors.has(`${book.id}-thumb`)) {
+      return book.thumbnail_url;
+    }
+    return null;
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -293,12 +315,14 @@ export default function BooksScreen() {
                       onPress={() => handleSelectBook(book)}
                     >
                       <View style={styles.bookCoverContainer}>
-                        {book.thumbnailUrl ? (
+                        {book.thumbnailUrl || book.coverUrl ? (
                           <Image
-                            source={{ uri: book.thumbnailUrl }}
+                            source={{ uri: book.thumbnailUrl || book.coverUrl }}
                             style={styles.bookCoverSmall}
-                            contentFit="contain"
+                            contentFit="cover"
                             cachePolicy="memory-disk"
+                            transition={200}
+                            onError={() => console.log('Dropdown image error:', book.title)}
                           />
                         ) : (
                           <View style={[styles.bookCoverSmall, styles.placeholderCover]}>
@@ -345,33 +369,41 @@ export default function BooksScreen() {
             </View>
           ) : (
             <View style={styles.booksGrid}>
-              {savedBooks.map((savedBook, index) => (
-                <TouchableOpacity
-                  key={`${savedBook.id}-${index}`}
-                  style={styles.bookCard}
-                  onPress={() => handleBookPress(savedBook)}
-                  activeOpacity={0.7}
-                >
-                  {savedBook.book.cover_url ? (
-                    <Image
-                      source={{ uri: savedBook.book.cover_url }}
-                      style={styles.bookCoverLarge}
-                      contentFit="contain"
-                      cachePolicy="memory-disk"
-                      priority="high"
-                    />
-                  ) : (
-                    <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
-                      <IconSymbol
-                        ios_icon_name="book.fill"
-                        android_material_icon_name="book"
-                        size={48}
-                        color={colors.textSecondary}
+              {savedBooks.map((savedBook, index) => {
+                const imageUrl = getImageUrl(savedBook.book);
+                return (
+                  <TouchableOpacity
+                    key={`${savedBook.id}-${index}`}
+                    style={styles.bookCard}
+                    onPress={() => handleBookPress(savedBook)}
+                    activeOpacity={0.7}
+                  >
+                    {imageUrl ? (
+                      <Image
+                        source={{ uri: imageUrl }}
+                        style={styles.bookCoverLarge}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        priority="high"
+                        transition={200}
+                        onError={() => handleImageError(savedBook.book.id)}
                       />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))}
+                    ) : (
+                      <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
+                        <IconSymbol
+                          ios_icon_name="book.fill"
+                          android_material_icon_name="book"
+                          size={48}
+                          color={colors.textSecondary}
+                        />
+                        <Text style={styles.placeholderText} numberOfLines={3}>
+                          {savedBook.book.title}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
         </ScrollView>
@@ -456,6 +488,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
     backgroundColor: colors.background,
     borderRadius: 8,
+    overflow: 'hidden',
   },
   bookCoverSmall: {
     width: 50,
@@ -531,5 +564,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 12,
+  },
+  placeholderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
   },
 });

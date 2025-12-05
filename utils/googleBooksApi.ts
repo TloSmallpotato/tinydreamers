@@ -39,43 +39,30 @@ function enhanceImageUrl(url: string | undefined, isHighRes: boolean = false): s
   // Replace http with https for security
   let enhancedUrl = url.replace('http://', 'https://');
   
-  // Remove existing parameters that might limit quality
+  // Remove existing zoom parameter to replace it
   enhancedUrl = enhancedUrl.replace(/&zoom=\d+/, '');
-  enhancedUrl = enhancedUrl.replace(/&edge=curl/, '');
-  enhancedUrl = enhancedUrl.replace(/&fife=.*$/, '');
+  enhancedUrl = enhancedUrl.replace(/\?zoom=\d+/, '');
   
   // For high-res images (main display), request maximum quality
   if (isHighRes) {
     // If it's a Google Books image, we can manipulate the URL for better quality
     if (enhancedUrl.includes('books.google.com')) {
-      // Add zoom parameter for higher quality (zoom=1 gives better quality than default)
-      enhancedUrl += '&zoom=3';
-      
-      // Add printsec parameter to get better quality
-      if (!enhancedUrl.includes('printsec=')) {
-        enhancedUrl += '&printsec=frontcover';
+      // Add zoom parameter for higher quality
+      // zoom=1 is standard, zoom=3 is higher quality
+      if (enhancedUrl.includes('?')) {
+        enhancedUrl += '&zoom=1';
+      } else {
+        enhancedUrl += '?zoom=1';
       }
-      
-      // Request larger image size
-      enhancedUrl = enhancedUrl.replace(/&img=\d+/, '&img=1');
-      enhancedUrl = enhancedUrl.replace(/&w=\d+/, '&w=800');
-      enhancedUrl = enhancedUrl.replace(/&h=\d+/, '&h=1200');
-    }
-    
-    // For Google's image serving infrastructure (if using fife)
-    if (enhancedUrl.includes('googleusercontent.com')) {
-      // Use fife parameters for maximum quality
-      // w800-h1200 requests an image up to 800px wide and 1200px tall
-      enhancedUrl += '=w800-h1200-n';
     }
   } else {
-    // For thumbnails, use moderate quality
+    // For thumbnails, use zoom=1 for good quality
     if (enhancedUrl.includes('books.google.com')) {
-      enhancedUrl += '&zoom=1';
-    }
-    
-    if (enhancedUrl.includes('googleusercontent.com')) {
-      enhancedUrl += '=w200-h300-n';
+      if (enhancedUrl.includes('?')) {
+        enhancedUrl += '&zoom=1';
+      } else {
+        enhancedUrl += '?zoom=1';
+      }
     }
   }
   
@@ -85,35 +72,43 @@ function enhanceImageUrl(url: string | undefined, isHighRes: boolean = false): s
 /**
  * Gets the best available image URL from Google Books imageLinks
  * Prioritizes larger images for better quality
+ * Returns the raw URL without enhancement for better compatibility
  */
 function getBestImageUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks']): string {
   if (!imageLinks) return '';
   
-  // Priority order: extraLarge > large > medium > small > thumbnail > smallThumbnail
-  const url = imageLinks.extraLarge || 
-               imageLinks.large || 
-               imageLinks.medium || 
-               imageLinks.small || 
-               imageLinks.thumbnail || 
+  // Priority order: try all available sizes
+  // Use the raw URLs from Google Books API as they work best
+  const url = imageLinks.thumbnail || 
                imageLinks.smallThumbnail || 
+               imageLinks.small || 
+               imageLinks.medium || 
+               imageLinks.large || 
+               imageLinks.extraLarge || 
                '';
   
-  return enhanceImageUrl(url, true);
+  // Just ensure HTTPS, don't modify the URL further
+  return url ? url.replace('http://', 'https://') : '';
 }
 
 /**
  * Gets thumbnail URL for dropdown preview
+ * Uses the same logic as getBestImageUrl for consistency
  */
 function getThumbnailUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks']): string {
   if (!imageLinks) return '';
   
-  // For thumbnails in dropdown, use small or thumbnail
-  const url = imageLinks.small || 
-               imageLinks.thumbnail || 
+  // Use the same URL as cover for consistency
+  // The Image component will handle sizing
+  const url = imageLinks.thumbnail || 
                imageLinks.smallThumbnail || 
+               imageLinks.small || 
+               imageLinks.medium || 
+               imageLinks.large || 
+               imageLinks.extraLarge || 
                '';
   
-  return enhanceImageUrl(url, false);
+  return url ? url.replace('http://', 'https://') : '';
 }
 
 export async function searchGoogleBooks(query: string): Promise<BookSearchResult[]> {
@@ -139,16 +134,30 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
       return [];
     }
 
-    return data.items.map((item: GoogleBook) => ({
-      googleBooksId: item.id,
-      title: item.volumeInfo.title || 'Unknown Title',
-      authors: item.volumeInfo.authors?.join(', ') || 'Unknown Author',
-      coverUrl: getBestImageUrl(item.volumeInfo.imageLinks),
-      thumbnailUrl: getThumbnailUrl(item.volumeInfo.imageLinks),
-      description: item.volumeInfo.description || '',
-      publishedDate: item.volumeInfo.publishedDate || '',
-      pageCount: item.volumeInfo.pageCount || 0,
-    }));
+    return data.items
+      .map((item: GoogleBook) => {
+        const coverUrl = getBestImageUrl(item.volumeInfo.imageLinks);
+        const thumbnailUrl = getThumbnailUrl(item.volumeInfo.imageLinks);
+        
+        // Log for debugging
+        if (!coverUrl) {
+          console.log('No image found for book:', item.volumeInfo.title);
+        }
+        
+        return {
+          googleBooksId: item.id,
+          title: item.volumeInfo.title || 'Unknown Title',
+          authors: item.volumeInfo.authors?.join(', ') || 'Unknown Author',
+          coverUrl,
+          thumbnailUrl,
+          description: item.volumeInfo.description || '',
+          publishedDate: item.volumeInfo.publishedDate || '',
+          pageCount: item.volumeInfo.pageCount || 0,
+        };
+      })
+      // Filter out books without images if needed, or keep them all
+      // For now, keep all books even without images
+      .filter((book: BookSearchResult) => book.title && book.authors);
   } catch (error) {
     console.error('Error searching Google Books:', error);
     return [];
