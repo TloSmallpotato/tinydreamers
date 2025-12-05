@@ -470,8 +470,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundAlt,
     borderRadius: 16,
     maxHeight: 400,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
-    elevation: 5,
     zIndex: 1001,
   },
   dropdownScroll: {
@@ -554,16 +552,12 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 12,
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
   },
   placeholderCoverLarge: {
     backgroundColor: colors.backgroundAlt,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 12,
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
   },
   placeholderText: {
     fontSize: 12,
