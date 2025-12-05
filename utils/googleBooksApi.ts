@@ -57,7 +57,7 @@ export interface BookSearchResult {
 
 /**
  * Gets LibraryThing cover URL by ISBN
- * LibraryThing provides high-quality cover images
+ * LibraryThing provides high-quality cover images by redirecting to sources like Amazon
  * @param isbn - The ISBN (10 or 13 digits)
  * @param size - Size of the cover (small, medium, large)
  */
@@ -66,27 +66,48 @@ function getLibraryThingCoverUrl(isbn: string, size: 'small' | 'medium' | 'large
   
   const cleanISBN = isbn.replace(/[-\s]/g, '');
   
-  // LibraryThing cover API
+  // LibraryThing cover API - no dev key needed for basic usage
+  // The API redirects to the actual image location (Amazon, etc.)
   // Size options: small (75px), medium (188px), large (no limit)
-  return `https://covers.librarything.com/devkey/YOUR_DEV_KEY/large/isbn/${cleanISBN}`;
+  return `https://covers.librarything.com/devkey/1/large/isbn/${cleanISBN}`;
 }
 
 /**
- * Checks if a LibraryThing cover image exists
+ * Checks if a LibraryThing cover image exists and gets the final URL
  * @param isbn - The ISBN to check
  */
-async function checkLibraryThingCover(isbn: string): Promise<boolean> {
+async function checkLibraryThingCover(isbn: string): Promise<{ exists: boolean; finalUrl?: string }> {
   try {
     const cleanISBN = isbn.replace(/[-\s]/g, '');
-    const url = `https://covers.librarything.com/devkey/YOUR_DEV_KEY/large/isbn/${cleanISBN}`;
+    const url = `https://covers.librarything.com/devkey/1/large/isbn/${cleanISBN}`;
     
-    const response = await fetch(url, { method: 'HEAD' });
+    console.log('Checking LibraryThing for ISBN:', cleanISBN);
     
-    // LibraryThing returns 200 if cover exists, 404 if not
-    return response.ok && response.status === 200;
+    // Use GET request to follow redirects and get the final image URL
+    const response = await fetch(url, { 
+      method: 'GET',
+      redirect: 'follow'
+    });
+    
+    // Check if we got a valid image response
+    const contentType = response.headers.get('content-type');
+    const isImage = contentType && contentType.startsWith('image/');
+    
+    // LibraryThing returns a 1x1 pixel image for missing covers
+    // Check the content length to filter out placeholder images
+    const contentLength = response.headers.get('content-length');
+    const isPlaceholder = contentLength && parseInt(contentLength) < 1000;
+    
+    if (response.ok && isImage && !isPlaceholder) {
+      console.log('Found valid cover on LibraryThing, final URL:', response.url);
+      return { exists: true, finalUrl: response.url };
+    }
+    
+    console.log('No valid cover found on LibraryThing');
+    return { exists: false };
   } catch (error) {
     console.error('Error checking LibraryThing cover:', error);
-    return false;
+    return { exists: false };
   }
 }
 
@@ -104,12 +125,14 @@ async function getBestCoverUrl(
     const cleanISBN = isbn.replace(/[-\s]/g, '');
     console.log('Checking LibraryThing for ISBN:', cleanISBN);
     
-    const hasLibraryThingCover = await checkLibraryThingCover(cleanISBN);
+    const libraryThingResult = await checkLibraryThingCover(cleanISBN);
     
-    if (hasLibraryThingCover) {
+    if (libraryThingResult.exists && libraryThingResult.finalUrl) {
       console.log('Found cover on LibraryThing');
-      const coverUrl = getLibraryThingCoverUrl(cleanISBN, 'large');
-      const thumbnailUrl = getLibraryThingCoverUrl(cleanISBN, 'medium');
+      // Use the final redirected URL for the cover
+      const coverUrl = libraryThingResult.finalUrl;
+      // For thumbnail, use the LibraryThing medium size URL
+      const thumbnailUrl = `https://covers.librarything.com/devkey/1/medium/isbn/${cleanISBN}`;
       return { coverUrl, thumbnailUrl, source: 'librarything' };
     }
   }
