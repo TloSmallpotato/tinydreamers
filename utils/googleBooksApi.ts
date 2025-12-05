@@ -52,7 +52,87 @@ export interface BookSearchResult {
   description: string;
   publishedDate: string;
   pageCount: number;
-  source?: 'google' | 'openlibrary';
+  source?: 'google' | 'openlibrary' | 'librarything';
+}
+
+/**
+ * Gets LibraryThing cover URL by ISBN
+ * LibraryThing provides high-quality cover images
+ * @param isbn - The ISBN (10 or 13 digits)
+ * @param size - Size of the cover (small, medium, large)
+ */
+function getLibraryThingCoverUrl(isbn: string, size: 'small' | 'medium' | 'large' = 'large'): string {
+  if (!isbn) return '';
+  
+  const cleanISBN = isbn.replace(/[-\s]/g, '');
+  
+  // LibraryThing cover API
+  // Size options: small (75px), medium (188px), large (no limit)
+  return `https://covers.librarything.com/devkey/YOUR_DEV_KEY/large/isbn/${cleanISBN}`;
+}
+
+/**
+ * Checks if a LibraryThing cover image exists
+ * @param isbn - The ISBN to check
+ */
+async function checkLibraryThingCover(isbn: string): Promise<boolean> {
+  try {
+    const cleanISBN = isbn.replace(/[-\s]/g, '');
+    const url = `https://covers.librarything.com/devkey/YOUR_DEV_KEY/large/isbn/${cleanISBN}`;
+    
+    const response = await fetch(url, { method: 'HEAD' });
+    
+    // LibraryThing returns 200 if cover exists, 404 if not
+    return response.ok && response.status === 200;
+  } catch (error) {
+    console.error('Error checking LibraryThing cover:', error);
+    return false;
+  }
+}
+
+/**
+ * Gets the best available cover image URL
+ * Priority: LibraryThing > Google Books > OpenLibrary
+ */
+async function getBestCoverUrl(
+  isbn: string | undefined,
+  googleImageLinks: GoogleBook['volumeInfo']['imageLinks'] | undefined,
+  openLibraryCoverId?: number
+): Promise<{ coverUrl: string; thumbnailUrl: string; source: string }> {
+  // Try LibraryThing first if we have an ISBN
+  if (isbn) {
+    const cleanISBN = isbn.replace(/[-\s]/g, '');
+    console.log('Checking LibraryThing for ISBN:', cleanISBN);
+    
+    const hasLibraryThingCover = await checkLibraryThingCover(cleanISBN);
+    
+    if (hasLibraryThingCover) {
+      console.log('Found cover on LibraryThing');
+      const coverUrl = getLibraryThingCoverUrl(cleanISBN, 'large');
+      const thumbnailUrl = getLibraryThingCoverUrl(cleanISBN, 'medium');
+      return { coverUrl, thumbnailUrl, source: 'librarything' };
+    }
+  }
+  
+  // Fallback to Google Books
+  if (googleImageLinks) {
+    console.log('Using Google Books cover as fallback');
+    const coverUrl = getHighQualityImageUrl(googleImageLinks);
+    const thumbnailUrl = getThumbnailUrl(googleImageLinks);
+    if (coverUrl) {
+      return { coverUrl, thumbnailUrl, source: 'google' };
+    }
+  }
+  
+  // Fallback to OpenLibrary
+  if (openLibraryCoverId) {
+    console.log('Using OpenLibrary cover as fallback');
+    const coverUrl = getOpenLibraryCoverUrl(openLibraryCoverId, 'L');
+    const thumbnailUrl = getOpenLibraryCoverUrl(openLibraryCoverId, 'M');
+    return { coverUrl, thumbnailUrl, source: 'openlibrary' };
+  }
+  
+  return { coverUrl: '', thumbnailUrl: '', source: 'none' };
 }
 
 /**
@@ -109,7 +189,7 @@ function getHighQualityImageUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks
     }
   }
   
-  console.log('Enhanced image URL (prioritizing large):', url);
+  console.log('Enhanced Google Books image URL:', url);
   return url;
 }
 
@@ -167,6 +247,22 @@ function getOpenLibraryCoverUrl(coverId: number | undefined, size: 'S' | 'M' | '
 }
 
 /**
+ * Extracts ISBN from Google Books volume info
+ */
+function extractISBN(volumeInfo: GoogleBook['volumeInfo']): string | undefined {
+  if (!volumeInfo.industryIdentifiers) return undefined;
+  
+  // Prefer ISBN-13, fallback to ISBN-10
+  const isbn13 = volumeInfo.industryIdentifiers.find(id => id.type === 'ISBN_13');
+  if (isbn13) return isbn13.identifier;
+  
+  const isbn10 = volumeInfo.industryIdentifiers.find(id => id.type === 'ISBN_10');
+  if (isbn10) return isbn10.identifier;
+  
+  return undefined;
+}
+
+/**
  * Searches OpenLibrary API for books
  */
 async function searchOpenLibrary(query: string): Promise<BookSearchResult[]> {
@@ -187,10 +283,14 @@ async function searchOpenLibrary(query: string): Promise<BookSearchResult[]> {
       return [];
     }
 
-    return data.docs
-      .map((doc: OpenLibraryBook) => {
-        const coverUrl = getOpenLibraryCoverUrl(doc.cover_i, 'L');
-        const thumbnailUrl = getOpenLibraryCoverUrl(doc.cover_i, 'M');
+    const results = await Promise.all(
+      data.docs.map(async (doc: OpenLibraryBook) => {
+        const isbn = doc.isbn?.[0];
+        const { coverUrl, thumbnailUrl } = await getBestCoverUrl(
+          isbn,
+          undefined,
+          doc.cover_i
+        );
         
         // Use the work key as the ID (remove /works/ prefix)
         const bookId = doc.key.replace('/works/', '');
@@ -207,7 +307,9 @@ async function searchOpenLibrary(query: string): Promise<BookSearchResult[]> {
           source: 'openlibrary' as const,
         };
       })
-      .filter((book: BookSearchResult) => book.title && book.authors);
+    );
+
+    return results.filter((book: BookSearchResult) => book.title && book.authors);
   } catch (error) {
     console.error('Error searching OpenLibrary:', error);
     return [];
@@ -247,9 +349,11 @@ async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult |
       description = data.description.value;
     }
 
-    const coverId = data.covers?.[0];
-    const coverUrl = getOpenLibraryCoverUrl(coverId, 'L');
-    const thumbnailUrl = getOpenLibraryCoverUrl(coverId, 'M');
+    const { coverUrl, thumbnailUrl } = await getBestCoverUrl(
+      cleanISBN,
+      undefined,
+      data.covers?.[0]
+    );
 
     return {
       googleBooksId: `openlibrary-${cleanISBN}`,
@@ -271,6 +375,7 @@ async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult |
 /**
  * Searches for books by text query
  * Uses Google Books API first, falls back to OpenLibrary if no results
+ * Prioritizes LibraryThing for cover images
  */
 export async function searchGoogleBooks(query: string): Promise<BookSearchResult[]> {
   if (!query || query.trim().length < 2) {
@@ -299,10 +404,14 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
       return await searchOpenLibrary(query);
     }
 
-    const googleResults = data.items
-      .map((item: GoogleBook) => {
-        const coverUrl = getHighQualityImageUrl(item.volumeInfo.imageLinks);
-        const thumbnailUrl = getThumbnailUrl(item.volumeInfo.imageLinks);
+    const googleResults = await Promise.all(
+      data.items.map(async (item: GoogleBook) => {
+        const isbn = extractISBN(item.volumeInfo);
+        const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
+          isbn,
+          item.volumeInfo.imageLinks,
+          undefined
+        );
         
         // Log for debugging
         if (!coverUrl) {
@@ -312,6 +421,7 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
             title: item.volumeInfo.title,
             coverUrl,
             thumbnailUrl,
+            source,
           });
         }
         
@@ -324,12 +434,12 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
           description: item.volumeInfo.description || '',
           publishedDate: item.volumeInfo.publishedDate || '',
           pageCount: item.volumeInfo.pageCount || 0,
-          source: 'google' as const,
+          source: source as 'google' | 'openlibrary' | 'librarything',
         };
       })
-      .filter((book: BookSearchResult) => book.title && book.authors);
+    );
 
-    return googleResults;
+    return googleResults.filter((book: BookSearchResult) => book.title && book.authors);
   } catch (error) {
     console.error('Error searching Google Books:', error);
     // Fallback to OpenLibrary
@@ -341,6 +451,7 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
 /**
  * Searches for a book by ISBN
  * Uses Google Books API first, falls back to OpenLibrary if not found
+ * Prioritizes LibraryThing for cover images
  */
 export async function searchBookByISBN(isbn: string): Promise<BookSearchResult | null> {
   if (!isbn || isbn.trim().length === 0) {
@@ -375,14 +486,19 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
 
     // Get the first result (should be the most relevant)
     const item: GoogleBook = data.items[0];
-    const coverUrl = getHighQualityImageUrl(item.volumeInfo.imageLinks);
-    const thumbnailUrl = getThumbnailUrl(item.volumeInfo.imageLinks);
+    const itemISBN = extractISBN(item.volumeInfo) || cleanISBN;
+    const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
+      itemISBN,
+      item.volumeInfo.imageLinks,
+      undefined
+    );
 
     console.log('Found book on Google Books:', item.volumeInfo.title);
     console.log('Book image URLs:', {
       title: item.volumeInfo.title,
       coverUrl,
       thumbnailUrl,
+      source,
     });
 
     return {
@@ -394,7 +510,7 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
       description: item.volumeInfo.description || '',
       publishedDate: item.volumeInfo.publishedDate || '',
       pageCount: item.volumeInfo.pageCount || 0,
-      source: 'google',
+      source: source as 'google' | 'openlibrary' | 'librarything',
     };
   } catch (error) {
     console.error('Error searching book by ISBN:', error);
