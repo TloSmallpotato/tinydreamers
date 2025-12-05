@@ -21,19 +21,9 @@ import { useChild } from '@/contexts/ChildContext';
 import { useAddNavigation } from '@/contexts/AddNavigationContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { searchGoogleBooks, searchBookByISBN, BookSearchResult } from '@/utils/googleBooksApi';
-import { processAndUploadBookCover, getBookCoverUrl } from '@/utils/bookCoverStorage';
 import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
 import BarcodeScannerModal from '@/components/BarcodeScannerModal';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-
-interface BookCover {
-  id: string;
-  storage_path: string;
-  width: number;
-  height: number;
-  file_size: number;
-  is_low_res: boolean;
-}
 
 interface SavedBook {
   id: string;
@@ -46,10 +36,11 @@ interface SavedBook {
     google_books_id: string;
     title: string;
     authors: string;
+    cover_url: string;
+    thumbnail_url: string;
     description: string;
     published_date: string;
     page_count: number;
-    book_cover?: BookCover;
   };
 }
 
@@ -158,17 +149,11 @@ export default function BooksScreen() {
             google_books_id,
             title,
             authors,
+            cover_url,
+            thumbnail_url,
             description,
             published_date,
-            page_count,
-            book_cover:book_covers (
-              id,
-              storage_path,
-              width,
-              height,
-              file_size,
-              is_low_res
-            )
+            page_count
           )
         `)
         .eq('child_id', selectedChild.id)
@@ -179,34 +164,7 @@ export default function BooksScreen() {
         return;
       }
 
-      // Transform the data to handle the nested book_cover array
-      const transformedData = data?.map(item => ({
-        ...item,
-        book: {
-          ...item.book,
-          book_cover: Array.isArray(item.book.book_cover) && item.book.book_cover.length > 0
-            ? item.book.book_cover[0]
-            : undefined,
-        },
-      })) || [];
-
-      console.log('Fetched books:', transformedData.length);
-      transformedData.forEach(book => {
-        if (book.book.book_cover) {
-          const url = getBookCoverUrl(book.book.book_cover.storage_path);
-          console.log(`Book "${book.book.title}" has cover:`, {
-            storage_path: book.book.book_cover.storage_path,
-            url: url,
-            dimensions: `${book.book.book_cover.width}x${book.book.book_cover.height}`,
-            size: `${Math.round(book.book.book_cover.file_size / 1024)}KB`,
-            is_low_res: book.book.book_cover.is_low_res,
-          });
-        } else {
-          console.log(`Book "${book.book.title}" has NO cover`);
-        }
-      });
-
-      setSavedBooks(transformedData);
+      setSavedBooks(data || []);
     } catch (error) {
       console.error('Error in fetchSavedBooks:', error);
     } finally {
@@ -267,6 +225,8 @@ export default function BooksScreen() {
       if (fetchError && fetchError.code === 'PGRST116') {
         // Book doesn't exist, create it
         console.log('Creating new book:', book.title);
+        console.log('Cover URL:', book.coverUrl);
+        console.log('Thumbnail URL:', book.thumbnailUrl);
         
         const { data: newBook, error: insertError } = await supabase
           .from('books_library')
@@ -274,6 +234,8 @@ export default function BooksScreen() {
             google_books_id: book.googleBooksId,
             title: book.title,
             authors: book.authors,
+            cover_url: book.coverUrl,
+            thumbnail_url: book.thumbnailUrl,
             description: book.description,
             published_date: book.publishedDate,
             page_count: book.pageCount,
@@ -289,25 +251,6 @@ export default function BooksScreen() {
         }
 
         bookId = newBook.id;
-
-        // Process and upload the cover image if available
-        if (book.coverUrl || book.thumbnailUrl) {
-          const coverUrl = book.coverUrl || book.thumbnailUrl;
-          console.log('Processing cover image:', coverUrl);
-          
-          // Process cover asynchronously (don't wait for it)
-          processAndUploadBookCover(coverUrl, bookId).then(cover => {
-            if (cover) {
-              console.log('Cover processed successfully:', cover);
-              // Refresh the books list to show the new cover
-              fetchSavedBooks();
-            } else {
-              console.log('Failed to process cover, but book was added');
-            }
-          }).catch(error => {
-            console.error('Error processing cover:', error);
-          });
-        }
       } else if (existingBook) {
         bookId = existingBook.id;
       } else {
@@ -465,19 +408,19 @@ export default function BooksScreen() {
     lastClickedBookIdRef.current = null;
   };
 
-  const handleImageError = (bookId: string, error: any) => {
-    console.error('Image failed to load for book:', bookId, 'Error:', error);
+  const handleImageError = (bookId: string) => {
+    console.log('Image failed to load for book:', bookId);
     setImageErrors(prev => new Set(prev).add(bookId));
   };
 
   const getImageUrl = (book: SavedBook['book']) => {
-    // Use the book_cover from the new system
-    if (book.book_cover && !imageErrors.has(book.id)) {
-      const url = getBookCoverUrl(book.book_cover.storage_path);
-      console.log(`Getting image URL for "${book.title}":`, url);
-      return url;
+    // Try cover_url first, then thumbnail_url as fallback
+    if (book.cover_url && !imageErrors.has(book.id)) {
+      return book.cover_url;
     }
-    console.log(`No image URL for "${book.title}" - has cover:`, !!book.book_cover, 'has error:', imageErrors.has(book.id));
+    if (book.thumbnail_url && !imageErrors.has(`${book.id}-thumb`)) {
+      return book.thumbnail_url;
+    }
     return null;
   };
 
@@ -619,8 +562,6 @@ export default function BooksScreen() {
             <View style={styles.booksGrid}>
               {savedBooks.map((savedBook, index) => {
                 const imageUrl = getImageUrl(savedBook.book);
-                const isLowRes = savedBook.book.book_cover?.is_low_res;
-                
                 return (
                   <TouchableOpacity
                     key={`${savedBook.id}-${index}`}
@@ -629,23 +570,15 @@ export default function BooksScreen() {
                     activeOpacity={0.7}
                   >
                     {imageUrl ? (
-                      <View style={styles.coverWrapper}>
-                        <Image
-                          source={{ uri: imageUrl }}
-                          style={styles.bookCoverLarge}
-                          contentFit="contain"
-                          cachePolicy="none"
-                          priority="high"
-                          transition={200}
-                          onError={(error) => handleImageError(savedBook.book.id, error)}
-                          onLoad={() => console.log('Image loaded successfully:', savedBook.book.title)}
-                        />
-                        {isLowRes && (
-                          <View style={styles.lowResBadge}>
-                            <Text style={styles.lowResText}>Low Res</Text>
-                          </View>
-                        )}
-                      </View>
+                      <Image
+                        source={{ uri: imageUrl }}
+                        style={styles.bookCoverLarge}
+                        contentFit="contain"
+                        cachePolicy="memory-disk"
+                        priority="high"
+                        transition={200}
+                        onError={() => handleImageError(savedBook.book.id)}
+                      />
                     ) : (
                       <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
                         <IconSymbol
@@ -831,11 +764,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     overflow: 'visible',
   },
-  coverWrapper: {
-    width: '100%',
-    height: '100%',
-    position: 'relative',
-  },
   bookCoverLarge: {
     width: '100%',
     height: '100%',
@@ -853,19 +781,5 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 8,
-  },
-  lowResBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(255, 152, 0, 0.9)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  lowResText: {
-    color: colors.backgroundAlt,
-    fontSize: 10,
-    fontWeight: '700',
   },
 });
