@@ -58,6 +58,7 @@ export default function WordsScreen() {
 
   // Handle autoOpen parameter from navigation
   useEffect(() => {
+    console.log('autoOpen parameter changed:', autoOpen);
     if (autoOpen === 'true') {
       console.log('autoOpen parameter detected - opening add word bottom sheet');
       // Slight delay ensures the screen fully mounts before opening modal
@@ -65,7 +66,7 @@ export default function WordsScreen() {
         addWordSheetRef.current?.present();
       }, 100);
     }
-  }, [autoOpen]);
+  }, [autoOpen]); // Added autoOpen to dependency array
 
   const fetchWords = useCallback(async () => {
     if (!selectedChild) {
