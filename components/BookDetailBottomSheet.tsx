@@ -500,8 +500,7 @@ const styles = StyleSheet.create({
   bookCover: {
     width: screenWidth * 0.5,
     height: screenWidth * 0.7,
-    borderRadius: 8,
-    boxShadow: '0px 6px 16px rgba(0, 0, 0, 0.25)',
+    borderRadius: 12,
   },
   placeholderCover: {
     backgroundColor: colors.background,

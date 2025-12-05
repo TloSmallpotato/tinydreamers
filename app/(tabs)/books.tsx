@@ -492,7 +492,6 @@ const styles = StyleSheet.create({
     width: 50,
     height: 75,
     borderRadius: 8,
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.15)',
   },
   placeholderCover: {
     backgroundColor: colors.background,
@@ -552,8 +551,7 @@ const styles = StyleSheet.create({
   bookCoverLarge: {
     width: '100%',
     height: '100%',
-    borderRadius: 8,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.2)',
+    borderRadius: 12,
   },
   placeholderCoverLarge: {
     backgroundColor: colors.backgroundAlt,
