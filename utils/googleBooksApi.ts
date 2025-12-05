@@ -22,6 +22,27 @@ export interface GoogleBook {
   };
 }
 
+export interface OpenLibraryBook {
+  key: string;
+  title: string;
+  author_name?: string[];
+  first_publish_year?: number;
+  isbn?: string[];
+  cover_i?: number;
+  number_of_pages_median?: number;
+}
+
+export interface OpenLibraryBookDetails {
+  title: string;
+  authors?: Array<{ name: string }>;
+  description?: string | { value: string };
+  publish_date?: string;
+  number_of_pages?: number;
+  covers?: number[];
+  isbn_13?: string[];
+  isbn_10?: string[];
+}
+
 export interface BookSearchResult {
   googleBooksId: string;
   title: string;
@@ -31,6 +52,7 @@ export interface BookSearchResult {
   description: string;
   publishedDate: string;
   pageCount: number;
+  source?: 'google' | 'openlibrary';
 }
 
 /**
@@ -135,7 +157,120 @@ function getThumbnailUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks']): st
 }
 
 /**
+ * Gets OpenLibrary cover URL
+ * @param coverId - The cover ID from OpenLibrary
+ * @param size - Size of the cover (S, M, L)
+ */
+function getOpenLibraryCoverUrl(coverId: number | undefined, size: 'S' | 'M' | 'L' = 'L'): string {
+  if (!coverId) return '';
+  return `https://covers.openlibrary.org/b/id/${coverId}-${size}.jpg`;
+}
+
+/**
+ * Searches OpenLibrary API for books
+ */
+async function searchOpenLibrary(query: string): Promise<BookSearchResult[]> {
+  try {
+    const encodedQuery = encodeURIComponent(query.trim());
+    const response = await fetch(
+      `https://openlibrary.org/search.json?q=${encodedQuery}&limit=10`
+    );
+
+    if (!response.ok) {
+      console.error('OpenLibrary API error:', response.status);
+      return [];
+    }
+
+    const data = await response.json();
+
+    if (!data.docs || data.docs.length === 0) {
+      return [];
+    }
+
+    return data.docs
+      .map((doc: OpenLibraryBook) => {
+        const coverUrl = getOpenLibraryCoverUrl(doc.cover_i, 'L');
+        const thumbnailUrl = getOpenLibraryCoverUrl(doc.cover_i, 'M');
+        
+        // Use the work key as the ID (remove /works/ prefix)
+        const bookId = doc.key.replace('/works/', '');
+        
+        return {
+          googleBooksId: `openlibrary-${bookId}`,
+          title: doc.title || 'Unknown Title',
+          authors: doc.author_name?.join(', ') || 'Unknown Author',
+          coverUrl,
+          thumbnailUrl,
+          description: '',
+          publishedDate: doc.first_publish_year?.toString() || '',
+          pageCount: doc.number_of_pages_median || 0,
+          source: 'openlibrary' as const,
+        };
+      })
+      .filter((book: BookSearchResult) => book.title && book.authors);
+  } catch (error) {
+    console.error('Error searching OpenLibrary:', error);
+    return [];
+  }
+}
+
+/**
+ * Searches OpenLibrary API for a book by ISBN
+ */
+async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult | null> {
+  try {
+    const cleanISBN = isbn.replace(/[-\s]/g, '');
+    console.log('Searching OpenLibrary for ISBN:', cleanISBN);
+    
+    const response = await fetch(
+      `https://openlibrary.org/isbn/${cleanISBN}.json`
+    );
+
+    if (!response.ok) {
+      console.log('OpenLibrary ISBN not found:', response.status);
+      return null;
+    }
+
+    const data: OpenLibraryBookDetails = await response.json();
+
+    // Get the work details for more information
+    let description = '';
+    let authors = 'Unknown Author';
+    
+    if (data.authors && data.authors.length > 0) {
+      authors = data.authors.map(a => a.name).join(', ');
+    }
+
+    if (typeof data.description === 'string') {
+      description = data.description;
+    } else if (data.description && typeof data.description === 'object' && 'value' in data.description) {
+      description = data.description.value;
+    }
+
+    const coverId = data.covers?.[0];
+    const coverUrl = getOpenLibraryCoverUrl(coverId, 'L');
+    const thumbnailUrl = getOpenLibraryCoverUrl(coverId, 'M');
+
+    return {
+      googleBooksId: `openlibrary-${cleanISBN}`,
+      title: data.title || 'Unknown Title',
+      authors,
+      coverUrl,
+      thumbnailUrl,
+      description,
+      publishedDate: data.publish_date || '',
+      pageCount: data.number_of_pages || 0,
+      source: 'openlibrary',
+    };
+  } catch (error) {
+    console.error('Error searching OpenLibrary by ISBN:', error);
+    return null;
+  }
+}
+
+/**
  * Searches for books by text query
+ * Uses Google Books API first, falls back to OpenLibrary if no results
  */
 export async function searchGoogleBooks(query: string): Promise<BookSearchResult[]> {
   if (!query || query.trim().length < 2) {
@@ -151,16 +286,20 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
 
     if (!response.ok) {
       console.error('Google Books API error:', response.status);
-      return [];
+      // Fallback to OpenLibrary
+      console.log('Falling back to OpenLibrary API');
+      return await searchOpenLibrary(query);
     }
 
     const data = await response.json();
 
     if (!data.items || data.items.length === 0) {
-      return [];
+      console.log('No results from Google Books, trying OpenLibrary');
+      // Fallback to OpenLibrary
+      return await searchOpenLibrary(query);
     }
 
-    return data.items
+    const googleResults = data.items
       .map((item: GoogleBook) => {
         const coverUrl = getHighQualityImageUrl(item.volumeInfo.imageLinks);
         const thumbnailUrl = getThumbnailUrl(item.volumeInfo.imageLinks);
@@ -185,17 +324,23 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
           description: item.volumeInfo.description || '',
           publishedDate: item.volumeInfo.publishedDate || '',
           pageCount: item.volumeInfo.pageCount || 0,
+          source: 'google' as const,
         };
       })
       .filter((book: BookSearchResult) => book.title && book.authors);
+
+    return googleResults;
   } catch (error) {
     console.error('Error searching Google Books:', error);
-    return [];
+    // Fallback to OpenLibrary
+    console.log('Error occurred, falling back to OpenLibrary API');
+    return await searchOpenLibrary(query);
   }
 }
 
 /**
  * Searches for a book by ISBN
+ * Uses Google Books API first, falls back to OpenLibrary if not found
  */
 export async function searchBookByISBN(isbn: string): Promise<BookSearchResult | null> {
   if (!isbn || isbn.trim().length === 0) {
@@ -215,14 +360,17 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
 
     if (!response.ok) {
       console.error('Google Books API error:', response.status);
-      return null;
+      // Fallback to OpenLibrary
+      console.log('Falling back to OpenLibrary API for ISBN');
+      return await searchOpenLibraryByISBN(cleanISBN);
     }
 
     const data = await response.json();
 
     if (!data.items || data.items.length === 0) {
-      console.log('No book found for ISBN:', cleanISBN);
-      return null;
+      console.log('No book found for ISBN on Google Books, trying OpenLibrary');
+      // Fallback to OpenLibrary
+      return await searchOpenLibraryByISBN(cleanISBN);
     }
 
     // Get the first result (should be the most relevant)
@@ -230,7 +378,7 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
     const coverUrl = getHighQualityImageUrl(item.volumeInfo.imageLinks);
     const thumbnailUrl = getThumbnailUrl(item.volumeInfo.imageLinks);
 
-    console.log('Found book:', item.volumeInfo.title);
+    console.log('Found book on Google Books:', item.volumeInfo.title);
     console.log('Book image URLs:', {
       title: item.volumeInfo.title,
       coverUrl,
@@ -246,9 +394,13 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
       description: item.volumeInfo.description || '',
       publishedDate: item.volumeInfo.publishedDate || '',
       pageCount: item.volumeInfo.pageCount || 0,
+      source: 'google',
     };
   } catch (error) {
     console.error('Error searching book by ISBN:', error);
-    return null;
+    // Fallback to OpenLibrary
+    console.log('Error occurred, falling back to OpenLibrary API for ISBN');
+    const cleanISBN = isbn.replace(/[-\s]/g, '');
+    return await searchOpenLibraryByISBN(cleanISBN);
   }
 }
