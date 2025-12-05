@@ -57,16 +57,16 @@ export interface BookSearchResult {
 
 /**
  * Gets the highest quality image URL from Google Books imageLinks
- * Prioritizes larger images and enhances URLs for maximum quality
+ * Prioritizes "large" size specifically as it provides the best quality from Google Books
  */
 function getHighQualityImageUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks']): string {
   if (!imageLinks) return '';
   
-  // Priority order: largest to smallest
-  // Try to get the highest resolution available
-  let url = imageLinks.extraLarge || 
-            imageLinks.large || 
+  // Priority order: large is the sweet spot for Google Books quality
+  // Note: extraLarge is often not available, and large provides excellent quality
+  let url = imageLinks.large || 
             imageLinks.medium || 
+            imageLinks.extraLarge || 
             imageLinks.small || 
             imageLinks.thumbnail || 
             imageLinks.smallThumbnail || 
@@ -109,7 +109,7 @@ function getHighQualityImageUrl(imageLinks: GoogleBook['volumeInfo']['imageLinks
     }
   }
   
-  console.log('Enhanced image URL:', url);
+  console.log('Enhanced image URL (prioritizing large):', url);
   return url;
 }
 
