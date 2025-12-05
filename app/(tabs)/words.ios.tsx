@@ -10,7 +10,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 interface UserWord {
   id: string;
@@ -48,25 +48,45 @@ interface GroupedWords {
 export default function WordsScreen() {
   const { selectedChild } = useChild();
   const { targetWordIdToOpen, clearTargetWordIdToOpen } = useWordNavigation();
-  const { autoOpen } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const router = useRouter();
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
 
   const addWordSheetRef = useRef<BottomSheetModal>(null);
   const wordDetailSheetRef = useRef<BottomSheetModal>(null);
+  const hasProcessedAutoOpen = useRef(false);
 
-  // Handle autoOpen parameter from navigation
-  useEffect(() => {
-    console.log('autoOpen parameter changed:', autoOpen);
-    if (autoOpen === 'true') {
-      console.log('autoOpen parameter detected - opening add word bottom sheet');
-      // Slight delay ensures the screen fully mounts before opening modal
-      setTimeout(() => {
-        addWordSheetRef.current?.present();
-      }, 100);
-    }
-  }, [autoOpen]); // Added autoOpen to dependency array
+  // Handle autoOpen parameter from navigation - runs every time screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const autoOpen = params.autoOpen;
+      console.log('[iOS] useFocusEffect - autoOpen:', autoOpen, 'hasProcessedAutoOpen:', hasProcessedAutoOpen.current);
+      
+      if (autoOpen === 'true' && !hasProcessedAutoOpen.current) {
+        console.log('[iOS] autoOpen parameter detected - opening add word bottom sheet');
+        hasProcessedAutoOpen.current = true;
+        
+        // Clear the parameter immediately
+        router.replace('/(tabs)/words');
+        
+        // Use requestAnimationFrame to ensure the screen is fully rendered
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            console.log('[iOS] Presenting add word sheet');
+            addWordSheetRef.current?.present();
+          }, 100);
+        });
+      }
+      
+      // Reset the flag when leaving the screen
+      return () => {
+        console.log('[iOS] Leaving words screen - resetting hasProcessedAutoOpen flag');
+        hasProcessedAutoOpen.current = false;
+      };
+    }, [params.autoOpen, router])
+  );
 
   const fetchWords = useCallback(async () => {
     if (!selectedChild) {
@@ -77,7 +97,7 @@ export default function WordsScreen() {
 
     try {
       setLoading(true);
-      console.log('Fetching words for child:', selectedChild.id);
+      console.log('[iOS] Fetching words for child:', selectedChild.id);
       
       const { data, error } = await supabase
         .from('user_words')
@@ -100,11 +120,11 @@ export default function WordsScreen() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching words:', error);
+        console.error('[iOS] Error fetching words:', error);
         throw error;
       }
 
-      console.log('Fetched user_words:', data?.length || 0);
+      console.log('[iOS] Fetched user_words:', data?.length || 0);
       
       // Transform the data to match the Word interface
       const transformedWords: Word[] = (data || []).map((uw: UserWord) => ({
@@ -125,7 +145,7 @@ export default function WordsScreen() {
       
       setWords(transformedWords);
     } catch (error) {
-      console.error('Error in fetchWords:', error);
+      console.error('[iOS] Error in fetchWords:', error);
       Alert.alert('Error', 'Failed to load words');
     } finally {
       setLoading(false);
@@ -141,7 +161,7 @@ export default function WordsScreen() {
   // Handle opening a specific word detail when navigating from toast
   useEffect(() => {
     if (targetWordIdToOpen && words.length > 0) {
-      console.log('Opening word detail for:', targetWordIdToOpen);
+      console.log('[iOS] Opening word detail for:', targetWordIdToOpen);
       const wordToOpen = words.find(w => w.id === targetWordIdToOpen);
       if (wordToOpen) {
         setSelectedWord(wordToOpen);
@@ -175,7 +195,7 @@ export default function WordsScreen() {
     }
 
     try {
-      console.log('Adding word:', word);
+      console.log('[iOS] Adding word:', word);
       
       // First, check if the word exists in word_library (case-insensitive)
       const { data: existingWords, error: searchError } = await supabase
@@ -184,7 +204,7 @@ export default function WordsScreen() {
         .ilike('word', word);
 
       if (searchError) {
-        console.error('Error searching word library:', searchError);
+        console.error('[iOS] Error searching word library:', searchError);
         throw searchError;
       }
 
@@ -193,12 +213,12 @@ export default function WordsScreen() {
 
       if (existingWords && existingWords.length > 0) {
         // Word exists in library, use it
-        console.log('Word exists in library:', existingWords[0]);
+        console.log('[iOS] Word exists in library:', existingWords[0]);
         wordLibraryId = existingWords[0].id;
         wordEmoji = existingWords[0].emoji || emoji;
       } else {
         // Word doesn't exist, create it in word_library
-        console.log('Creating new word in library');
+        console.log('[iOS] Creating new word in library');
         const { data: newWord, error: insertError } = await supabase
           .from('word_library')
           .insert({
@@ -209,7 +229,7 @@ export default function WordsScreen() {
           .single();
 
         if (insertError) {
-          console.error('Error inserting word to library:', insertError);
+          console.error('[iOS] Error inserting word to library:', insertError);
           throw insertError;
         }
 
@@ -225,7 +245,7 @@ export default function WordsScreen() {
         .maybeSingle();
 
       if (userWordCheckError) {
-        console.error('Error checking user word:', userWordCheckError);
+        console.error('[iOS] Error checking user word:', userWordCheckError);
         throw userWordCheckError;
       }
 
@@ -245,21 +265,21 @@ export default function WordsScreen() {
         });
 
       if (userWordError) {
-        console.error('Error adding user word:', userWordError);
+        console.error('[iOS] Error adding user word:', userWordError);
         throw userWordError;
       }
 
-      console.log('Word added successfully');
+      console.log('[iOS] Word added successfully');
       addWordSheetRef.current?.dismiss();
       await fetchWords();
     } catch (error) {
-      console.error('Error in handleAddWord:', error);
+      console.error('[iOS] Error in handleAddWord:', error);
       Alert.alert('Error', 'Failed to add word');
     }
   };
 
   const handleWordPress = useCallback((word: Word) => {
-    console.log('Word pressed:', word.word);
+    console.log('[iOS] Word pressed:', word.word);
     setSelectedWord(word);
     // Use requestAnimationFrame to ensure the state is set before presenting
     requestAnimationFrame(() => {
@@ -268,13 +288,19 @@ export default function WordsScreen() {
   }, []);
 
   const handleOpenAddWord = () => {
-    console.log('Opening add word bottom sheet');
+    console.log('[iOS] Opening add word bottom sheet from + button');
     addWordSheetRef.current?.present();
   };
 
   const handleCloseWordDetail = useCallback(() => {
-    console.log('Closing word detail');
+    console.log('[iOS] Closing word detail');
     setSelectedWord(null);
+  }, []);
+
+  // Reset the flag when the bottom sheet is dismissed
+  const handleAddWordSheetDismiss = useCallback(() => {
+    console.log('[iOS] Add word bottom sheet dismissed - resetting hasProcessedAutoOpen flag');
+    hasProcessedAutoOpen.current = false;
   }, []);
 
   const groupedWords = groupWordsByLetter(words);
@@ -397,7 +423,11 @@ export default function WordsScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <AddWordBottomSheet ref={addWordSheetRef} onAddWord={handleAddWord} />
+      <AddWordBottomSheet 
+        ref={addWordSheetRef} 
+        onAddWord={handleAddWord}
+        onDismiss={handleAddWordSheetDismiss}
+      />
       <WordDetailBottomSheet
         ref={wordDetailSheetRef}
         word={selectedWord}
