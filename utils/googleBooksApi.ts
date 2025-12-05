@@ -52,74 +52,71 @@ export interface BookSearchResult {
   description: string;
   publishedDate: string;
   pageCount: number;
-  source?: 'google' | 'openlibrary' | 'librarything';
+  source?: 'google' | 'openlibrary' | 'isbnsearch';
 }
 
 /**
- * Checks if a LibraryThing cover image exists and gets the final URL
+ * Checks if an ISBNsearch.org cover image exists and gets the final URL
  * @param isbn - The ISBN to check
  */
-async function checkLibraryThingCover(isbn: string): Promise<{ exists: boolean; finalUrl?: string }> {
+async function checkISBNSearchCover(isbn: string): Promise<{ exists: boolean; finalUrl?: string }> {
   try {
     const cleanISBN = isbn.replace(/[-\s]/g, '');
-    const url = `https://covers.librarything.com/devkey/1/large/isbn/${cleanISBN}`;
+    // ISBNsearch.org provides cover images at this URL pattern
+    const url = `https://isbnsearch.org/cover/${cleanISBN}.jpg`;
     
-    console.log('Checking LibraryThing for ISBN:', cleanISBN);
+    console.log('Checking ISBNsearch.org for ISBN:', cleanISBN);
     
-    // Use GET request to follow redirects and get the final image URL
+    // Use HEAD request first to check if image exists without downloading it
     const response = await fetch(url, { 
-      method: 'GET',
+      method: 'HEAD',
       redirect: 'follow'
     });
     
-    // Check if we got a valid image response
-    const contentType = response.headers.get('content-type');
-    const isImage = contentType && contentType.startsWith('image/');
-    
-    // LibraryThing returns a 1x1 pixel image for missing covers
-    // Check the content length to filter out placeholder images
-    const contentLength = response.headers.get('content-length');
-    const isPlaceholder = contentLength && parseInt(contentLength) < 1000;
-    
-    if (response.ok && isImage && !isPlaceholder) {
-      console.log('Found valid cover on LibraryThing, final URL:', response.url);
-      return { exists: true, finalUrl: response.url };
+    // Check if we got a valid response
+    if (response.ok) {
+      const contentType = response.headers.get('content-type');
+      const isImage = contentType && contentType.startsWith('image/');
+      
+      if (isImage) {
+        console.log('Found valid cover on ISBNsearch.org');
+        return { exists: true, finalUrl: url };
+      }
     }
     
-    console.log('No valid cover found on LibraryThing');
+    console.log('No valid cover found on ISBNsearch.org');
     return { exists: false };
   } catch (error) {
-    console.error('Error checking LibraryThing cover:', error);
+    console.error('Error checking ISBNsearch.org cover:', error);
     return { exists: false };
   }
 }
 
 /**
  * Gets the best available cover image URL
- * Only uses LibraryThing - no fallback to Google Books or OpenLibrary
+ * Only uses ISBNsearch.org - no fallback to other sources
  */
 async function getBestCoverUrl(
   isbn: string | undefined
 ): Promise<{ coverUrl: string; thumbnailUrl: string; source: string }> {
-  // Only try LibraryThing if we have an ISBN
+  // Only try ISBNsearch.org if we have an ISBN
   if (isbn) {
     const cleanISBN = isbn.replace(/[-\s]/g, '');
-    console.log('Checking LibraryThing for ISBN:', cleanISBN);
+    console.log('Checking ISBNsearch.org for ISBN:', cleanISBN);
     
-    const libraryThingResult = await checkLibraryThingCover(cleanISBN);
+    const isbnsearchResult = await checkISBNSearchCover(cleanISBN);
     
-    if (libraryThingResult.exists && libraryThingResult.finalUrl) {
-      console.log('Found cover on LibraryThing');
-      // Use the final redirected URL for the cover
-      const coverUrl = libraryThingResult.finalUrl;
-      // For thumbnail, use the LibraryThing medium size URL
-      const thumbnailUrl = `https://covers.librarything.com/devkey/1/medium/isbn/${cleanISBN}`;
-      return { coverUrl, thumbnailUrl, source: 'librarything' };
+    if (isbnsearchResult.exists && isbnsearchResult.finalUrl) {
+      console.log('Found cover on ISBNsearch.org');
+      // ISBNsearch.org uses the same URL for both cover and thumbnail
+      const coverUrl = isbnsearchResult.finalUrl;
+      const thumbnailUrl = isbnsearchResult.finalUrl;
+      return { coverUrl, thumbnailUrl, source: 'isbnsearch' };
     }
   }
   
-  // No fallback - return empty strings if LibraryThing doesn't have the cover
-  console.log('No cover image available - LibraryThing did not have a high-res image');
+  // No fallback - return empty strings if ISBNsearch.org doesn't have the cover
+  console.log('No cover image available - ISBNsearch.org did not have a high-res image');
   return { coverUrl: '', thumbnailUrl: '', source: 'none' };
 }
 
@@ -244,7 +241,7 @@ async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult |
 /**
  * Searches for books by text query
  * Uses Google Books API first, falls back to OpenLibrary if no results
- * Only uses LibraryThing for cover images (no fallback)
+ * Only uses ISBNsearch.org for cover images (no fallback)
  */
 export async function searchGoogleBooks(query: string): Promise<BookSearchResult[]> {
   if (!query || query.trim().length < 2) {
@@ -280,7 +277,7 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
         
         // Log for debugging
         if (!coverUrl) {
-          console.log('No image found for book:', item.volumeInfo.title, '- LibraryThing does not have a high-res image');
+          console.log('No image found for book:', item.volumeInfo.title, '- ISBNsearch.org does not have a high-res image');
         } else {
           console.log('Book image URLs:', {
             title: item.volumeInfo.title,
@@ -299,7 +296,7 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
           description: item.volumeInfo.description || '',
           publishedDate: item.volumeInfo.publishedDate || '',
           pageCount: item.volumeInfo.pageCount || 0,
-          source: source as 'google' | 'openlibrary' | 'librarything',
+          source: source as 'google' | 'openlibrary' | 'isbnsearch',
         };
       })
     );
@@ -316,7 +313,7 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
 /**
  * Searches for a book by ISBN
  * Uses Google Books API first, falls back to OpenLibrary if not found
- * Only uses LibraryThing for cover images (no fallback)
+ * Only uses ISBNsearch.org for cover images (no fallback)
  */
 export async function searchBookByISBN(isbn: string): Promise<BookSearchResult | null> {
   if (!isbn || isbn.trim().length === 0) {
@@ -371,7 +368,7 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
       description: item.volumeInfo.description || '',
       publishedDate: item.volumeInfo.publishedDate || '',
       pageCount: item.volumeInfo.pageCount || 0,
-      source: source as 'google' | 'openlibrary' | 'librarything',
+      source: source as 'google' | 'openlibrary' | 'isbnsearch',
     };
   } catch (error) {
     console.error('Error searching book by ISBN:', error);
