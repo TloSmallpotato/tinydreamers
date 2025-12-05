@@ -46,7 +46,7 @@ interface SavedBook {
 export default function BooksScreen() {
   const { selectedChild } = useChild();
   const { shouldFocusBookSearch, resetBookSearch } = useAddNavigation();
-  const { autoOpen } = useLocalSearchParams();
+  const params = useLocalSearchParams();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<BookSearchResult[]>([]);
@@ -59,12 +59,18 @@ export default function BooksScreen() {
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const searchInputRef = useRef<TextInput>(null);
+  const hasProcessedAutoOpen = useRef(false);
 
   // Handle autoOpen parameter from navigation - runs every time screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      if (autoOpen === 'true') {
+      const autoOpen = params.autoOpen;
+      console.log('useFocusEffect - autoOpen:', autoOpen, 'hasProcessedAutoOpen:', hasProcessedAutoOpen.current);
+      
+      if (autoOpen === 'true' && !hasProcessedAutoOpen.current) {
         console.log('autoOpen parameter detected - focusing book search input');
+        hasProcessedAutoOpen.current = true;
+        
         // Use requestAnimationFrame to ensure the screen is fully rendered
         requestAnimationFrame(() => {
           setTimeout(() => {
@@ -74,7 +80,13 @@ export default function BooksScreen() {
           }, 100);
         });
       }
-    }, [autoOpen, router])
+      
+      // Reset the flag when leaving the screen
+      return () => {
+        console.log('Leaving books screen - resetting hasProcessedAutoOpen flag');
+        hasProcessedAutoOpen.current = false;
+      };
+    }, [params.autoOpen, router])
   );
 
   // Handle focus trigger from Add modal (legacy method)

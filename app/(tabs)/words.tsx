@@ -48,7 +48,7 @@ interface GroupedWords {
 export default function WordsScreen() {
   const { selectedChild } = useChild();
   const { targetWordIdToOpen, clearTargetWordIdToOpen } = useWordNavigation();
-  const { autoOpen } = useLocalSearchParams();
+  const params = useLocalSearchParams();
   const router = useRouter();
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,12 +56,18 @@ export default function WordsScreen() {
 
   const addWordSheetRef = useRef<BottomSheetModal>(null);
   const wordDetailSheetRef = useRef<BottomSheetModal>(null);
+  const hasProcessedAutoOpen = useRef(false);
 
   // Handle autoOpen parameter from navigation - runs every time screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      if (autoOpen === 'true') {
+      const autoOpen = params.autoOpen;
+      console.log('useFocusEffect - autoOpen:', autoOpen, 'hasProcessedAutoOpen:', hasProcessedAutoOpen.current);
+      
+      if (autoOpen === 'true' && !hasProcessedAutoOpen.current) {
         console.log('autoOpen parameter detected - opening add word bottom sheet');
+        hasProcessedAutoOpen.current = true;
+        
         // Use requestAnimationFrame to ensure the screen is fully rendered
         requestAnimationFrame(() => {
           setTimeout(() => {
@@ -71,7 +77,13 @@ export default function WordsScreen() {
           }, 100);
         });
       }
-    }, [autoOpen, router])
+      
+      // Reset the flag when leaving the screen
+      return () => {
+        console.log('Leaving words screen - resetting hasProcessedAutoOpen flag');
+        hasProcessedAutoOpen.current = false;
+      };
+    }, [params.autoOpen, router])
   );
 
   const fetchWords = useCallback(async () => {
