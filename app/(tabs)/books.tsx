@@ -355,10 +355,16 @@ export default function BooksScreen() {
     }
   };
 
-  const handleBookPress = (book: SavedBook) => {
+  const handleBookPress = useCallback((book: SavedBook) => {
+    console.log('Book pressed:', book.book.title);
+    // Present the modal first, then set the selected book
+    // This prevents the first tap from being consumed by a re-render
     setSelectedBook(book);
-    bookDetailRef.current?.present();
-  };
+    // Use requestAnimationFrame to ensure state is set before presenting
+    requestAnimationFrame(() => {
+      bookDetailRef.current?.present();
+    });
+  }, []);
 
   const handleCloseBookDetail = () => {
     setSelectedBook(null);
