@@ -52,71 +52,152 @@ export interface BookSearchResult {
   description: string;
   publishedDate: string;
   pageCount: number;
-  source?: 'google' | 'openlibrary' | 'isbnsearch';
+  source?: 'google' | 'openlibrary' | 'googlecustomsearch';
+}
+
+interface GoogleCustomSearchResult {
+  items?: Array<{
+    link: string;
+    image?: {
+      thumbnailLink: string;
+    };
+    mime?: string;
+  }>;
 }
 
 /**
- * Checks if an ISBNsearch.org cover image exists and gets the final URL
- * @param isbn - The ISBN to check
+ * Searches Google Custom Search API for book cover images
+ * @param query - The search query
+ * @param fileType - File type filter (jpg or png)
  */
-async function checkISBNSearchCover(isbn: string): Promise<{ exists: boolean; finalUrl?: string }> {
+async function searchGoogleCustomSearch(
+  query: string,
+  fileType: 'jpg' | 'png' = 'jpg'
+): Promise<{ coverUrl: string; thumbnailUrl: string } | null> {
   try {
-    const cleanISBN = isbn.replace(/[-\s]/g, '');
-    // ISBNsearch.org provides cover images at this URL pattern
-    const url = `https://isbnsearch.org/cover/${cleanISBN}.jpg`;
-    
-    console.log('Checking ISBNsearch.org for ISBN:', cleanISBN);
-    
-    // Use HEAD request first to check if image exists without downloading it
-    const response = await fetch(url, { 
-      method: 'HEAD',
-      redirect: 'follow'
-    });
-    
-    // Check if we got a valid response
-    if (response.ok) {
-      const contentType = response.headers.get('content-type');
-      const isImage = contentType && contentType.startsWith('image/');
-      
-      if (isImage) {
-        console.log('Found valid cover on ISBNsearch.org');
-        return { exists: true, finalUrl: url };
-      }
+    // You need to set these environment variables:
+    // GOOGLE_CUSTOM_SEARCH_API_KEY - Your Google API key
+    // GOOGLE_CUSTOM_SEARCH_ENGINE_ID - Your Custom Search Engine ID
+    const apiKey = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY;
+    const searchEngineId = process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID;
+
+    if (!apiKey || !searchEngineId) {
+      console.warn('Google Custom Search API credentials not configured');
+      return null;
     }
-    
-    console.log('No valid cover found on ISBNsearch.org');
-    return { exists: false };
+
+    const encodedQuery = encodeURIComponent(query);
+    const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodedQuery}&searchType=image&fileType=${fileType}&num=1`;
+
+    console.log('Searching Google Custom Search:', query);
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      console.error('Google Custom Search API error:', response.status);
+      return null;
+    }
+
+    const data: GoogleCustomSearchResult = await response.json();
+
+    if (!data.items || data.items.length === 0) {
+      console.log('No results from Google Custom Search for query:', query);
+      return null;
+    }
+
+    const firstResult = data.items[0];
+    const coverUrl = firstResult.link;
+    const thumbnailUrl = firstResult.image?.thumbnailLink || coverUrl;
+
+    console.log('Found cover via Google Custom Search:', coverUrl);
+
+    return { coverUrl, thumbnailUrl };
   } catch (error) {
-    console.error('Error checking ISBNsearch.org cover:', error);
-    return { exists: false };
+    console.error('Error searching Google Custom Search:', error);
+    return null;
   }
 }
 
 /**
- * Gets the best available cover image URL
- * Only uses ISBNsearch.org - no fallback to other sources
+ * Gets the best available cover image URL using Google Custom Search API
+ * with fallback queries
  */
 async function getBestCoverUrl(
-  isbn: string | undefined
+  isbn: string | undefined,
+  title: string,
+  author: string
 ): Promise<{ coverUrl: string; thumbnailUrl: string; source: string }> {
-  // Only try ISBNsearch.org if we have an ISBN
-  if (isbn) {
-    const cleanISBN = isbn.replace(/[-\s]/g, '');
-    console.log('Checking ISBNsearch.org for ISBN:', cleanISBN);
+  // Method 1: Try with ISBN, title, and author
+  if (isbn && title && author) {
+    const query1 = `${isbn} ${title} ${author} book cover`;
+    console.log('Trying primary query:', query1);
     
-    const isbnsearchResult = await checkISBNSearchCover(cleanISBN);
-    
-    if (isbnsearchResult.exists && isbnsearchResult.finalUrl) {
-      console.log('Found cover on ISBNsearch.org');
-      // ISBNsearch.org uses the same URL for both cover and thumbnail
-      const coverUrl = isbnsearchResult.finalUrl;
-      const thumbnailUrl = isbnsearchResult.finalUrl;
-      return { coverUrl, thumbnailUrl, source: 'isbnsearch' };
+    let result = await searchGoogleCustomSearch(query1, 'jpg');
+    if (result) {
+      return { ...result, source: 'googlecustomsearch' };
+    }
+
+    // Try with PNG if JPG didn't work
+    result = await searchGoogleCustomSearch(query1, 'png');
+    if (result) {
+      return { ...result, source: 'googlecustomsearch' };
     }
   }
-  
-  // No fallback - return empty strings if ISBNsearch.org doesn't have the cover
-  console.log('No cover image available - ISBNsearch.org did not have a high-res image');
+
+  // Method 2: Fallback query - "isbn cover jpg"
+  if (isbn) {
+    const cleanISBN = isbn.replace(/[-\s]/g, '');
+    const query2 = `${cleanISBN} cover jpg`;
+    console.log('Trying fallback query 1:', query2);
+    
+    let result = await searchGoogleCustomSearch(query2, 'jpg');
+    if (result) {
+      return { ...result, source: 'googlecustomsearch' };
+    }
+
+    // Try with PNG
+    result = await searchGoogleCustomSearch(query2, 'png');
+    if (result) {
+      return { ...result, source: 'googlecustomsearch' };
+    }
+  }
+
+  // Method 3: Fallback query - "<title> <author> cover high resolution"
+  if (title && author) {
+    const query3 = `${title} ${author} cover high resolution`;
+    console.log('Trying fallback query 2:', query3);
+    
+    let result = await searchGoogleCustomSearch(query3, 'jpg');
+    if (result) {
+      return { ...result, source: 'googlecustomsearch' };
+    }
+
+    // Try with PNG
+    result = await searchGoogleCustomSearch(query3, 'png');
+    if (result) {
+      return { ...result, source: 'googlecustomsearch' };
+    }
+  }
+
+  // Method 4: Try just title and author without "high resolution"
+  if (title && author) {
+    const query4 = `${title} ${author} book cover`;
+    console.log('Trying fallback query 3:', query4);
+    
+    let result = await searchGoogleCustomSearch(query4, 'jpg');
+    if (result) {
+      return { ...result, source: 'googlecustomsearch' };
+    }
+
+    // Try with PNG
+    result = await searchGoogleCustomSearch(query4, 'png');
+    if (result) {
+      return { ...result, source: 'googlecustomsearch' };
+    }
+  }
+
+  // No cover found
+  console.log('No cover image available from Google Custom Search');
   return { coverUrl: '', thumbnailUrl: '', source: 'none' };
 }
 
@@ -160,15 +241,17 @@ async function searchOpenLibrary(query: string): Promise<BookSearchResult[]> {
     const results = await Promise.all(
       data.docs.map(async (doc: OpenLibraryBook) => {
         const isbn = doc.isbn?.[0];
-        const { coverUrl, thumbnailUrl } = await getBestCoverUrl(isbn);
+        const title = doc.title || 'Unknown Title';
+        const author = doc.author_name?.join(', ') || 'Unknown Author';
+        const { coverUrl, thumbnailUrl } = await getBestCoverUrl(isbn, title, author);
         
         // Use the work key as the ID (remove /works/ prefix)
         const bookId = doc.key.replace('/works/', '');
         
         return {
           googleBooksId: `openlibrary-${bookId}`,
-          title: doc.title || 'Unknown Title',
-          authors: doc.author_name?.join(', ') || 'Unknown Author',
+          title,
+          authors: author,
           coverUrl,
           thumbnailUrl,
           description: '',
@@ -219,11 +302,12 @@ async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult |
       description = data.description.value;
     }
 
-    const { coverUrl, thumbnailUrl } = await getBestCoverUrl(cleanISBN);
+    const title = data.title || 'Unknown Title';
+    const { coverUrl, thumbnailUrl } = await getBestCoverUrl(cleanISBN, title, authors);
 
     return {
       googleBooksId: `openlibrary-${cleanISBN}`,
-      title: data.title || 'Unknown Title',
+      title,
       authors,
       coverUrl,
       thumbnailUrl,
@@ -241,7 +325,7 @@ async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult |
 /**
  * Searches for books by text query
  * Uses Google Books API first, falls back to OpenLibrary if no results
- * Only uses ISBNsearch.org for cover images (no fallback)
+ * Uses Google Custom Search API for cover images with fallback queries
  */
 export async function searchGoogleBooks(query: string): Promise<BookSearchResult[]> {
   if (!query || query.trim().length < 2) {
@@ -273,14 +357,16 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
     const googleResults = await Promise.all(
       data.items.map(async (item: GoogleBook) => {
         const isbn = extractISBN(item.volumeInfo);
-        const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(isbn);
+        const title = item.volumeInfo.title || 'Unknown Title';
+        const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
+        const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(isbn, title, authors);
         
         // Log for debugging
         if (!coverUrl) {
-          console.log('No image found for book:', item.volumeInfo.title, '- ISBNsearch.org does not have a high-res image');
+          console.log('No image found for book:', title);
         } else {
           console.log('Book image URLs:', {
-            title: item.volumeInfo.title,
+            title,
             coverUrl,
             thumbnailUrl,
             source,
@@ -289,14 +375,14 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
         
         return {
           googleBooksId: item.id,
-          title: item.volumeInfo.title || 'Unknown Title',
-          authors: item.volumeInfo.authors?.join(', ') || 'Unknown Author',
+          title,
+          authors,
           coverUrl,
           thumbnailUrl,
           description: item.volumeInfo.description || '',
           publishedDate: item.volumeInfo.publishedDate || '',
           pageCount: item.volumeInfo.pageCount || 0,
-          source: source as 'google' | 'openlibrary' | 'isbnsearch',
+          source: source as 'google' | 'openlibrary' | 'googlecustomsearch',
         };
       })
     );
@@ -313,7 +399,7 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
 /**
  * Searches for a book by ISBN
  * Uses Google Books API first, falls back to OpenLibrary if not found
- * Only uses ISBNsearch.org for cover images (no fallback)
+ * Uses Google Custom Search API for cover images with fallback queries
  */
 export async function searchBookByISBN(isbn: string): Promise<BookSearchResult | null> {
   if (!isbn || isbn.trim().length === 0) {
@@ -349,11 +435,13 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
     // Get the first result (should be the most relevant)
     const item: GoogleBook = data.items[0];
     const itemISBN = extractISBN(item.volumeInfo) || cleanISBN;
-    const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(itemISBN);
+    const title = item.volumeInfo.title || 'Unknown Title';
+    const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
+    const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(itemISBN, title, authors);
 
-    console.log('Found book on Google Books:', item.volumeInfo.title);
+    console.log('Found book on Google Books:', title);
     console.log('Book image URLs:', {
-      title: item.volumeInfo.title,
+      title,
       coverUrl,
       thumbnailUrl,
       source,
@@ -361,14 +449,14 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
 
     return {
       googleBooksId: item.id,
-      title: item.volumeInfo.title || 'Unknown Title',
-      authors: item.volumeInfo.authors?.join(', ') || 'Unknown Author',
+      title,
+      authors,
       coverUrl,
       thumbnailUrl,
       description: item.volumeInfo.description || '',
       publishedDate: item.volumeInfo.publishedDate || '',
       pageCount: item.volumeInfo.pageCount || 0,
-      source: source as 'google' | 'openlibrary' | 'isbnsearch',
+      source: source as 'google' | 'openlibrary' | 'googlecustomsearch',
     };
   } catch (error) {
     console.error('Error searching book by ISBN:', error);
