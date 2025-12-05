@@ -56,27 +56,38 @@ export default function WordsScreen() {
 
   const addWordSheetRef = useRef<BottomSheetModal>(null);
   const wordDetailSheetRef = useRef<BottomSheetModal>(null);
+  const hasTriggeredAddWord = useRef(false);
 
   // Handle add word trigger from Add modal
-  useEffect(() => {
-    if (shouldOpenAddWord) {
-      console.log('shouldOpenAddWord triggered - opening add word bottom sheet');
-      // Use multiple timeouts to ensure the modal opens and focuses
-      setTimeout(() => {
-        console.log('Attempting to present AddWordBottomSheet (100ms)');
-        addWordSheetRef.current?.present();
-      }, 100);
-      setTimeout(() => {
-        console.log('Second attempt to present AddWordBottomSheet (300ms)');
-        addWordSheetRef.current?.present();
-      }, 300);
-      setTimeout(() => {
-        console.log('Third attempt to present AddWordBottomSheet (500ms)');
-        addWordSheetRef.current?.present();
-      }, 500);
-      resetAddWord();
-    }
-  }, [shouldOpenAddWord, resetAddWord]);
+  useFocusEffect(
+    useCallback(() => {
+      console.log('Words screen focused, shouldOpenAddWord:', shouldOpenAddWord);
+      
+      if (shouldOpenAddWord && !hasTriggeredAddWord.current) {
+        console.log('shouldOpenAddWord triggered - opening add word bottom sheet');
+        hasTriggeredAddWord.current = true;
+        
+        // Use requestAnimationFrame to ensure the screen is fully rendered
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            console.log('Attempting to present AddWordBottomSheet');
+            addWordSheetRef.current?.present();
+          }, 100);
+        });
+        
+        // Reset the trigger after a delay
+        setTimeout(() => {
+          resetAddWord();
+          hasTriggeredAddWord.current = false;
+        }, 500);
+      }
+      
+      return () => {
+        // Cleanup on unfocus
+        hasTriggeredAddWord.current = false;
+      };
+    }, [shouldOpenAddWord, resetAddWord])
+  );
 
   const fetchWords = useCallback(async () => {
     if (!selectedChild) {
