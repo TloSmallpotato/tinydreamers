@@ -66,7 +66,8 @@ interface GoogleCustomSearchResult {
 }
 
 /**
- * Searches Google Custom Search API for book cover images
+ * Searches Google Custom Search API for book cover images via Supabase Edge Function
+ * This keeps API keys secure on the server side
  * @param query - The search query
  * @param fileType - File type filter (jpg or png)
  */
@@ -75,43 +76,42 @@ async function searchGoogleCustomSearch(
   fileType: 'jpg' | 'png' = 'jpg'
 ): Promise<{ coverUrl: string; thumbnailUrl: string } | null> {
   try {
-    // You need to set these environment variables:
-    // GOOGLE_CUSTOM_SEARCH_API_KEY - Your Google API key
-    // GOOGLE_CUSTOM_SEARCH_ENGINE_ID - Your Custom Search Engine ID
-    const apiKey = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY;
-    const searchEngineId = process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID;
+    console.log('Searching Google Custom Search via Edge Function:', query);
 
-    if (!apiKey || !searchEngineId) {
-      console.warn('Google Custom Search API credentials not configured');
-      return null;
-    }
-
-    const encodedQuery = encodeURIComponent(query);
-    const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodedQuery}&searchType=image&fileType=${fileType}&num=1`;
-
-    console.log('Searching Google Custom Search:', query);
-
-    const response = await fetch(url);
+    // Call the Supabase Edge Function instead of making direct API calls
+    // This keeps the API keys secure on the server
+    const response = await fetch(
+      'https://vxglluxqhceajceizbbm.supabase.co/functions/v1/search-book-cover',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query,
+          fileType,
+        }),
+      }
+    );
 
     if (!response.ok) {
-      console.error('Google Custom Search API error:', response.status);
+      console.error('Edge Function error:', response.status);
       return null;
     }
 
-    const data: GoogleCustomSearchResult = await response.json();
+    const data = await response.json();
 
-    if (!data.items || data.items.length === 0) {
+    if (!data.coverUrl) {
       console.log('No results from Google Custom Search for query:', query);
       return null;
     }
 
-    const firstResult = data.items[0];
-    const coverUrl = firstResult.link;
-    const thumbnailUrl = firstResult.image?.thumbnailLink || coverUrl;
+    console.log('Found cover via Google Custom Search:', data.coverUrl);
 
-    console.log('Found cover via Google Custom Search:', coverUrl);
-
-    return { coverUrl, thumbnailUrl };
+    return {
+      coverUrl: data.coverUrl,
+      thumbnailUrl: data.thumbnailUrl || data.coverUrl,
+    };
   } catch (error) {
     console.error('Error searching Google Custom Search:', error);
     return null;
