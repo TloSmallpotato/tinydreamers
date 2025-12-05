@@ -190,6 +190,22 @@ export default function BooksScreen() {
         },
       })) || [];
 
+      console.log('Fetched books:', transformedData.length);
+      transformedData.forEach(book => {
+        if (book.book.book_cover) {
+          const url = getBookCoverUrl(book.book.book_cover.storage_path);
+          console.log(`Book "${book.book.title}" has cover:`, {
+            storage_path: book.book.book_cover.storage_path,
+            url: url,
+            dimensions: `${book.book.book_cover.width}x${book.book.book_cover.height}`,
+            size: `${Math.round(book.book.book_cover.file_size / 1024)}KB`,
+            is_low_res: book.book.book_cover.is_low_res,
+          });
+        } else {
+          console.log(`Book "${book.book.title}" has NO cover`);
+        }
+      });
+
       setSavedBooks(transformedData);
     } catch (error) {
       console.error('Error in fetchSavedBooks:', error);
@@ -449,16 +465,19 @@ export default function BooksScreen() {
     lastClickedBookIdRef.current = null;
   };
 
-  const handleImageError = (bookId: string) => {
-    console.log('Image failed to load for book:', bookId);
+  const handleImageError = (bookId: string, error: any) => {
+    console.error('Image failed to load for book:', bookId, 'Error:', error);
     setImageErrors(prev => new Set(prev).add(bookId));
   };
 
   const getImageUrl = (book: SavedBook['book']) => {
     // Use the book_cover from the new system
     if (book.book_cover && !imageErrors.has(book.id)) {
-      return getBookCoverUrl(book.book_cover.storage_path);
+      const url = getBookCoverUrl(book.book_cover.storage_path);
+      console.log(`Getting image URL for "${book.title}":`, url);
+      return url;
     }
+    console.log(`No image URL for "${book.title}" - has cover:`, !!book.book_cover, 'has error:', imageErrors.has(book.id));
     return null;
   };
 
@@ -615,10 +634,11 @@ export default function BooksScreen() {
                           source={{ uri: imageUrl }}
                           style={styles.bookCoverLarge}
                           contentFit="contain"
-                          cachePolicy="memory-disk"
+                          cachePolicy="none"
                           priority="high"
                           transition={200}
-                          onError={() => handleImageError(savedBook.book.id)}
+                          onError={(error) => handleImageError(savedBook.book.id, error)}
+                          onLoad={() => console.log('Image loaded successfully:', savedBook.book.title)}
                         />
                         {isLowRes && (
                           <View style={styles.lowResBadge}>

@@ -192,8 +192,8 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       onClose();
     }, [onClose]);
 
-    const handleImageError = useCallback(() => {
-      console.log('Image failed to load in detail view');
+    const handleImageError = useCallback((error: any) => {
+      console.error('Image failed to load in detail view:', error);
       setImageError(true);
     }, []);
 
@@ -201,7 +201,9 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       if (!cachedUserBook?.book.book_cover || imageError) {
         return null;
       }
-      return getBookCoverUrl(cachedUserBook.book.book_cover.storage_path);
+      const url = getBookCoverUrl(cachedUserBook.book.book_cover.storage_path);
+      console.log('Detail view image URL:', url);
+      return url;
     }, [cachedUserBook, imageError]);
 
     // Don't return null - keep the component mounted with cached data
@@ -270,10 +272,11 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
                   source={{ uri: imageUrl }}
                   style={styles.bookCover}
                   contentFit="contain"
-                  cachePolicy="memory-disk"
+                  cachePolicy="none"
                   priority="high"
                   transition={200}
                   onError={handleImageError}
+                  onLoad={() => console.log('Detail view image loaded successfully')}
                 />
                 {isLowRes && (
                   <View style={styles.lowResBadge}>
