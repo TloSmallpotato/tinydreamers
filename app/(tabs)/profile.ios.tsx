@@ -28,6 +28,17 @@ interface Moment {
   created_at: string;
 }
 
+// Helper function to get the start of the current week (Monday)
+const getStartOfWeek = (): Date => {
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // If Sunday, go back 6 days, otherwise go to Monday
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
 export default function ProfileScreen() {
   const router = useRouter();
   const { children, selectedChild, selectChild, addChild } = useChild();
@@ -59,53 +70,68 @@ export default function ProfileScreen() {
       setLoading(true);
       console.log('Fetching profile data for child:', selectedChild.id);
 
-      // Get date for "this week" filter (last 7 days)
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-      const oneWeekAgoISO = oneWeekAgo.toISOString();
+      // Get start of this week (Monday at 00:00:00)
+      const startOfWeek = getStartOfWeek();
+      const startOfWeekISO = startOfWeek.toISOString();
+      console.log('Start of week (Monday):', startOfWeekISO);
 
-      // Fetch total words
-      const { data: totalWordsData, error: totalWordsError } = await supabase
+      // Fetch total words - using count with head: false to get the count
+      const { count: totalWordsCount, error: totalWordsError } = await supabase
         .from('user_words')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .eq('child_id', selectedChild.id);
 
-      if (totalWordsError) throw totalWordsError;
+      if (totalWordsError) {
+        console.error('Error fetching total words:', totalWordsError);
+        throw totalWordsError;
+      }
 
       // Fetch words this week
-      const { data: wordsThisWeekData, error: wordsThisWeekError } = await supabase
+      const { count: wordsThisWeekCount, error: wordsThisWeekError } = await supabase
         .from('user_words')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .eq('child_id', selectedChild.id)
-        .gte('created_at', oneWeekAgoISO);
+        .gte('created_at', startOfWeekISO);
 
-      if (wordsThisWeekError) throw wordsThisWeekError;
+      if (wordsThisWeekError) {
+        console.error('Error fetching words this week:', wordsThisWeekError);
+        throw wordsThisWeekError;
+      }
 
       // Fetch total books
-      const { data: totalBooksData, error: totalBooksError } = await supabase
+      const { count: totalBooksCount, error: totalBooksError } = await supabase
         .from('user_books')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .eq('child_id', selectedChild.id);
 
-      if (totalBooksError) throw totalBooksError;
+      if (totalBooksError) {
+        console.error('Error fetching total books:', totalBooksError);
+        throw totalBooksError;
+      }
 
       // Fetch books this week
-      const { data: booksThisWeekData, error: booksThisWeekError } = await supabase
+      const { count: booksThisWeekCount, error: booksThisWeekError } = await supabase
         .from('user_books')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .eq('child_id', selectedChild.id)
-        .gte('created_at', oneWeekAgoISO);
+        .gte('created_at', startOfWeekISO);
 
-      if (booksThisWeekError) throw booksThisWeekError;
+      if (booksThisWeekError) {
+        console.error('Error fetching books this week:', booksThisWeekError);
+        throw booksThisWeekError;
+      }
 
       // Fetch moments this week
-      const { data: momentsThisWeekData, error: momentsThisWeekError } = await supabase
+      const { count: momentsThisWeekCount, error: momentsThisWeekError } = await supabase
         .from('moments')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .eq('child_id', selectedChild.id)
-        .gte('created_at', oneWeekAgoISO);
+        .gte('created_at', startOfWeekISO);
 
-      if (momentsThisWeekError) throw momentsThisWeekError;
+      if (momentsThisWeekError) {
+        console.error('Error fetching moments this week:', momentsThisWeekError);
+        throw momentsThisWeekError;
+      }
 
       // Fetch newest moments (last 10)
       const { data: momentsData, error: momentsError } = await supabase
@@ -115,23 +141,26 @@ export default function ProfileScreen() {
         .order('created_at', { ascending: false })
         .limit(10);
 
-      if (momentsError) throw momentsError;
+      if (momentsError) {
+        console.error('Error fetching moments:', momentsError);
+        throw momentsError;
+      }
 
       console.log('Profile data fetched successfully');
-      console.log('Total words:', totalWordsData?.length || 0);
-      console.log('Words this week:', wordsThisWeekData?.length || 0);
-      console.log('Total books:', totalBooksData?.length || 0);
-      console.log('Books this week:', booksThisWeekData?.length || 0);
-      console.log('Moments this week:', momentsThisWeekData?.length || 0);
+      console.log('Total words:', totalWordsCount);
+      console.log('Words this week:', wordsThisWeekCount);
+      console.log('Total books:', totalBooksCount);
+      console.log('Books this week:', booksThisWeekCount);
+      console.log('Moments this week:', momentsThisWeekCount);
       console.log('Moments:', momentsData?.length || 0);
 
       setStats({
-        totalWords: totalWordsData?.length || 0,
-        totalBooks: totalBooksData?.length || 0,
-        wordsThisWeek: wordsThisWeekData?.length || 0,
-        booksThisWeek: booksThisWeekData?.length || 0,
-        momentsThisWeek: momentsThisWeekData?.length || 0,
-        newWordsThisWeek: wordsThisWeekData?.length || 0,
+        totalWords: totalWordsCount || 0,
+        totalBooks: totalBooksCount || 0,
+        wordsThisWeek: wordsThisWeekCount || 0,
+        booksThisWeek: booksThisWeekCount || 0,
+        momentsThisWeek: momentsThisWeekCount || 0,
+        newWordsThisWeek: wordsThisWeekCount || 0,
       });
 
       setMoments(momentsData || []);
@@ -187,6 +216,7 @@ export default function ProfileScreen() {
   };
 
   const handleOpenSettings = () => {
+    console.log('Opening settings page');
     router.push('/(tabs)/settings');
   };
 
