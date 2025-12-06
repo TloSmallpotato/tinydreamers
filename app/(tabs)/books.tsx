@@ -211,23 +211,29 @@ export default function BooksScreen() {
     try {
       // Set flag to prevent duplicate additions
       setIsAddingBook(true);
-      console.log('Adding book:', book.title);
+      console.log('=== ADDING BOOK PROCESS STARTED ===');
+      console.log('Book title:', book.title);
+      console.log('Google Books ID:', book.googleBooksId);
 
-      // Step 1: Check if book exists in books_library
+      // STEP 1: Check if book exists in books_library database
+      console.log('STEP 1: Checking if book exists in database...');
       let { data: existingBook, error: fetchError } = await supabase
         .from('books_library')
-        .select('id')
+        .select('id, cover_url, thumbnail_url')
         .eq('google_books_id', book.googleBooksId)
         .single();
 
       let bookId: string;
 
       if (fetchError && fetchError.code === 'PGRST116') {
-        // Book doesn't exist, create it
-        console.log('Creating new book:', book.title);
-        console.log('Cover URL:', book.coverUrl);
-        console.log('Thumbnail URL:', book.thumbnailUrl);
+        // STEP 2: Book not found in database - create new entry
+        console.log('STEP 2: Book NOT found in database. Creating new entry...');
+        console.log('Cover URL from Google Custom Search:', book.coverUrl);
+        console.log('Thumbnail URL from Google Custom Search:', book.thumbnailUrl);
+        console.log('Source:', book.source);
         
+        // The cover URLs have already been fetched via Google Custom Search API
+        // in the googleBooksApi.ts file (cost: $0.005 per call)
         const { data: newBook, error: insertError } = await supabase
           .from('books_library')
           .insert({
@@ -244,23 +250,36 @@ export default function BooksScreen() {
           .single();
 
         if (insertError) {
-          console.error('Error creating book:', insertError);
+          console.error('Error creating book in database:', insertError);
           Alert.alert('Error', 'Failed to add book. Please try again.');
           setIsAddingBook(false);
           return;
         }
 
         bookId = newBook.id;
+        console.log('Book created successfully in database with ID:', bookId);
+        console.log('Cover URLs saved to database:', {
+          cover_url: book.coverUrl,
+          thumbnail_url: book.thumbnailUrl,
+        });
       } else if (existingBook) {
+        // Book already exists in database - reuse it
         bookId = existingBook.id;
+        console.log('STEP 2: Book FOUND in database with ID:', bookId);
+        console.log('Existing cover URLs:', {
+          cover_url: existingBook.cover_url,
+          thumbnail_url: existingBook.thumbnail_url,
+        });
+        console.log('No Google Custom Search API call needed (saving $0.005)');
       } else {
-        console.error('Error fetching book:', fetchError);
+        console.error('Error fetching book from database:', fetchError);
         Alert.alert('Error', 'Failed to add book. Please try again.');
         setIsAddingBook(false);
         return;
       }
 
-      // Step 2: Check if user already has this book
+      // STEP 3: Check if user already has this book in their library
+      console.log('STEP 3: Checking if user already has this book...');
       const { data: existingUserBook } = await supabase
         .from('user_books')
         .select('id')
@@ -269,7 +288,7 @@ export default function BooksScreen() {
         .single();
 
       if (existingUserBook) {
-        console.log('Book already added to library');
+        console.log('User already has this book in their library');
         Alert.alert('Already Added', 'This book is already in your library.');
         setSearchQuery('');
         setShowDropdown(false);
@@ -278,7 +297,8 @@ export default function BooksScreen() {
         return;
       }
 
-      // Step 3: Create user_book relationship
+      // STEP 4: Create user_book relationship
+      console.log('STEP 4: Adding book to user library...');
       const { error: relationError } = await supabase
         .from('user_books')
         .insert({
@@ -287,11 +307,14 @@ export default function BooksScreen() {
         });
 
       if (relationError) {
-        console.error('Error adding book to library:', relationError);
+        console.error('Error adding book to user library:', relationError);
         Alert.alert('Error', 'Failed to add book to library. Please try again.');
         setIsAddingBook(false);
         return;
       }
+
+      console.log('Book added to user library successfully');
+      console.log('=== ADDING BOOK PROCESS COMPLETED ===');
 
       // Refresh the books list
       await fetchSavedBooks();
@@ -303,8 +326,6 @@ export default function BooksScreen() {
 
       // Show success message
       Alert.alert('Success', 'Book added to your library!');
-
-      console.log('Book added successfully');
     } catch (error) {
       console.error('Error in handleSelectBook:', error);
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
@@ -336,7 +357,8 @@ export default function BooksScreen() {
     setIsSearching(true);
 
     try {
-      // Search for book by ISBN
+      console.log('Searching for book by ISBN...');
+      // Search for book by ISBN - this will call Google Custom Search API if needed
       const book = await searchBookByISBN(isbn);
 
       if (!book) {
@@ -350,7 +372,8 @@ export default function BooksScreen() {
         return;
       }
 
-      // Add the book
+      console.log('Book found by ISBN:', book.title);
+      // Add the book (this will check DB first, then use the cover URLs from Google Custom Search)
       await handleSelectBook(book);
     } catch (error) {
       console.error('Error handling barcode scan:', error);

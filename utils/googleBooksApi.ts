@@ -70,6 +70,13 @@ interface GoogleCustomSearchResult {
 /**
  * Searches Google Custom Search API for book cover images via Supabase Edge Function
  * This keeps API keys secure on the server side
+ * 
+ * COST: $0.005 per API call
+ * 
+ * This function is called when:
+ * - A book is not found in the database
+ * - We need to fetch a high-quality cover image
+ * 
  * @param query - The search query
  * @param fileType - File type filter (jpg or png)
  */
@@ -78,7 +85,8 @@ async function searchGoogleCustomSearch(
   fileType: 'jpg' | 'png' = 'jpg'
 ): Promise<{ coverUrl: string; thumbnailUrl: string } | null> {
   try {
-    console.log('Searching Google Custom Search via Edge Function:', query);
+    console.log('🔍 Calling Google Custom Search API (Cost: $0.005)');
+    console.log('Query:', query, 'FileType:', fileType);
 
     // Get the current session to include auth token
     const { data: { session } } = await supabase.auth.getSession();
@@ -120,7 +128,8 @@ async function searchGoogleCustomSearch(
       return null;
     }
 
-    console.log('Found cover via Google Custom Search:', data.coverUrl);
+    console.log('✅ Google Custom Search API call successful');
+    console.log('Cover URL found:', data.coverUrl);
 
     return {
       coverUrl: data.coverUrl,
@@ -135,25 +144,40 @@ async function searchGoogleCustomSearch(
 /**
  * Gets the best available cover image URL using Google Custom Search API
  * with fallback queries
+ * 
+ * This function implements a cascading fallback strategy:
+ * 1. Try with ISBN + title + author + "book cover"
+ * 2. Try with ISBN + "cover jpg"
+ * 3. Try with title + author + "cover high resolution"
+ * 4. Try with title + author + "book cover"
+ * 
+ * Each query tries JPG first, then PNG if JPG fails
+ * 
+ * COST: Up to $0.040 per book (8 attempts max)
+ * In practice: Usually $0.005-$0.010 per book (1-2 attempts)
  */
 async function getBestCoverUrl(
   isbn: string | undefined,
   title: string,
   author: string
 ): Promise<{ coverUrl: string; thumbnailUrl: string; source: string }> {
+  console.log('📚 Starting cover image search for:', title);
+  
   // Method 1: Try with ISBN, title, and author
   if (isbn && title && author) {
     const query1 = `${isbn} ${title} ${author} book cover`;
-    console.log('Trying primary query:', query1);
+    console.log('Attempt 1: Primary query with ISBN, title, and author');
     
     let result = await searchGoogleCustomSearch(query1, 'jpg');
     if (result) {
+      console.log('✅ Cover found on first attempt');
       return { ...result, source: 'googlecustomsearch' };
     }
 
     // Try with PNG if JPG didn't work
     result = await searchGoogleCustomSearch(query1, 'png');
     if (result) {
+      console.log('✅ Cover found on second attempt (PNG)');
       return { ...result, source: 'googlecustomsearch' };
     }
   }
@@ -162,16 +186,18 @@ async function getBestCoverUrl(
   if (isbn) {
     const cleanISBN = isbn.replace(/[-\s]/g, '');
     const query2 = `${cleanISBN} cover jpg`;
-    console.log('Trying fallback query 1:', query2);
+    console.log('Attempt 2: Fallback query with ISBN only');
     
     let result = await searchGoogleCustomSearch(query2, 'jpg');
     if (result) {
+      console.log('✅ Cover found on third attempt');
       return { ...result, source: 'googlecustomsearch' };
     }
 
     // Try with PNG
     result = await searchGoogleCustomSearch(query2, 'png');
     if (result) {
+      console.log('✅ Cover found on fourth attempt (PNG)');
       return { ...result, source: 'googlecustomsearch' };
     }
   }
@@ -179,16 +205,18 @@ async function getBestCoverUrl(
   // Method 3: Fallback query - "<title> <author> cover high resolution"
   if (title && author) {
     const query3 = `${title} ${author} cover high resolution`;
-    console.log('Trying fallback query 2:', query3);
+    console.log('Attempt 3: Fallback query with title and author (high res)');
     
     let result = await searchGoogleCustomSearch(query3, 'jpg');
     if (result) {
+      console.log('✅ Cover found on fifth attempt');
       return { ...result, source: 'googlecustomsearch' };
     }
 
     // Try with PNG
     result = await searchGoogleCustomSearch(query3, 'png');
     if (result) {
+      console.log('✅ Cover found on sixth attempt (PNG)');
       return { ...result, source: 'googlecustomsearch' };
     }
   }
@@ -196,22 +224,24 @@ async function getBestCoverUrl(
   // Method 4: Try just title and author without "high resolution"
   if (title && author) {
     const query4 = `${title} ${author} book cover`;
-    console.log('Trying fallback query 3:', query4);
+    console.log('Attempt 4: Final fallback query with title and author');
     
     let result = await searchGoogleCustomSearch(query4, 'jpg');
     if (result) {
+      console.log('✅ Cover found on seventh attempt');
       return { ...result, source: 'googlecustomsearch' };
     }
 
     // Try with PNG
     result = await searchGoogleCustomSearch(query4, 'png');
     if (result) {
+      console.log('✅ Cover found on eighth attempt (PNG)');
       return { ...result, source: 'googlecustomsearch' };
     }
   }
 
   // No cover found
-  console.log('No cover image available from Google Custom Search');
+  console.log('❌ No cover image available from Google Custom Search after all attempts');
   return { coverUrl: '', thumbnailUrl: '', source: 'none' };
 }
 
@@ -340,6 +370,11 @@ async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult |
  * Searches for books by text query
  * Uses Google Books API first, falls back to OpenLibrary if no results
  * Uses Google Custom Search API for cover images with fallback queries
+ * 
+ * FLOW:
+ * 1. Search Google Books API for book metadata (free)
+ * 2. For each book, call getBestCoverUrl() which uses Google Custom Search API ($0.005 per call)
+ * 3. Return results with cover URLs
  */
 export async function searchGoogleBooks(query: string): Promise<BookSearchResult[]> {
   if (!query || query.trim().length < 2) {
@@ -373,6 +408,8 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
         const isbn = extractISBN(item.volumeInfo);
         const title = item.volumeInfo.title || 'Unknown Title';
         const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
+        
+        // This will call Google Custom Search API if needed ($0.005 per call)
         const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(isbn, title, authors);
         
         // Log for debugging
@@ -414,6 +451,11 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
  * Searches for a book by ISBN
  * Uses Google Books API first, falls back to OpenLibrary if not found
  * Uses Google Custom Search API for cover images with fallback queries
+ * 
+ * FLOW:
+ * 1. Search Google Books API for book metadata by ISBN (free)
+ * 2. Call getBestCoverUrl() which uses Google Custom Search API ($0.005 per call)
+ * 3. Return result with cover URLs
  */
 export async function searchBookByISBN(isbn: string): Promise<BookSearchResult | null> {
   if (!isbn || isbn.trim().length === 0) {
@@ -451,6 +493,8 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
     const itemISBN = extractISBN(item.volumeInfo) || cleanISBN;
     const title = item.volumeInfo.title || 'Unknown Title';
     const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
+    
+    // This will call Google Custom Search API if needed ($0.005 per call)
     const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(itemISBN, title, authors);
 
     console.log('Found book on Google Books:', title);
