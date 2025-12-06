@@ -33,13 +33,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     console.log('AuthProvider: Initializing auth state');
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('AuthProvider: Initial session:', session?.user?.id || 'none');
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // Get initial session with error handling
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('AuthProvider: Error getting session:', error);
+          setSession(null);
+          setUser(null);
+        } else {
+          console.log('AuthProvider: Initial session:', session?.user?.id || 'none');
+          setSession(session);
+          setUser(session?.user ?? null);
+        }
+      } catch (err) {
+        console.error('AuthProvider: Unexpected error getting session:', err);
+        setSession(null);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
     const {
@@ -57,10 +74,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    console.log('AuthProvider: Signing out');
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('AuthProvider: Sign out error:', error);
+    try {
+      console.log('AuthProvider: Signing out');
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('AuthProvider: Sign out error:', error);
+      }
+    } catch (err) {
+      console.error('AuthProvider: Unexpected error during sign out:', err);
     }
   };
 

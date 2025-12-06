@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
@@ -43,7 +43,7 @@ const getStartOfWeek = (): Date => {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { children, selectedChild, selectChild, addChild, updateChild } = useChild();
+  const { children, selectedChild, selectChild, addChild, updateChild, loading: childLoading } = useChild();
   const { triggerCamera } = useCameraTrigger();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
@@ -59,142 +59,185 @@ export default function ProfileScreen() {
   });
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedChild) {
       fetchProfileData();
+    } else if (!childLoading) {
+      // No child selected and not loading, clear stats
+      setLoading(false);
+      setStats({
+        totalWords: 0,
+        totalBooks: 0,
+        wordsThisWeek: 0,
+        booksThisWeek: 0,
+        momentsThisWeek: 0,
+        newWordsThisWeek: 0,
+      });
+      setMoments([]);
     }
-  }, [selectedChild]);
+  }, [selectedChild, childLoading]);
 
   const fetchProfileData = async () => {
-    if (!selectedChild) return;
+    if (!selectedChild) {
+      console.log('ProfileScreen: No selected child, skipping fetch');
+      return;
+    }
 
     try {
       setLoading(true);
-      console.log('Fetching profile data for child:', selectedChild.id);
+      setError(null);
+      console.log('ProfileScreen: Fetching profile data for child:', selectedChild.id);
 
       const startOfWeek = getStartOfWeek();
       const startOfWeekISO = startOfWeek.toISOString();
-      console.log('Start of week (Monday):', startOfWeekISO);
+      console.log('ProfileScreen: Start of week (Monday):', startOfWeekISO);
 
-      const { count: totalWordsCount, error: totalWordsError } = await supabase
-        .from('user_words')
-        .select('*', { count: 'exact', head: true })
-        .eq('child_id', selectedChild.id);
+      // Fetch all data with proper error handling for each query
+      const [
+        totalWordsResult,
+        wordsThisWeekResult,
+        totalBooksResult,
+        booksThisWeekResult,
+        momentsThisWeekResult,
+        momentsDataResult,
+      ] = await Promise.allSettled([
+        supabase
+          .from('user_words')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id),
+        supabase
+          .from('user_words')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id)
+          .gte('created_at', startOfWeekISO),
+        supabase
+          .from('user_books')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id),
+        supabase
+          .from('user_books')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id)
+          .gte('created_at', startOfWeekISO),
+        supabase
+          .from('moments')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id)
+          .gte('created_at', startOfWeekISO),
+        supabase
+          .from('moments')
+          .select('id, video_url, thumbnail_url, created_at')
+          .eq('child_id', selectedChild.id)
+          .order('created_at', { ascending: false })
+          .limit(10),
+      ]);
 
-      if (totalWordsError) {
-        console.error('Error fetching total words:', totalWordsError);
-        throw totalWordsError;
+      // Extract counts with fallback to 0
+      const totalWordsCount = totalWordsResult.status === 'fulfilled' && !totalWordsResult.value.error
+        ? totalWordsResult.value.count || 0
+        : 0;
+
+      const wordsThisWeekCount = wordsThisWeekResult.status === 'fulfilled' && !wordsThisWeekResult.value.error
+        ? wordsThisWeekResult.value.count || 0
+        : 0;
+
+      const totalBooksCount = totalBooksResult.status === 'fulfilled' && !totalBooksResult.value.error
+        ? totalBooksResult.value.count || 0
+        : 0;
+
+      const booksThisWeekCount = booksThisWeekResult.status === 'fulfilled' && !booksThisWeekResult.value.error
+        ? booksThisWeekResult.value.count || 0
+        : 0;
+
+      const momentsThisWeekCount = momentsThisWeekResult.status === 'fulfilled' && !momentsThisWeekResult.value.error
+        ? momentsThisWeekResult.value.count || 0
+        : 0;
+
+      const momentsData = momentsDataResult.status === 'fulfilled' && !momentsDataResult.value.error
+        ? momentsDataResult.value.data || []
+        : [];
+
+      // Log any errors
+      if (totalWordsResult.status === 'rejected') {
+        console.error('ProfileScreen: Error fetching total words:', totalWordsResult.reason);
+      }
+      if (wordsThisWeekResult.status === 'rejected') {
+        console.error('ProfileScreen: Error fetching words this week:', wordsThisWeekResult.reason);
+      }
+      if (totalBooksResult.status === 'rejected') {
+        console.error('ProfileScreen: Error fetching total books:', totalBooksResult.reason);
+      }
+      if (booksThisWeekResult.status === 'rejected') {
+        console.error('ProfileScreen: Error fetching books this week:', booksThisWeekResult.reason);
+      }
+      if (momentsThisWeekResult.status === 'rejected') {
+        console.error('ProfileScreen: Error fetching moments this week:', momentsThisWeekResult.reason);
+      }
+      if (momentsDataResult.status === 'rejected') {
+        console.error('ProfileScreen: Error fetching moments:', momentsDataResult.reason);
       }
 
-      const { count: wordsThisWeekCount, error: wordsThisWeekError } = await supabase
-        .from('user_words')
-        .select('*', { count: 'exact', head: true })
-        .eq('child_id', selectedChild.id)
-        .gte('created_at', startOfWeekISO);
-
-      if (wordsThisWeekError) {
-        console.error('Error fetching words this week:', wordsThisWeekError);
-        throw wordsThisWeekError;
-      }
-
-      const { count: totalBooksCount, error: totalBooksError } = await supabase
-        .from('user_books')
-        .select('*', { count: 'exact', head: true })
-        .eq('child_id', selectedChild.id);
-
-      if (totalBooksError) {
-        console.error('Error fetching total books:', totalBooksError);
-        throw totalBooksError;
-      }
-
-      const { count: booksThisWeekCount, error: booksThisWeekError } = await supabase
-        .from('user_books')
-        .select('*', { count: 'exact', head: true })
-        .eq('child_id', selectedChild.id)
-        .gte('created_at', startOfWeekISO);
-
-      if (booksThisWeekError) {
-        console.error('Error fetching books this week:', booksThisWeekError);
-        throw booksThisWeekError;
-      }
-
-      const { count: momentsThisWeekCount, error: momentsThisWeekError } = await supabase
-        .from('moments')
-        .select('*', { count: 'exact', head: true })
-        .eq('child_id', selectedChild.id)
-        .gte('created_at', startOfWeekISO);
-
-      if (momentsThisWeekError) {
-        console.error('Error fetching moments this week:', momentsThisWeekError);
-        throw momentsThisWeekError;
-      }
-
-      const { data: momentsData, error: momentsError } = await supabase
-        .from('moments')
-        .select('id, video_url, thumbnail_url, created_at')
-        .eq('child_id', selectedChild.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (momentsError) {
-        console.error('Error fetching moments:', momentsError);
-        throw momentsError;
-      }
-
-      console.log('Profile data fetched successfully');
-      console.log('Total words:', totalWordsCount);
-      console.log('Words this week:', wordsThisWeekCount);
-      console.log('Total books:', totalBooksCount);
-      console.log('Books this week:', booksThisWeekCount);
-      console.log('Moments this week:', momentsThisWeekCount);
-      console.log('Moments:', momentsData?.length || 0);
+      console.log('ProfileScreen: Profile data fetched successfully');
+      console.log('ProfileScreen: Total words:', totalWordsCount);
+      console.log('ProfileScreen: Words this week:', wordsThisWeekCount);
+      console.log('ProfileScreen: Total books:', totalBooksCount);
+      console.log('ProfileScreen: Books this week:', booksThisWeekCount);
+      console.log('ProfileScreen: Moments this week:', momentsThisWeekCount);
+      console.log('ProfileScreen: Moments:', momentsData.length);
 
       setStats({
-        totalWords: totalWordsCount || 0,
-        totalBooks: totalBooksCount || 0,
-        wordsThisWeek: wordsThisWeekCount || 0,
-        booksThisWeek: booksThisWeekCount || 0,
-        momentsThisWeek: momentsThisWeekCount || 0,
-        newWordsThisWeek: wordsThisWeekCount || 0,
+        totalWords: totalWordsCount,
+        totalBooks: totalBooksCount,
+        wordsThisWeek: wordsThisWeekCount,
+        booksThisWeek: booksThisWeekCount,
+        momentsThisWeek: momentsThisWeekCount,
+        newWordsThisWeek: wordsThisWeekCount,
       });
 
-      setMoments(momentsData || []);
-    } catch (error) {
-      console.error('Error fetching profile data:', error);
+      setMoments(momentsData);
+    } catch (err) {
+      console.error('ProfileScreen: Unexpected error fetching profile data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load profile data');
     } finally {
       setLoading(false);
     }
   };
 
   const calculateAge = (birthDate: string) => {
-    const birth = new Date(birthDate);
-    const today = new Date();
-    
-    let years = today.getFullYear() - birth.getFullYear();
-    let months = today.getMonth() - birth.getMonth();
-    
-    if (months < 0) {
-      years--;
-      months += 12;
+    try {
+      const birth = new Date(birthDate);
+      const today = new Date();
+      
+      let years = today.getFullYear() - birth.getFullYear();
+      let months = today.getMonth() - birth.getMonth();
+      
+      if (months < 0) {
+        years--;
+        months += 12;
+      }
+      
+      return `${years}y ${months}m`;
+    } catch (err) {
+      console.error('ProfileScreen: Error calculating age:', err);
+      return '';
     }
-    
-    return `${years}y ${months}m`;
   };
 
   const handleOpenChildSelector = () => {
-    console.log('Opening child selector bottom sheet');
+    console.log('ProfileScreen: Opening child selector bottom sheet');
     childSelectorRef.current?.present();
   };
 
   const handleSelectChild = (childId: string) => {
-    console.log('Selecting child:', childId);
+    console.log('ProfileScreen: Selecting child:', childId);
     selectChild(childId);
     childSelectorRef.current?.dismiss();
   };
 
   const handleOpenAddChild = () => {
-    console.log('Opening add child bottom sheet');
+    console.log('ProfileScreen: Opening add child bottom sheet');
     childSelectorRef.current?.dismiss();
     setTimeout(() => {
       addChildRef.current?.present();
@@ -203,37 +246,40 @@ export default function ProfileScreen() {
 
   const handleAddChild = async (name: string, birthDate: Date) => {
     try {
-      console.log('Adding child:', name, birthDate);
+      console.log('ProfileScreen: Adding child:', name, birthDate);
       await addChild(name, birthDate);
       addChildRef.current?.dismiss();
-    } catch (error) {
-      console.error('Error adding child:', error);
+    } catch (err) {
+      console.error('ProfileScreen: Error adding child:', err);
     }
   };
 
   const handleOpenSettings = () => {
-    console.log('Settings button pressed - opening settings bottom sheet');
+    console.log('ProfileScreen: Settings button pressed - opening settings bottom sheet');
     settingsRef.current?.present();
   };
 
   const handleRecordMoment = () => {
-    console.log('Record button pressed - triggering camera');
+    console.log('ProfileScreen: Record button pressed - triggering camera');
     triggerCamera();
   };
 
   const handleViewMoreMoments = () => {
-    console.log('View more moments pressed');
+    console.log('ProfileScreen: View more moments pressed');
   };
 
   const handleChangeAvatar = async () => {
-    if (!selectedChild) return;
+    if (!selectedChild) {
+      console.log('ProfileScreen: No selected child for avatar change');
+      return;
+    }
 
     try {
-      console.log('Opening image picker for avatar');
+      console.log('ProfileScreen: Opening image picker for avatar');
       
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        console.log('Permission to access media library was denied');
+        console.log('ProfileScreen: Permission to access media library was denied');
         return;
       }
 
@@ -246,7 +292,7 @@ export default function ProfileScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const imageUri = result.assets[0].uri;
-        console.log('Image selected:', imageUri);
+        console.log('ProfileScreen: Image selected:', imageUri);
 
         const fileExt = imageUri.split('.').pop();
         const fileName = `${selectedChild.id}-${Date.now()}.${fileExt}`;
@@ -263,7 +309,7 @@ export default function ProfileScreen() {
           });
 
         if (uploadError) {
-          console.error('Error uploading avatar:', uploadError);
+          console.error('ProfileScreen: Error uploading avatar:', uploadError);
           throw uploadError;
         }
 
@@ -275,12 +321,49 @@ export default function ProfileScreen() {
           avatar_url: urlData.publicUrl,
         });
 
-        console.log('Avatar updated successfully');
+        console.log('ProfileScreen: Avatar updated successfully');
       }
-    } catch (error) {
-      console.error('Error changing avatar:', error);
+    } catch (err) {
+      console.error('ProfileScreen: Error changing avatar:', err);
     }
   };
+
+  // Show loading state
+  if (childLoading || loading) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.buttonBlue} />
+            <Text style={styles.loadingText}>Loading profile...</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={styles.errorContainer}>
+            <IconSymbol 
+              ios_icon_name="exclamationmark.triangle.fill" 
+              android_material_icon_name="error" 
+              size={48} 
+              color={colors.textSecondary} 
+            />
+            <Text style={styles.errorText}>Failed to load profile</Text>
+            <Text style={styles.errorSubtext}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={fetchProfileData}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -322,7 +405,7 @@ export default function ProfileScreen() {
                 />
               </View>
             </TouchableOpacity>
-            {selectedChild && (
+            {selectedChild && selectedChild.birth_date && (
               <Text style={styles.ageText}>{calculateAge(selectedChild.birth_date)}</Text>
             )}
           </View>
@@ -500,6 +583,48 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: Platform.OS === 'android' ? 48 : 20,
     paddingBottom: 120,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginTop: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.primary,
+    marginTop: 16,
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: colors.buttonBlue,
+    borderRadius: 24,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    marginTop: 24,
+  },
+  retryButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
   },
   header: {
     flexDirection: 'row',

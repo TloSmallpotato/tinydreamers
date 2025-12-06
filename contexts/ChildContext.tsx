@@ -17,6 +17,7 @@ interface ChildContextType {
   children: Child[];
   selectedChild: Child | null;
   loading: boolean;
+  error: string | null;
   selectChild: (childId: string) => void;
   addChild: (name: string, birthDate: Date) => Promise<void>;
   updateChild: (childId: string, updates: Partial<Child>) => Promise<void>;
@@ -28,6 +29,7 @@ const ChildContext = createContext<ChildContextType>({
   children: [],
   selectedChild: null,
   loading: true,
+  error: null,
   selectChild: () => {},
   addChild: async () => {},
   updateChild: async () => {},
@@ -44,64 +46,90 @@ export const useChild = () => {
 };
 
 export function ChildProvider({ children: childrenProp }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchChildren = useCallback(async () => {
+    // Don't fetch if auth is still loading
+    if (authLoading) {
+      console.log('ChildContext: Auth still loading, skipping fetch');
+      return;
+    }
+
     if (!user) {
+      console.log('ChildContext: No user, clearing children');
       setChildren([]);
       setSelectedChild(null);
       setLoading(false);
+      setError(null);
       return;
     }
 
     try {
       console.log('ChildContext: Fetching children for user:', user.id);
-      const { data, error } = await supabase
+      setError(null);
+      
+      const { data, error: fetchError } = await supabase
         .from('children')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: true });
 
-      if (error) {
-        console.error('ChildContext: Error fetching children:', error);
-        throw error;
-      }
+      if (fetchError) {
+        console.error('ChildContext: Error fetching children:', fetchError);
+        setError(fetchError.message);
+        // Don't throw, just set error state
+        setChildren([]);
+        setSelectedChild(null);
+      } else {
+        console.log('ChildContext: Fetched children:', data?.length || 0);
+        setChildren(data || []);
 
-      console.log('ChildContext: Fetched children:', data?.length || 0);
-      setChildren(data || []);
-
-      // Auto-select first child if none selected
-      if (data && data.length > 0 && !selectedChild) {
-        setSelectedChild(data[0]);
+        // Auto-select first child if none selected and children exist
+        if (data && data.length > 0 && !selectedChild) {
+          console.log('ChildContext: Auto-selecting first child:', data[0].name);
+          setSelectedChild(data[0]);
+        } else if (data && data.length === 0) {
+          // No children, clear selection
+          setSelectedChild(null);
+        }
       }
-    } catch (error) {
-      console.error('ChildContext: Error in fetchChildren:', error);
+    } catch (err) {
+      console.error('ChildContext: Unexpected error in fetchChildren:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setChildren([]);
+      setSelectedChild(null);
     } finally {
       setLoading(false);
     }
-  }, [user, selectedChild]);
+  }, [user, authLoading, selectedChild]);
 
   useEffect(() => {
     fetchChildren();
-  }, [fetchChildren]);
+  }, [user, authLoading]);
 
   const selectChild = (childId: string) => {
     const child = children.find((c) => c.id === childId);
     if (child) {
       console.log('ChildContext: Selected child:', child.name);
       setSelectedChild(child);
+    } else {
+      console.warn('ChildContext: Child not found:', childId);
     }
   };
 
   const addChild = async (name: string, birthDate: Date) => {
-    if (!user) return;
+    if (!user) {
+      console.error('ChildContext: Cannot add child, no user');
+      throw new Error('No user logged in');
+    }
 
     try {
       console.log('ChildContext: Adding child:', name);
-      const { data, error } = await supabase
+      const { data, error: insertError } = await supabase
         .from('children')
         .insert({
           user_id: user.id,
@@ -111,9 +139,9 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
         .select()
         .single();
 
-      if (error) {
-        console.error('ChildContext: Error adding child:', error);
-        throw error;
+      if (insertError) {
+        console.error('ChildContext: Error adding child:', insertError);
+        throw insertError;
       }
 
       console.log('ChildContext: Child added successfully');
@@ -123,18 +151,21 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
       if (data) {
         setSelectedChild(data);
       }
-    } catch (error) {
-      console.error('ChildContext: Error in addChild:', error);
-      throw error;
+    } catch (err) {
+      console.error('ChildContext: Error in addChild:', err);
+      throw err;
     }
   };
 
   const updateChild = async (childId: string, updates: Partial<Child>) => {
-    if (!user) return;
+    if (!user) {
+      console.error('ChildContext: Cannot update child, no user');
+      throw new Error('No user logged in');
+    }
 
     try {
       console.log('ChildContext: Updating child:', childId);
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from('children')
         .update({
           ...updates,
@@ -143,46 +174,49 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
         .eq('id', childId)
         .eq('user_id', user.id);
 
-      if (error) {
-        console.error('ChildContext: Error updating child:', error);
-        throw error;
+      if (updateError) {
+        console.error('ChildContext: Error updating child:', updateError);
+        throw updateError;
       }
 
       console.log('ChildContext: Child updated successfully');
       await fetchChildren();
-    } catch (error) {
-      console.error('ChildContext: Error in updateChild:', error);
-      throw error;
+    } catch (err) {
+      console.error('ChildContext: Error in updateChild:', err);
+      throw err;
     }
   };
 
   const deleteChild = async (childId: string) => {
-    if (!user) return;
+    if (!user) {
+      console.error('ChildContext: Cannot delete child, no user');
+      throw new Error('No user logged in');
+    }
 
     try {
       console.log('ChildContext: Deleting child:', childId);
-      const { error } = await supabase
+      const { error: deleteError } = await supabase
         .from('children')
         .delete()
         .eq('id', childId)
         .eq('user_id', user.id);
 
-      if (error) {
-        console.error('ChildContext: Error deleting child:', error);
-        throw error;
+      if (deleteError) {
+        console.error('ChildContext: Error deleting child:', deleteError);
+        throw deleteError;
       }
 
       console.log('ChildContext: Child deleted successfully');
       
-      // If deleted child was selected, select another one
+      // If deleted child was selected, clear selection
       if (selectedChild?.id === childId) {
         setSelectedChild(null);
       }
       
       await fetchChildren();
-    } catch (error) {
-      console.error('ChildContext: Error in deleteChild:', error);
-      throw error;
+    } catch (err) {
+      console.error('ChildContext: Error in deleteChild:', err);
+      throw err;
     }
   };
 
@@ -196,6 +230,7 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
         children,
         selectedChild,
         loading,
+        error,
         selectChild,
         addChild,
         updateChild,
