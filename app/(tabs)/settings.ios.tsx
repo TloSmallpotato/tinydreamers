@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -8,6 +8,7 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChild } from '@/contexts/ChildContext';
+import { supabase } from '@/app/integrations/supabase/client';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -42,6 +43,48 @@ export default function SettingsScreen() {
       console.error('Error updating child:', error);
       Alert.alert('Error', 'Failed to update child information');
     }
+  };
+
+  const handleExportData = async () => {
+    Alert.alert(
+      'Export Data',
+      'This feature will export all your data including books, words, and moments. Coming soon!',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handlePrivacyPolicy = () => {
+    Alert.alert(
+      'Privacy Policy',
+      'Opening Privacy Policy...',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Open',
+          onPress: () => {
+            // Replace with your actual privacy policy URL
+            Linking.openURL('https://example.com/privacy-policy');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleTermsAndConditions = () => {
+    Alert.alert(
+      'Terms & Conditions',
+      'Opening Terms & Conditions...',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Open',
+          onPress: () => {
+            // Replace with your actual terms URL
+            Linking.openURL('https://example.com/terms-and-conditions');
+          },
+        },
+      ]
+    );
   };
 
   const handleSignOut = async () => {
@@ -161,6 +204,64 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Data & Privacy</Text>
+
+            <TouchableOpacity style={styles.menuItem} onPress={handleExportData}>
+              <View style={styles.menuItemLeft}>
+                <IconSymbol
+                  ios_icon_name="square.and.arrow.up"
+                  android_material_icon_name="file-download"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.menuItemText}>Export Data</Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={handlePrivacyPolicy}>
+              <View style={styles.menuItemLeft}>
+                <IconSymbol
+                  ios_icon_name="lock.shield"
+                  android_material_icon_name="privacy-tip"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.menuItemText}>Privacy Policy</Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={handleTermsAndConditions}>
+              <View style={styles.menuItemLeft}>
+                <IconSymbol
+                  ios_icon_name="doc.text"
+                  android_material_icon_name="description"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.menuItemText}>Terms & Conditions</Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.section}>
             <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
               <IconSymbol
                 ios_icon_name="arrow.right.square"
@@ -276,6 +377,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.backgroundAlt,
+  },
+  menuItem: {
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  menuItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
   },
   signOutButton: {
     backgroundColor: colors.secondary,

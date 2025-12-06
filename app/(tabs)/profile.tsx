@@ -1,5 +1,5 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -7,14 +7,140 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
+import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
+import { supabase } from '@/app/integrations/supabase/client';
+
+interface ProfileStats {
+  totalWords: number;
+  totalBooks: number;
+  wordsThisWeek: number;
+  booksThisWeek: number;
+  momentsThisWeek: number;
+  newWordsThisWeek: number;
+}
+
+interface Moment {
+  id: string;
+  video_url: string;
+  thumbnail_url: string | null;
+  created_at: string;
+}
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { children, selectedChild, selectChild, addChild } = useChild();
+  const { triggerCamera } = useCameraTrigger();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
+
+  const [stats, setStats] = useState<ProfileStats>({
+    totalWords: 0,
+    totalBooks: 0,
+    wordsThisWeek: 0,
+    booksThisWeek: 0,
+    momentsThisWeek: 0,
+    newWordsThisWeek: 0,
+  });
+  const [moments, setMoments] = useState<Moment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (selectedChild) {
+      fetchProfileData();
+    }
+  }, [selectedChild]);
+
+  const fetchProfileData = async () => {
+    if (!selectedChild) return;
+
+    try {
+      setLoading(true);
+      console.log('Fetching profile data for child:', selectedChild.id);
+
+      // Get date for "this week" filter (last 7 days)
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const oneWeekAgoISO = oneWeekAgo.toISOString();
+
+      // Fetch total words
+      const { data: totalWordsData, error: totalWordsError } = await supabase
+        .from('user_words')
+        .select('id', { count: 'exact', head: true })
+        .eq('child_id', selectedChild.id);
+
+      if (totalWordsError) throw totalWordsError;
+
+      // Fetch words this week
+      const { data: wordsThisWeekData, error: wordsThisWeekError } = await supabase
+        .from('user_words')
+        .select('id', { count: 'exact', head: true })
+        .eq('child_id', selectedChild.id)
+        .gte('created_at', oneWeekAgoISO);
+
+      if (wordsThisWeekError) throw wordsThisWeekError;
+
+      // Fetch total books
+      const { data: totalBooksData, error: totalBooksError } = await supabase
+        .from('user_books')
+        .select('id', { count: 'exact', head: true })
+        .eq('child_id', selectedChild.id);
+
+      if (totalBooksError) throw totalBooksError;
+
+      // Fetch books this week
+      const { data: booksThisWeekData, error: booksThisWeekError } = await supabase
+        .from('user_books')
+        .select('id', { count: 'exact', head: true })
+        .eq('child_id', selectedChild.id)
+        .gte('created_at', oneWeekAgoISO);
+
+      if (booksThisWeekError) throw booksThisWeekError;
+
+      // Fetch moments this week
+      const { data: momentsThisWeekData, error: momentsThisWeekError } = await supabase
+        .from('moments')
+        .select('id', { count: 'exact', head: true })
+        .eq('child_id', selectedChild.id)
+        .gte('created_at', oneWeekAgoISO);
+
+      if (momentsThisWeekError) throw momentsThisWeekError;
+
+      // Fetch newest moments (last 10)
+      const { data: momentsData, error: momentsError } = await supabase
+        .from('moments')
+        .select('id, video_url, thumbnail_url, created_at')
+        .eq('child_id', selectedChild.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (momentsError) throw momentsError;
+
+      console.log('Profile data fetched successfully');
+      console.log('Total words:', totalWordsData?.length || 0);
+      console.log('Words this week:', wordsThisWeekData?.length || 0);
+      console.log('Total books:', totalBooksData?.length || 0);
+      console.log('Books this week:', booksThisWeekData?.length || 0);
+      console.log('Moments this week:', momentsThisWeekData?.length || 0);
+      console.log('Moments:', momentsData?.length || 0);
+
+      setStats({
+        totalWords: totalWordsData?.length || 0,
+        totalBooks: totalBooksData?.length || 0,
+        wordsThisWeek: wordsThisWeekData?.length || 0,
+        booksThisWeek: booksThisWeekData?.length || 0,
+        momentsThisWeek: momentsThisWeekData?.length || 0,
+        newWordsThisWeek: wordsThisWeekData?.length || 0,
+      });
+
+      setMoments(momentsData || []);
+    } catch (error) {
+      console.error('Error fetching profile data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const calculateAge = (birthDate: string) => {
     const birth = new Date(birthDate);
@@ -64,6 +190,16 @@ export default function ProfileScreen() {
     router.push('/(tabs)/settings');
   };
 
+  const handleRecordMoment = () => {
+    console.log('Record button pressed - triggering camera');
+    triggerCamera();
+  };
+
+  const handleViewMoreMoments = () => {
+    console.log('View more moments pressed');
+    // Could navigate to a dedicated moments page in the future
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -104,32 +240,34 @@ export default function ProfileScreen() {
             )}
           </View>
 
-          <View style={styles.achievementBanner}>
-            <IconSymbol 
-              ios_icon_name="star.fill" 
-              android_material_icon_name="star" 
-              size={20} 
-              color={colors.accent} 
-            />
-            <Text style={styles.achievementText}>
-              {selectedChild?.name || 'Your child'} learned 2 new words this week!
-            </Text>
-          </View>
+          {stats.newWordsThisWeek > 0 && (
+            <View style={styles.achievementBanner}>
+              <IconSymbol 
+                ios_icon_name="star.fill" 
+                android_material_icon_name="star" 
+                size={20} 
+                color={colors.accent} 
+              />
+              <Text style={styles.achievementText}>
+                {selectedChild?.name || 'Your child'} learned {stats.newWordsThisWeek} new {stats.newWordsThisWeek === 1 ? 'word' : 'words'} this week!
+              </Text>
+            </View>
+          )}
 
           <View style={styles.statsSection}>
             <Text style={styles.sectionTitle}>This week</Text>
             <View style={styles.statsRow}>
               <View style={[styles.statCard, { backgroundColor: colors.buttonBlue }]}>
-                <Text style={styles.statNumber}>1</Text>
-                <Text style={styles.statLabel}>new word{'\n'}this week</Text>
+                <Text style={styles.statNumber}>{stats.wordsThisWeek}</Text>
+                <Text style={styles.statLabel}>new {stats.wordsThisWeek === 1 ? 'word' : 'words'}{'\n'}this week</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.cardPink }]}>
-                <Text style={styles.statNumber}>1</Text>
-                <Text style={styles.statLabel}>new book{'\n'}this week</Text>
+                <Text style={styles.statNumber}>{stats.booksThisWeek}</Text>
+                <Text style={styles.statLabel}>new {stats.booksThisWeek === 1 ? 'book' : 'books'}{'\n'}this week</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
-                <Text style={styles.statNumber}>2</Text>
-                <Text style={styles.statLabel}>new moments{'\n'}this week</Text>
+                <Text style={styles.statNumber}>{stats.momentsThisWeek}</Text>
+                <Text style={styles.statLabel}>new {stats.momentsThisWeek === 1 ? 'moment' : 'moments'}{'\n'}this week</Text>
               </View>
             </View>
           </View>
@@ -138,8 +276,8 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>Total</Text>
             <View style={styles.statsRow}>
               <View style={[styles.statCard, { backgroundColor: colors.cardGreen }]}>
-                <Text style={styles.statNumber}>21</Text>
-                <Text style={styles.statLabel}>total words{'\n'}tracked</Text>
+                <Text style={styles.statNumber}>{stats.totalWords}</Text>
+                <Text style={styles.statLabel}>total {stats.totalWords === 1 ? 'word' : 'words'}{'\n'}tracked</Text>
                 <View style={styles.statIcon}>
                   <IconSymbol 
                     ios_icon_name="text.bubble.fill" 
@@ -150,8 +288,8 @@ export default function ProfileScreen() {
                 </View>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.accent }]}>
-                <Text style={styles.statNumber}>34</Text>
-                <Text style={styles.statLabel}>total books{'\n'}added</Text>
+                <Text style={styles.statNumber}>{stats.totalBooks}</Text>
+                <Text style={styles.statLabel}>total {stats.totalBooks === 1 ? 'book' : 'books'}{'\n'}added</Text>
                 <View style={styles.statIcon}>
                   <IconSymbol 
                     ios_icon_name="book.fill" 
@@ -166,36 +304,52 @@ export default function ProfileScreen() {
 
           <View style={styles.momentsSection}>
             <Text style={styles.sectionTitle}>Moments</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.momentsScroll}>
-              <View style={styles.momentCard}>
-                <Image 
-                  source={{ uri: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=400' }}
-                  style={styles.momentImage}
+            {moments.length > 0 ? (
+              <>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.momentsScroll}>
+                  {moments.map((moment, index) => (
+                    <View key={index} style={styles.momentCard}>
+                      {moment.thumbnail_url ? (
+                        <Image 
+                          source={{ uri: moment.thumbnail_url }}
+                          style={styles.momentImage}
+                        />
+                      ) : (
+                        <View style={styles.momentPlaceholder}>
+                          <IconSymbol 
+                            ios_icon_name="video.fill" 
+                            android_material_icon_name="videocam" 
+                            size={48} 
+                            color={colors.backgroundAlt} 
+                          />
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </ScrollView>
+                <TouchableOpacity style={styles.viewMoreButton} onPress={handleViewMoreMoments}>
+                  <Text style={styles.viewMoreText}>View more</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={styles.emptyMomentsContainer}>
+                <IconSymbol 
+                  ios_icon_name="video.slash" 
+                  android_material_icon_name="videocam-off" 
+                  size={48} 
+                  color={colors.textSecondary} 
                 />
+                <Text style={styles.emptyMomentsText}>No moments yet</Text>
+                <Text style={styles.emptyMomentsSubtext}>Start recording to capture special moments!</Text>
               </View>
-              <View style={styles.momentCard}>
-                <Image 
-                  source={{ uri: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=400' }}
-                  style={styles.momentImage}
-                />
-              </View>
-              <View style={styles.momentCard}>
-                <Image 
-                  source={{ uri: 'https://images.unsplash.com/photo-1544776193-352d25ca82cd?w=400' }}
-                  style={styles.momentImage}
-                />
-              </View>
-            </ScrollView>
-            <TouchableOpacity style={styles.viewMoreButton}>
-              <Text style={styles.viewMoreText}>View more</Text>
-            </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.suggestionsSection}>
             <Text style={styles.sectionTitle}>Suggestions</Text>
             <View style={styles.suggestionCard}>
-              <Text style={styles.suggestionText}>Try recording a new word today: <Text style={styles.suggestionBold}>Ball</Text></Text>
-              <TouchableOpacity style={styles.recordButton}>
+              <Text style={styles.suggestionText}>Capture a special moment today!</Text>
+              <TouchableOpacity style={styles.recordButton} onPress={handleRecordMoment}>
                 <Text style={styles.recordButtonText}>Record</Text>
               </TouchableOpacity>
             </View>
@@ -380,6 +534,33 @@ const styles = StyleSheet.create({
   momentImage: {
     width: '100%',
     height: '100%',
+  },
+  momentPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.cardPurple,
+  },
+  emptyMomentsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 16,
+  },
+  emptyMomentsText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.primary,
+    marginTop: 12,
+  },
+  emptyMomentsSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
   },
   viewMoreButton: {
     backgroundColor: colors.buttonBlue,
