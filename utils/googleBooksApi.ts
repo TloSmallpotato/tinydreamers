@@ -1,5 +1,6 @@
 
 import { supabase } from '@/app/integrations/supabase/client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface GoogleBook {
   id: string;
@@ -72,6 +73,95 @@ interface GoogleCustomSearchResult {
 // In-memory cache to prevent duplicate API calls during the same session
 const coverUrlCache = new Map<string, { coverUrl: string; thumbnailUrl: string; source: string; timestamp: number }>();
 const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
+
+// AsyncStorage keys
+const QUOTA_EXCEEDED_KEY = '@google_custom_search_quota_exceeded';
+const QUOTA_EXCEEDED_TIMESTAMP_KEY = '@google_custom_search_quota_timestamp';
+
+// Track if Google Custom Search quota is exceeded
+let isQuotaExceeded = false;
+let quotaExceededTimestamp = 0;
+const QUOTA_RESET_DURATION = 1000 * 60 * 60 * 24; // 24 hours
+
+/**
+ * Loads quota exceeded state from AsyncStorage
+ */
+async function loadQuotaState(): Promise<void> {
+  try {
+    const [exceeded, timestamp] = await Promise.all([
+      AsyncStorage.getItem(QUOTA_EXCEEDED_KEY),
+      AsyncStorage.getItem(QUOTA_EXCEEDED_TIMESTAMP_KEY),
+    ]);
+
+    if (exceeded === 'true' && timestamp) {
+      isQuotaExceeded = true;
+      quotaExceededTimestamp = parseInt(timestamp, 10);
+      console.log('📦 Loaded quota state from storage:', {
+        exceeded: isQuotaExceeded,
+        timestamp: new Date(quotaExceededTimestamp).toISOString(),
+      });
+    }
+  } catch (error) {
+    console.error('Error loading quota state:', error);
+  }
+}
+
+/**
+ * Saves quota exceeded state to AsyncStorage
+ */
+async function saveQuotaState(exceeded: boolean, timestamp: number): Promise<void> {
+  try {
+    await Promise.all([
+      AsyncStorage.setItem(QUOTA_EXCEEDED_KEY, exceeded.toString()),
+      AsyncStorage.setItem(QUOTA_EXCEEDED_TIMESTAMP_KEY, timestamp.toString()),
+    ]);
+    console.log('💾 Saved quota state to storage:', {
+      exceeded,
+      timestamp: new Date(timestamp).toISOString(),
+    });
+  } catch (error) {
+    console.error('Error saving quota state:', error);
+  }
+}
+
+/**
+ * Checks if Google Custom Search quota is currently exceeded
+ */
+async function isGoogleCustomSearchAvailable(): Promise<boolean> {
+  // Load state from storage on first check
+  if (!isQuotaExceeded && quotaExceededTimestamp === 0) {
+    await loadQuotaState();
+  }
+
+  if (!isQuotaExceeded) {
+    return true;
+  }
+
+  // Check if 24 hours have passed since quota was exceeded
+  const now = Date.now();
+  if (now - quotaExceededTimestamp > QUOTA_RESET_DURATION) {
+    console.log('✅ 24 hours passed since quota exceeded - resetting flag');
+    isQuotaExceeded = false;
+    quotaExceededTimestamp = 0;
+    await saveQuotaState(false, 0);
+    return true;
+  }
+
+  const hoursRemaining = Math.ceil((QUOTA_RESET_DURATION - (now - quotaExceededTimestamp)) / (1000 * 60 * 60));
+  console.log(`⚠️ Google Custom Search quota still exceeded - ${hoursRemaining} hours until reset`);
+  return false;
+}
+
+/**
+ * Marks Google Custom Search as quota exceeded
+ */
+async function markQuotaExceeded(): Promise<void> {
+  const now = Date.now();
+  console.log('⚠️ Google Custom Search quota exceeded - will use fallback methods for 24 hours');
+  isQuotaExceeded = true;
+  quotaExceededTimestamp = now;
+  await saveQuotaState(true, now);
+}
 
 /**
  * Checks if a book already exists in the database
@@ -236,6 +326,7 @@ function getGoogleBooksCover(volumeInfo: GoogleBook['volumeInfo']): string | nul
  * This function is called ONLY ONCE when:
  * - A book is not found in the database
  * - We need to fetch a high-quality cover image
+ * - Quota is not exceeded
  * 
  * @param query - The search query
  * @param fileType - File type filter (jpg or png)
@@ -245,6 +336,13 @@ async function searchGoogleCustomSearch(
   fileType: 'jpg' | 'png' = 'jpg'
 ): Promise<{ coverUrl: string; thumbnailUrl: string } | null> {
   try {
+    // Check if quota is exceeded
+    const isAvailable = await isGoogleCustomSearchAvailable();
+    if (!isAvailable) {
+      console.log('⚠️ Skipping Google Custom Search - quota exceeded');
+      return null;
+    }
+
     console.log('💰 Calling Google Custom Search API (Cost: $0.005)');
     console.log('Query:', query, 'FileType:', fileType);
 
@@ -274,10 +372,34 @@ async function searchGoogleCustomSearch(
       }
     );
 
+    // Handle quota exceeded error
+    if (response.status === 429) {
+      console.error('⚠️ Google Custom Search API quota exceeded (429)');
+      const errorData = await response.json();
+      console.error('Error details:', errorData);
+      
+      // Mark quota as exceeded
+      await markQuotaExceeded();
+      
+      return null;
+    }
+
     if (!response.ok) {
       console.error('Edge Function error:', response.status);
       const errorText = await response.text();
       console.error('Error details:', errorText);
+      
+      // Try to parse error response to check for quota exceeded
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.error === 'QUOTA_EXCEEDED') {
+          console.error('⚠️ Quota exceeded detected in error response');
+          await markQuotaExceeded();
+        }
+      } catch (e) {
+        console.error('Could not parse error response:', e);
+      }
+      
       return null;
     }
 
@@ -307,10 +429,11 @@ async function searchGoogleCustomSearch(
  * This function implements a cascading fallback strategy:
  * 1. Check in-memory cache (prevents duplicate calls in same session)
  * 2. Check database (prevents API calls for existing books)
- * 3. Try Google Custom Search API ONCE (primary method)
+ * 3. Try Google Custom Search API ONCE (primary method) - ONLY if quota not exceeded
  *    - Only tries ONE query with the best parameters
  *    - If successful and high-res (>=800px), use it
  *    - If low-res (<800px), continue to fallbacks
+ *    - If quota exceeded (429), skip and go to fallbacks
  * 4. Try OpenLibrary API (fallback #1)
  *    - If successful and high-res, use it
  * 5. Try Google Books API (fallback #2)
@@ -319,6 +442,7 @@ async function searchGoogleCustomSearch(
  * 
  * COST: Maximum $0.005 per book (1 Google Custom Search call)
  * In practice: Usually $0.000 per book (cached or in database)
+ * When quota exceeded: $0.000 per book (uses free fallback APIs)
  */
 async function getBestCoverUrl(
   isbn: string | undefined,
@@ -360,14 +484,15 @@ async function getBestCoverUrl(
   let bestThumbnailUrl = '';
   let bestSource = 'none';
   
-  // Step 3: Try Google Custom Search API ONCE (primary method)
+  // Step 3: Try Google Custom Search API ONCE (primary method) - ONLY if quota not exceeded
   // Only make ONE API call with the best query parameters
-  if (isbn && title && author) {
+  const isAvailable = await isGoogleCustomSearchAvailable();
+  if (isbn && title && author && isAvailable) {
     const query = `${isbn} ${title} ${author} book cover`;
     console.log('Attempt 1: Google Custom Search (SINGLE CALL)');
     
     // Try JPG first (most common format for book covers)
-    let result = await searchGoogleCustomSearch(query, 'jpg');
+    const result = await searchGoogleCustomSearch(query, 'jpg');
     if (result) {
       // Check if it's high resolution
       const isHighRes = await isHighResolution(result.coverUrl);
@@ -387,6 +512,8 @@ async function getBestCoverUrl(
         bestSource = 'googlecustomsearch';
       }
     }
+  } else if (!isAvailable) {
+    console.log('⚠️ Skipping Google Custom Search - quota exceeded, using fallback methods');
   }
 
   // Step 4: Try OpenLibrary API (fallback #1)
@@ -600,7 +727,7 @@ async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult |
  * 2. For each book, call getBestCoverUrl() which:
  *    - Checks cache first (free)
  *    - Checks database (free)
- *    - Tries Google Custom Search API ONCE ($0.005 per call)
+ *    - Tries Google Custom Search API ONCE ($0.005 per call) - ONLY if quota not exceeded
  *    - Falls back to OpenLibrary API (free)
  *    - Falls back to Google Books API (free)
  * 3. Return results with cover URLs
@@ -638,7 +765,7 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
         const title = item.volumeInfo.title || 'Unknown Title';
         const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
         
-        // This will check cache, database, then try Google Custom Search ONCE, then OpenLibrary, then Google Books
+        // This will check cache, database, then try Google Custom Search ONCE (if quota not exceeded), then OpenLibrary, then Google Books
         const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
           isbn,
           title,
@@ -692,7 +819,7 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
  * 2. Call getBestCoverUrl() which:
  *    - Checks cache first (free)
  *    - Checks database (free)
- *    - Tries Google Custom Search API ONCE ($0.005 per call)
+ *    - Tries Google Custom Search API ONCE ($0.005 per call) - ONLY if quota not exceeded
  *    - Falls back to OpenLibrary API (free)
  *    - Falls back to Google Books API (free)
  * 3. Return result with cover URLs
@@ -734,7 +861,7 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
     const title = item.volumeInfo.title || 'Unknown Title';
     const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
     
-    // This will check cache, database, then try Google Custom Search ONCE, then OpenLibrary, then Google Books
+    // This will check cache, database, then try Google Custom Search ONCE (if quota not exceeded), then OpenLibrary, then Google Books
     const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
       itemISBN,
       title,
@@ -769,4 +896,25 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
     const cleanISBN = isbn.replace(/[-\s]/g, '');
     return await searchOpenLibraryByISBN(cleanISBN);
   }
+}
+
+/**
+ * Gets the current quota status
+ * @returns Promise<{ exceeded: boolean; hoursUntilReset: number }>
+ */
+export async function getQuotaStatus(): Promise<{ exceeded: boolean; hoursUntilReset: number }> {
+  await loadQuotaState();
+  
+  if (!isQuotaExceeded) {
+    return { exceeded: false, hoursUntilReset: 0 };
+  }
+
+  const now = Date.now();
+  const timeRemaining = QUOTA_RESET_DURATION - (now - quotaExceededTimestamp);
+  const hoursUntilReset = Math.ceil(timeRemaining / (1000 * 60 * 60));
+
+  return {
+    exceeded: true,
+    hoursUntilReset: Math.max(0, hoursUntilReset),
+  };
 }

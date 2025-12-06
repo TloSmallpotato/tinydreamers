@@ -1,160 +1,133 @@
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
-
-const { width: screenWidth } = Dimensions.get('window');
 
 interface ToastNotificationProps {
   visible: boolean;
   message: string;
-  showViewButton?: boolean;
-  onViewPress?: () => void;
+  type?: 'info' | 'success' | 'warning' | 'error';
+  duration?: number;
   onHide?: () => void;
 }
 
 export default function ToastNotification({
   visible,
   message,
-  showViewButton = false,
-  onViewPress,
+  type = 'info',
+  duration = 4000,
   onHide,
 }: ToastNotificationProps) {
-  const translateY = useRef(new Animated.Value(-200)).current;
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Pan responder for swipe gesture
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond to upward swipes
-        return Math.abs(gestureState.dy) > 5 && gestureState.dy < 0;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        // Only allow upward movement
-        if (gestureState.dy < 0) {
-          translateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        // If swiped up more than 50 pixels, dismiss
-        if (gestureState.dy < -50) {
-          hideToast();
-        } else {
-          // Otherwise, spring back to original position
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 50,
-            friction: 8,
-          }).start();
-        }
-      },
-    })
-  ).current;
+  const translateY = useRef(new Animated.Value(-100)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      // Slide down
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 50,
-        friction: 8,
-      }).start();
+      // Show animation
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
 
-      // Auto hide after 5 seconds if no view button
-      if (!showViewButton) {
-        timeoutRef.current = setTimeout(() => {
-          hideToast();
-        }, 5000);
-      }
+      // Auto hide after duration
+      const timer = setTimeout(() => {
+        hideToast();
+      }, duration);
+
+      return () => clearTimeout(timer);
     } else {
-      // Slide up fully out of screen
-      Animated.timing(translateY, {
-        toValue: -200,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      hideToast();
     }
-
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, [visible, showViewButton]);
+  }, [visible]);
 
   const hideToast = () => {
-    // Slide up fully out of screen
-    Animated.timing(translateY, {
-      toValue: -200,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
+    Animated.parallel([
+      Animated.timing(translateY, {
+        toValue: -100,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
       if (onHide) {
         onHide();
       }
     });
   };
 
-  const handleViewPress = () => {
-    console.log('View now pressed - dismissing toast');
-    hideToast();
-    
-    // Call the onViewPress after a brief delay to ensure animation starts
-    setTimeout(() => {
-      if (onViewPress) {
-        onViewPress();
-      }
-    }, 100);
+  const getIconName = () => {
+    switch (type) {
+      case 'success':
+        return { ios: 'checkmark.circle.fill', android: 'check_circle' };
+      case 'warning':
+        return { ios: 'exclamationmark.triangle.fill', android: 'warning' };
+      case 'error':
+        return { ios: 'xmark.circle.fill', android: 'error' };
+      default:
+        return { ios: 'info.circle.fill', android: 'info' };
+    }
   };
 
-  if (!visible && translateY._value === -200) {
+  const getBackgroundColor = () => {
+    switch (type) {
+      case 'success':
+        return '#4CAF50';
+      case 'warning':
+        return '#FF9800';
+      case 'error':
+        return '#F44336';
+      default:
+        return colors.primary;
+    }
+  };
+
+  if (!visible) {
     return null;
   }
+
+  const iconNames = getIconName();
 
   return (
     <Animated.View
       style={[
         styles.container,
         {
+          backgroundColor: getBackgroundColor(),
           transform: [{ translateY }],
+          opacity,
         },
       ]}
-      pointerEvents={visible ? 'auto' : 'none'}
-      {...panResponder.panHandlers}
     >
-      <View style={styles.toast}>
-        <View style={styles.iconContainer}>
-          <IconSymbol
-            ios_icon_name="checkmark.circle.fill"
-            android_material_icon_name="check-circle"
-            size={24}
-            color={colors.buttonBlue}
-          />
-        </View>
-        <Text style={styles.message} numberOfLines={2}>
-          {message}
-        </Text>
-        {showViewButton && onViewPress && (
-          <TouchableOpacity style={styles.viewButton} onPress={handleViewPress}>
-            <Text style={styles.viewButtonText}>View now</Text>
-          </TouchableOpacity>
-        )}
-        {!showViewButton && (
-          <TouchableOpacity style={styles.closeButton} onPress={hideToast}>
-            <IconSymbol
-              ios_icon_name="xmark"
-              android_material_icon_name="close"
-              size={18}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
-        )}
+      <View style={styles.content}>
+        <IconSymbol
+          ios_icon_name={iconNames.ios}
+          android_material_icon_name={iconNames.android}
+          size={24}
+          color={colors.backgroundAlt}
+        />
+        <Text style={styles.message}>{message}</Text>
       </View>
+      <TouchableOpacity onPress={hideToast} style={styles.closeButton}>
+        <IconSymbol
+          ios_icon_name="xmark"
+          android_material_icon_name="close"
+          size={20}
+          color={colors.backgroundAlt}
+        />
+      </TouchableOpacity>
     </Animated.View>
   );
 }
@@ -165,39 +138,27 @@ const styles = StyleSheet.create({
     top: 60,
     left: 20,
     right: 20,
-    zIndex: 20000,
-  },
-  toast: {
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
-    elevation: 8,
-    minHeight: 64,
+    justifyContent: 'space-between',
+    zIndex: 9999,
+    elevation: 10,
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.3)',
   },
-  iconContainer: {
-    marginRight: 12,
+  content: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   message: {
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
-    color: colors.primary,
-    lineHeight: 20,
-  },
-  viewButton: {
-    backgroundColor: colors.buttonBlue,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginLeft: 8,
-  },
-  viewButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
     color: colors.backgroundAlt,
+    lineHeight: 20,
   },
   closeButton: {
     padding: 4,

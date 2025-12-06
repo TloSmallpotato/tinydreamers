@@ -20,9 +20,10 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useAddNavigation } from '@/contexts/AddNavigationContext';
 import { supabase } from '@/app/integrations/supabase/client';
-import { searchGoogleBooks, searchBookByISBN, BookSearchResult } from '@/utils/googleBooksApi';
+import { searchGoogleBooks, searchBookByISBN, BookSearchResult, getQuotaStatus } from '@/utils/googleBooksApi';
 import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
 import BarcodeScannerModal from '@/components/BarcodeScannerModal';
+import ToastNotification from '@/components/ToastNotification';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 interface SavedBook {
@@ -60,6 +61,9 @@ export default function BooksScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [isAddingBook, setIsAddingBook] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const searchInputRef = useRef<TextInput>(null);
@@ -67,6 +71,31 @@ export default function BooksScreen() {
   const addBookTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastClickedBookIdRef = useRef<string | null>(null);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Check quota status on mount
+  useEffect(() => {
+    checkQuotaStatus();
+  }, []);
+
+  const checkQuotaStatus = async () => {
+    try {
+      const status = await getQuotaStatus();
+      if (status.exceeded) {
+        showToast(
+          `Google Custom Search quota exceeded. Using free alternatives for the next ${status.hoursUntilReset} hours.`,
+          'warning'
+        );
+      }
+    } catch (error) {
+      console.error('Error checking quota status:', error);
+    }
+  };
+
+  const showToast = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+  };
 
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -204,7 +233,7 @@ export default function BooksScreen() {
 
     if (!selectedChild) {
       console.log('No child selected');
-      Alert.alert('No Child Selected', 'Please select a child before adding books.');
+      showToast('Please select a child before adding books.', 'warning');
       return;
     }
 
@@ -228,12 +257,10 @@ export default function BooksScreen() {
       if (fetchError && fetchError.code === 'PGRST116') {
         // STEP 2: Book not found in database - create new entry
         console.log('STEP 2: Book NOT found in database. Creating new entry...');
-        console.log('Cover URL from Google Custom Search:', book.coverUrl);
-        console.log('Thumbnail URL from Google Custom Search:', book.thumbnailUrl);
+        console.log('Cover URL:', book.coverUrl);
+        console.log('Thumbnail URL:', book.thumbnailUrl);
         console.log('Source:', book.source);
         
-        // The cover URLs have already been fetched via Google Custom Search API
-        // in the googleBooksApi.ts file (cost: $0.005 per call)
         const { data: newBook, error: insertError } = await supabase
           .from('books_library')
           .insert({
@@ -251,29 +278,20 @@ export default function BooksScreen() {
 
         if (insertError) {
           console.error('Error creating book in database:', insertError);
-          Alert.alert('Error', 'Failed to add book. Please try again.');
+          showToast('Failed to add book. Please try again.', 'error');
           setIsAddingBook(false);
           return;
         }
 
         bookId = newBook.id;
         console.log('Book created successfully in database with ID:', bookId);
-        console.log('Cover URLs saved to database:', {
-          cover_url: book.coverUrl,
-          thumbnail_url: book.thumbnailUrl,
-        });
       } else if (existingBook) {
         // Book already exists in database - reuse it
         bookId = existingBook.id;
         console.log('STEP 2: Book FOUND in database with ID:', bookId);
-        console.log('Existing cover URLs:', {
-          cover_url: existingBook.cover_url,
-          thumbnail_url: existingBook.thumbnail_url,
-        });
-        console.log('No Google Custom Search API call needed (saving $0.005)');
       } else {
         console.error('Error fetching book from database:', fetchError);
-        Alert.alert('Error', 'Failed to add book. Please try again.');
+        showToast('Failed to add book. Please try again.', 'error');
         setIsAddingBook(false);
         return;
       }
@@ -289,7 +307,7 @@ export default function BooksScreen() {
 
       if (existingUserBook) {
         console.log('User already has this book in their library');
-        Alert.alert('Already Added', 'This book is already in your library.');
+        showToast('This book is already in your library.', 'info');
         setSearchQuery('');
         setShowDropdown(false);
         Keyboard.dismiss();
@@ -308,7 +326,7 @@ export default function BooksScreen() {
 
       if (relationError) {
         console.error('Error adding book to user library:', relationError);
-        Alert.alert('Error', 'Failed to add book to library. Please try again.');
+        showToast('Failed to add book to library. Please try again.', 'error');
         setIsAddingBook(false);
         return;
       }
@@ -325,10 +343,10 @@ export default function BooksScreen() {
       Keyboard.dismiss();
 
       // Show success message
-      Alert.alert('Success', 'Book added to your library!');
+      showToast('Book added to your library!', 'success');
     } catch (error) {
       console.error('Error in handleSelectBook:', error);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      showToast('An unexpected error occurred. Please try again.', 'error');
     } finally {
       // Reset the flag after a short delay to prevent rapid re-additions
       addBookTimeoutRef.current = setTimeout(() => {
@@ -348,7 +366,7 @@ export default function BooksScreen() {
     }
     
     if (!selectedChild) {
-      Alert.alert('No Child Selected', 'Please select a child before adding books.');
+      showToast('Please select a child before adding books.', 'warning');
       return;
     }
 
@@ -358,14 +376,13 @@ export default function BooksScreen() {
 
     try {
       console.log('Searching for book by ISBN...');
-      // Search for book by ISBN - this will call Google Custom Search API if needed
+      // Search for book by ISBN - this will use fallback methods if quota exceeded
       const book = await searchBookByISBN(isbn);
 
       if (!book) {
-        Alert.alert(
-          'Book Not Found',
-          'We couldn\'t find a book with this ISBN. Try searching manually or scanning a different barcode.',
-          [{ text: 'OK' }]
+        showToast(
+          'Book not found. Try searching manually or scanning a different barcode.',
+          'warning'
         );
         setIsSearching(false);
         setIsAddingBook(false);
@@ -373,11 +390,11 @@ export default function BooksScreen() {
       }
 
       console.log('Book found by ISBN:', book.title);
-      // Add the book (this will check DB first, then use the cover URLs from Google Custom Search)
+      // Add the book
       await handleSelectBook(book);
     } catch (error) {
       console.error('Error handling barcode scan:', error);
-      Alert.alert('Error', 'An error occurred while searching for the book. Please try again.');
+      showToast('An error occurred while searching for the book. Please try again.', 'error');
       setIsAddingBook(false);
     } finally {
       setIsSearching(false);
@@ -634,6 +651,13 @@ export default function BooksScreen() {
         visible={showScanner}
         onClose={() => setShowScanner(false)}
         onBarcodeScanned={handleBarcodeScanned}
+      />
+
+      <ToastNotification
+        visible={toastVisible}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setToastVisible(false)}
       />
     </View>
   );
