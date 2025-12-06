@@ -676,7 +676,7 @@ export default function TabLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          animation: 'none',
+          animation: 'slide_from_right',
         }}
       >
         <Stack.Screen name="(home)" options={{ headerShown: false }} />
@@ -684,7 +684,13 @@ export default function TabLayout() {
         <Stack.Screen name="words" options={{ headerShown: false }} />
         <Stack.Screen name="play" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
-        <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen 
+          name="settings" 
+          options={{ 
+            headerShown: false,
+            presentation: 'card',
+          }} 
+        />
       </Stack>
       <CustomTabBar />
     </>

@@ -5,7 +5,7 @@ import { View, TouchableOpacity, StyleSheet, Animated, Alert, Image, Text } from
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { usePathname, useRouter } from 'expo-router';
+import { usePathname, useRouter, Stack } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useVideoRecording } from '@/contexts/VideoRecordingContext';
 import { useChild } from '@/contexts/ChildContext';
@@ -667,7 +667,7 @@ export default function TabLayout() {
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Screen name="(home)" options={{ href: null }} />
-        <NativeTabs.Screen name="settings" options={{ href: null }} />
+        <NativeTabs.Screen name="settings" />
       </NativeTabs>
       <CustomTabBar />
     </>
