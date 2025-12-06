@@ -117,28 +117,6 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       await updateBookData('tags', updatedTags);
     }, [tags, updateBookData]);
 
-    const handleDeleteBook = useCallback(() => {
-      setShowMenu(false);
-      
-      Alert.alert(
-        'Remove Book',
-        `Remove "${cachedUserBook?.book.title}" from library? This action cannot be undone.`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Remove',
-            style: 'destructive',
-            onPress: async () => {
-              await deleteBook();
-            },
-          },
-        ]
-      );
-    }, [cachedUserBook]);
-
     const deleteBook = useCallback(async () => {
       if (!cachedUserBook) return;
 
@@ -164,6 +142,28 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         Alert.alert('Error', 'Failed to remove book');
       }
     }, [cachedUserBook, ref, onRefresh]);
+
+    const handleDeleteBook = useCallback(() => {
+      setShowMenu(false);
+      
+      Alert.alert(
+        'Remove Book',
+        `Remove "${cachedUserBook?.book.title}" from library? This action cannot be undone.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: async () => {
+              await deleteBook();
+            },
+          },
+        ]
+      );
+    }, [cachedUserBook, deleteBook]);
 
     const renderBackdrop = useCallback(
       (props: any) => (

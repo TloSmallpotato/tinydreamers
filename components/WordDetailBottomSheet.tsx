@@ -48,6 +48,27 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
     const { setTargetWord, setIsRecordingFromWordDetail } = useVideoRecording();
     const { triggerCamera } = useCameraTrigger();
 
+    const updateWordStatus = useCallback(async (field: 'is_spoken' | 'is_recognised' | 'is_recorded', value: boolean) => {
+      if (!word) return;
+
+      try {
+        const { error } = await supabase
+          .from('user_words')
+          .update({ [field]: value, updated_at: new Date().toISOString() })
+          .eq('id', word.id);
+
+        if (error) {
+          console.error('Error updating word status:', error);
+          throw error;
+        }
+
+        onRefresh();
+      } catch (error) {
+        console.error('Error in updateWordStatus:', error);
+        Alert.alert('Error', 'Failed to update status');
+      }
+    }, [word, onRefresh]);
+
     const fetchMoments = useCallback(async () => {
       if (!word) return;
 
@@ -80,7 +101,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       } finally {
         setLoading(false);
       }
-    }, [word]);
+    }, [word, updateWordStatus]);
 
     useEffect(() => {
       if (word) {
@@ -90,38 +111,17 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       }
     }, [word, fetchMoments]);
 
-    const updateWordStatus = async (field: 'is_spoken' | 'is_recognised' | 'is_recorded', value: boolean) => {
-      if (!word) return;
-
-      try {
-        const { error } = await supabase
-          .from('user_words')
-          .update({ [field]: value, updated_at: new Date().toISOString() })
-          .eq('id', word.id);
-
-        if (error) {
-          console.error('Error updating word status:', error);
-          throw error;
-        }
-
-        onRefresh();
-      } catch (error) {
-        console.error('Error in updateWordStatus:', error);
-        Alert.alert('Error', 'Failed to update status');
-      }
-    };
-
-    const toggleSpoken = async () => {
+    const toggleSpoken = useCallback(async () => {
       const newValue = !isSpoken;
       setIsSpoken(newValue);
       await updateWordStatus('is_spoken', newValue);
-    };
+    }, [isSpoken, updateWordStatus]);
 
-    const toggleRecognised = async () => {
+    const toggleRecognised = useCallback(async () => {
       const newValue = !isRecognised;
       setIsRecognised(newValue);
       await updateWordStatus('is_recognised', newValue);
-    };
+    }, [isRecognised, updateWordStatus]);
 
     const handleOpenCamera = () => {
       if (!word) return;

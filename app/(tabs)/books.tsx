@@ -72,12 +72,13 @@ export default function BooksScreen() {
   const lastClickedBookIdRef = useRef<string | null>(null);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Check quota status on mount
-  useEffect(() => {
-    checkQuotaStatus();
+  const showToast = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
   }, []);
 
-  const checkQuotaStatus = async () => {
+  const checkQuotaStatus = useCallback(async () => {
     try {
       const status = await getQuotaStatus();
       if (status.exceeded) {
@@ -89,13 +90,12 @@ export default function BooksScreen() {
     } catch (error) {
       console.error('Error checking quota status:', error);
     }
-  };
+  }, [showToast]);
 
-  const showToast = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    setToastMessage(message);
-    setToastType(type);
-    setToastVisible(true);
-  };
+  // Check quota status on mount
+  useEffect(() => {
+    checkQuotaStatus();
+  }, [checkQuotaStatus]);
 
   // Cleanup timeouts on unmount
   useEffect(() => {

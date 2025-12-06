@@ -18,10 +18,10 @@ export interface GoogleBook {
       large?: string;
       extraLarge?: string;
     };
-    industryIdentifiers?: Array<{
+    industryIdentifiers?: {
       type: string;
       identifier: string;
-    }>;
+    }[];
   };
 }
 
@@ -37,7 +37,7 @@ export interface OpenLibraryBook {
 
 export interface OpenLibraryBookDetails {
   title: string;
-  authors?: Array<{ name: string }>;
+  authors?: { name: string }[];
   description?: string | { value: string };
   publish_date?: string;
   number_of_pages?: number;
@@ -59,7 +59,7 @@ export interface BookSearchResult {
 }
 
 interface GoogleCustomSearchResult {
-  items?: Array<{
+  items?: {
     link: string;
     image?: {
       thumbnailLink: string;
@@ -67,7 +67,7 @@ interface GoogleCustomSearchResult {
       height?: number;
     };
     mime?: string;
-  }>;
+  }[];
 }
 
 // In-memory cache to prevent duplicate API calls during the same session

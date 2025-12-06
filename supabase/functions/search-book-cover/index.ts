@@ -1,22 +1,22 @@
 
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+// @deno-types="npm:@types/node"
 
 interface GoogleCustomSearchResult {
-  items?: Array<{
+  items?: {
     link: string;
     image?: {
       thumbnailLink: string;
     };
     mime?: string;
-  }>;
+  }[];
   error?: {
     code: number;
     message: string;
-    errors?: Array<{
+    errors?: {
       domain: string;
       reason: string;
       message: string;
-    }>;
+    }[];
   };
 }
 
