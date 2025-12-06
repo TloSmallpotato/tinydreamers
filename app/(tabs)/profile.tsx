@@ -10,7 +10,9 @@ import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
+import ProfileAvatar from '@/components/ProfileAvatar';
 import { supabase } from '@/app/integrations/supabase/client';
+import * as ImagePicker from 'expo-image-picker';
 
 interface ProfileStats {
   totalWords: number;
@@ -41,7 +43,7 @@ const getStartOfWeek = (): Date => {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { children, selectedChild, selectChild, addChild } = useChild();
+  const { children, selectedChild, selectChild, addChild, updateChild } = useChild();
   const { triggerCamera } = useCameraTrigger();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
@@ -230,6 +232,69 @@ export default function ProfileScreen() {
     // Could navigate to a dedicated moments page in the future
   };
 
+  const handleChangeAvatar = async () => {
+    if (!selectedChild) return;
+
+    try {
+      console.log('Opening image picker for avatar');
+      
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Permission to access media library was denied');
+        return;
+      }
+
+      // Pick image
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images',
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        console.log('Image selected:', imageUri);
+
+        // Upload to Supabase Storage
+        const fileExt = imageUri.split('.').pop();
+        const fileName = `${selectedChild.id}-${Date.now()}.${fileExt}`;
+        const filePath = `avatars/${fileName}`;
+
+        // Convert URI to blob for upload
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
+
+        const { error: uploadError } = await supabase.storage
+          .from('profile-avatars')
+          .upload(filePath, blob, {
+            contentType: `image/${fileExt}`,
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error('Error uploading avatar:', uploadError);
+          throw uploadError;
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('profile-avatars')
+          .getPublicUrl(filePath);
+
+        // Update child record with avatar URL
+        await updateChild(selectedChild.id, {
+          avatar_url: urlData.publicUrl,
+        });
+
+        console.log('Avatar updated successfully');
+      }
+    } catch (error) {
+      console.error('Error changing avatar:', error);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -251,7 +316,11 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.profileSection}>
-            <View style={styles.avatarPlaceholder} />
+            <ProfileAvatar 
+              imageUri={selectedChild?.avatar_url}
+              size={120}
+              onPress={handleChangeAvatar}
+            />
             <TouchableOpacity style={styles.profileInfo} onPress={handleOpenChildSelector}>
               <Text style={styles.profileName}>
                 {selectedChild?.name || 'Add a child'}
@@ -467,17 +536,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  avatarPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.cardPurple,
-    marginBottom: 16,
-  },
   profileInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginTop: 16,
   },
   profileName: {
     fontSize: 28,
