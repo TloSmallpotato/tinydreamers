@@ -291,6 +291,7 @@ export default function ProfileScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
+            <View style={styles.headerSpacer} />
             <Text style={styles.appTitle}>Tiny Dreamers</Text>
             <TouchableOpacity style={styles.settingsButton} onPress={handleOpenSettings}>
               <IconSymbol 
@@ -305,7 +306,7 @@ export default function ProfileScreen() {
           <View style={styles.profileSection}>
             <ProfileAvatar 
               imageUri={selectedChild?.avatar_url}
-              size={120}
+              size={180}
               onPress={handleChangeAvatar}
             />
             <TouchableOpacity style={styles.profileInfo} onPress={handleOpenChildSelector}>
@@ -349,7 +350,7 @@ export default function ProfileScreen() {
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.cardPink }]}>
                 <Text style={styles.statNumber}>{stats.booksThisWeek}</Text>
-                <Text style={styles.statLabel}>new {stats.booksThisWeek === 1 ? 'book' : 'books'}{'\n'}this week</Text>
+                <Text style={[styles.statLabel, styles.highlightedStatLabel]}>new {stats.booksThisWeek === 1 ? 'book' : 'books'}{'\n'}this week</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
                 <Text style={styles.statNumber}>{stats.momentsThisWeek}</Text>
@@ -375,13 +376,13 @@ export default function ProfileScreen() {
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.accent }]}>
                 <Text style={styles.statNumber}>{stats.totalBooks}</Text>
-                <Text style={styles.statLabel}>total {stats.totalBooks === 1 ? 'book' : 'books'}{'\n'}added</Text>
+                <Text style={[styles.statLabel, styles.highlightedStatLabel]}>total {stats.totalBooks === 1 ? 'book' : 'books'}{'\n'}added</Text>
                 <View style={styles.statIcon}>
                   <IconSymbol 
                     ios_icon_name="book.fill" 
                     android_material_icon_name="menu-book" 
                     size={24} 
-                    color={colors.backgroundAlt} 
+                    color="#3330AF" 
                   />
                 </View>
               </View>
@@ -442,7 +443,7 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.analyticsSection}>
-            <Text style={styles.sectionTitle}>Analytics</Text>
+            <Text style={styles.sectionTitle}>Milestones</Text>
             <View style={styles.analyticsCard}>
               <View style={styles.analyticsRow}>
                 <View style={[styles.analyticsDot, { backgroundColor: colors.backgroundAlt }]}>
@@ -506,10 +507,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
+  headerSpacer: {
+    width: 40,
+  },
   appTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
     color: colors.primary,
+    textAlign: 'center',
   },
   settingsButton: {
     width: 40,
@@ -593,6 +598,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.backgroundAlt,
     lineHeight: 16,
+  },
+  highlightedStatLabel: {
+    color: '#3330AF',
   },
   statIcon: {
     position: 'absolute',
