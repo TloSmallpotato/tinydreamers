@@ -12,6 +12,7 @@ const { height: screenHeight } = Dimensions.get('window');
 
 interface AddCustomBookBottomSheetProps {
   prefillTitle?: string;
+  prefillISBN?: string;
   onClose: () => void;
   onBookAdded: () => void;
   childId: string;
@@ -19,17 +20,28 @@ interface AddCustomBookBottomSheetProps {
 }
 
 const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBottomSheetProps>(
-  ({ prefillTitle = '', onClose, onBookAdded, childId, userId }, ref) => {
+  ({ prefillTitle = '', prefillISBN = '', onClose, onBookAdded, childId, userId }, ref) => {
     const snapPoints = useMemo(() => [screenHeight * 0.85], []);
     const [title, setTitle] = useState('');
+    const [isbn, setISBN] = useState('');
     const [description, setDescription] = useState('');
     const [coverImage, setCoverImage] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Update title when prefillTitle changes
+    // Update fields when prefill values change
     useEffect(() => {
       setTitle(prefillTitle);
     }, [prefillTitle]);
+
+    useEffect(() => {
+      setISBN(prefillISBN);
+    }, [prefillISBN]);
+
+    const handleISBNChange = (text: string) => {
+      // Only allow digits and hyphens
+      const cleaned = text.replace(/[^0-9-]/g, '');
+      setISBN(cleaned);
+    };
 
     const handleTakePhoto = useCallback(async () => {
       try {
@@ -129,6 +141,7 @@ const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBotto
       try {
         console.log('=== ADDING CUSTOM BOOK ===');
         console.log('Title:', title);
+        console.log('ISBN:', isbn);
         console.log('Description:', description);
         console.log('Has cover image:', !!coverImage);
 
@@ -144,10 +157,14 @@ const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBotto
 
         // Step 2: Create a minimal entry in books_library
         console.log('Creating book entry in books_library...');
+        const googleBooksId = isbn.trim() 
+          ? `custom_isbn_${isbn.replace(/[-\s]/g, '')}`
+          : `custom_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
         const { data: newBook, error: bookError } = await supabase
           .from('books_library')
           .insert({
-            google_books_id: `custom_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+            google_books_id: googleBooksId,
             title: title.trim(),
             authors: 'Custom',
             description: description.trim() || null,
@@ -194,6 +211,7 @@ const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBotto
 
         // Reset form
         setTitle('');
+        setISBN('');
         setDescription('');
         setCoverImage(null);
 
@@ -204,7 +222,7 @@ const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBotto
       } finally {
         setIsSaving(false);
       }
-    }, [title, description, coverImage, childId, userId, ref, onBookAdded]);
+    }, [title, isbn, description, coverImage, childId, userId, ref, onBookAdded]);
 
     const renderBackdrop = useCallback(
       (props: any) => (
@@ -221,6 +239,7 @@ const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBotto
 
     const handleDismiss = useCallback(() => {
       setTitle('');
+      setISBN('');
       setDescription('');
       setCoverImage(null);
       onClose();
@@ -328,6 +347,26 @@ const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBotto
               autoCapitalize="words"
               returnKeyType="next"
             />
+          </View>
+
+          {/* ISBN Input (Optional) */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>ISBN (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter ISBN (10 or 13 digits)"
+              placeholderTextColor={colors.textSecondary}
+              value={isbn}
+              onChangeText={handleISBNChange}
+              keyboardType="number-pad"
+              maxLength={17}
+              returnKeyType="next"
+            />
+            {isbn.length > 0 && (
+              <Text style={styles.inputHint}>
+                {isbn.replace(/[^0-9]/g, '').length} digits entered
+              </Text>
+            )}
           </View>
 
           {/* Description Input */}
@@ -451,6 +490,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
     minHeight: 48,
+  },
+  inputHint: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
   textArea: {
     minHeight: 120,

@@ -24,6 +24,7 @@ import { searchGoogleBooks, searchBookByISBN, BookSearchResult, getQuotaStatus }
 import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
 import AddCustomBookBottomSheet from '@/components/AddCustomBookBottomSheet';
 import BarcodeScannerModal from '@/components/BarcodeScannerModal';
+import ISBNNotFoundModal from '@/components/ISBNNotFoundModal';
 import ToastNotification from '@/components/ToastNotification';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -70,6 +71,8 @@ export default function BooksScreen() {
   const [toastType, setToastType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
+  const [showISBNNotFoundModal, setShowISBNNotFoundModal] = useState(false);
+  const [notFoundISBN, setNotFoundISBN] = useState('');
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const addCustomBookRef = useRef<BottomSheetModal>(null);
@@ -435,10 +438,10 @@ export default function BooksScreen() {
       const book = await searchBookByISBN(isbn);
 
       if (!book) {
-        showToast(
-          'Book not found. Try searching manually or scanning a different barcode.',
-          'warning'
-        );
+        // Book not found - show options modal
+        console.log('Book not found - showing options modal');
+        setNotFoundISBN(isbn);
+        setShowISBNNotFoundModal(true);
         setIsSearching(false);
         setIsAddingBook(false);
         return;
@@ -454,6 +457,57 @@ export default function BooksScreen() {
     } finally {
       setIsSearching(false);
     }
+  };
+
+  const handleManualISBNSubmit = async (isbn: string) => {
+    console.log('Manual ISBN submitted:', isbn);
+    
+    if (!selectedChild) {
+      showToast('Please select a child before adding books.', 'warning');
+      return;
+    }
+
+    setIsAddingBook(true);
+    setIsSearching(true);
+
+    try {
+      console.log('Searching for book by manual ISBN...');
+      const book = await searchBookByISBN(isbn);
+
+      if (!book) {
+        // Still not found - update the modal to show manual input mode with this ISBN
+        console.log('Book still not found - staying in modal');
+        setNotFoundISBN(isbn);
+        setIsSearching(false);
+        setIsAddingBook(false);
+        showToast('Book not found. You can add it as a custom book.', 'warning');
+        return;
+      }
+
+      console.log('Book found by manual ISBN:', book.title);
+      // Close the modal
+      setShowISBNNotFoundModal(false);
+      // Add the book
+      await handleSelectBook(book);
+    } catch (error) {
+      console.error('Error handling manual ISBN:', error);
+      showToast('An error occurred while searching for the book. Please try again.', 'error');
+      setIsAddingBook(false);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleAddCustomBookFromModal = (isbn?: string) => {
+    console.log('Add custom book from modal, ISBN:', isbn);
+    
+    // Close the ISBN not found modal
+    setShowISBNNotFoundModal(false);
+    
+    // Open the custom book bottom sheet with ISBN prefilled
+    setTimeout(() => {
+      addCustomBookRef.current?.present();
+    }, 300);
   };
 
   const handleAddCustomBook = useCallback(() => {
@@ -760,12 +814,26 @@ export default function BooksScreen() {
       <AddCustomBookBottomSheet
         ref={addCustomBookRef}
         prefillTitle={searchQuery}
+        prefillISBN={notFoundISBN}
         onClose={() => {
           console.log('Custom book bottom sheet closed');
+          setNotFoundISBN('');
         }}
         onBookAdded={fetchSavedBooks}
         childId={selectedChild?.id || ''}
         userId={currentUserId || ''}
+      />
+
+      <ISBNNotFoundModal
+        visible={showISBNNotFoundModal}
+        scannedISBN={notFoundISBN}
+        onClose={() => {
+          setShowISBNNotFoundModal(false);
+          setNotFoundISBN('');
+        }}
+        onManualISBNSubmit={handleManualISBNSubmit}
+        onAddCustomBook={handleAddCustomBookFromModal}
+        isSearching={isSearching}
       />
 
       <BarcodeScannerModal
