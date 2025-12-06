@@ -471,7 +471,7 @@ export default function BooksScreen() {
 
           <View style={styles.searchContainer}>
             <View style={styles.searchRow}>
-              <View style={commonStyles.searchBar}>
+              <View style={styles.searchBarWrapper}>
                 <IconSymbol 
                   ios_icon_name="magnifyingglass" 
                   android_material_icon_name="search" 
@@ -681,6 +681,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     width: '100%',
+  },
+  searchBarWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    minHeight: 56,
   },
   searchInput: {
     flex: 1,
