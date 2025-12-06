@@ -680,6 +680,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    width: '100%',
   },
   searchInput: {
     flex: 1,
@@ -696,6 +697,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)',
     elevation: 4,
+    flexShrink: 0,
   },
   cameraButtonDisabled: {
     backgroundColor: colors.backgroundAlt,
