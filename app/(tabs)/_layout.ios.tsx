@@ -667,7 +667,13 @@ export default function TabLayout() {
           <Label hidden />
         </NativeTabs.Trigger>
         <NativeTabs.Screen name="(home)" options={{ href: null }} />
-        <NativeTabs.Screen name="settings" />
+        <NativeTabs.Screen 
+          name="settings" 
+          options={{ 
+            href: null,
+            presentation: 'modal'
+          }} 
+        />
       </NativeTabs>
       <CustomTabBar />
     </>
