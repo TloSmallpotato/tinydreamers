@@ -8,7 +8,6 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChild } from '@/contexts/ChildContext';
-import { supabase } from '@/app/integrations/supabase/client';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -21,6 +20,7 @@ export default function SettingsScreen() {
   const [email, setEmail] = useState('');
 
   useEffect(() => {
+    console.log('Settings screen mounted');
     if (selectedChild) {
       setChildName(selectedChild.name);
       setBirthDate(new Date(selectedChild.birth_date));
@@ -62,7 +62,6 @@ export default function SettingsScreen() {
         {
           text: 'Open',
           onPress: () => {
-            // Replace with your actual privacy policy URL
             Linking.openURL('https://example.com/privacy-policy');
           },
         },
@@ -79,7 +78,6 @@ export default function SettingsScreen() {
         {
           text: 'Open',
           onPress: () => {
-            // Replace with your actual terms URL
             Linking.openURL('https://example.com/terms-and-conditions');
           },
         },

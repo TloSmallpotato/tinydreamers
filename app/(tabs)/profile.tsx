@@ -30,11 +30,10 @@ interface Moment {
   created_at: string;
 }
 
-// Helper function to get the start of the current week (Monday)
 const getStartOfWeek = (): Date => {
   const now = new Date();
-  const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // If Sunday, go back 6 days, otherwise go to Monday
+  const dayOfWeek = now.getDay();
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const monday = new Date(now);
   monday.setDate(now.getDate() + diff);
   monday.setHours(0, 0, 0, 0);
@@ -72,12 +71,10 @@ export default function ProfileScreen() {
       setLoading(true);
       console.log('Fetching profile data for child:', selectedChild.id);
 
-      // Get start of this week (Monday at 00:00:00)
       const startOfWeek = getStartOfWeek();
       const startOfWeekISO = startOfWeek.toISOString();
       console.log('Start of week (Monday):', startOfWeekISO);
 
-      // Fetch total words - using count with head: false to get the count
       const { count: totalWordsCount, error: totalWordsError } = await supabase
         .from('user_words')
         .select('*', { count: 'exact', head: true })
@@ -88,7 +85,6 @@ export default function ProfileScreen() {
         throw totalWordsError;
       }
 
-      // Fetch words this week
       const { count: wordsThisWeekCount, error: wordsThisWeekError } = await supabase
         .from('user_words')
         .select('*', { count: 'exact', head: true })
@@ -100,7 +96,6 @@ export default function ProfileScreen() {
         throw wordsThisWeekError;
       }
 
-      // Fetch total books
       const { count: totalBooksCount, error: totalBooksError } = await supabase
         .from('user_books')
         .select('*', { count: 'exact', head: true })
@@ -111,7 +106,6 @@ export default function ProfileScreen() {
         throw totalBooksError;
       }
 
-      // Fetch books this week
       const { count: booksThisWeekCount, error: booksThisWeekError } = await supabase
         .from('user_books')
         .select('*', { count: 'exact', head: true })
@@ -123,7 +117,6 @@ export default function ProfileScreen() {
         throw booksThisWeekError;
       }
 
-      // Fetch moments this week
       const { count: momentsThisWeekCount, error: momentsThisWeekError } = await supabase
         .from('moments')
         .select('*', { count: 'exact', head: true })
@@ -135,7 +128,6 @@ export default function ProfileScreen() {
         throw momentsThisWeekError;
       }
 
-      // Fetch newest moments (last 10)
       const { data: momentsData, error: momentsError } = await supabase
         .from('moments')
         .select('id, video_url, thumbnail_url, created_at')
@@ -218,8 +210,13 @@ export default function ProfileScreen() {
   };
 
   const handleOpenSettings = () => {
-    console.log('Opening settings page');
-    router.push('/(tabs)/settings');
+    console.log('Settings button pressed - navigating to settings');
+    try {
+      router.push('/settings' as any);
+      console.log('Navigation command sent');
+    } catch (error) {
+      console.error('Error navigating to settings:', error);
+    }
   };
 
   const handleRecordMoment = () => {
@@ -229,7 +226,6 @@ export default function ProfileScreen() {
 
   const handleViewMoreMoments = () => {
     console.log('View more moments pressed');
-    // Could navigate to a dedicated moments page in the future
   };
 
   const handleChangeAvatar = async () => {
@@ -238,14 +234,12 @@ export default function ProfileScreen() {
     try {
       console.log('Opening image picker for avatar');
       
-      // Request permission
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         console.log('Permission to access media library was denied');
         return;
       }
 
-      // Pick image
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: 'images',
         allowsEditing: true,
@@ -257,12 +251,10 @@ export default function ProfileScreen() {
         const imageUri = result.assets[0].uri;
         console.log('Image selected:', imageUri);
 
-        // Upload to Supabase Storage
         const fileExt = imageUri.split('.').pop();
         const fileName = `${selectedChild.id}-${Date.now()}.${fileExt}`;
         const filePath = `avatars/${fileName}`;
 
-        // Convert URI to blob for upload
         const response = await fetch(imageUri);
         const blob = await response.blob();
 
@@ -278,12 +270,10 @@ export default function ProfileScreen() {
           throw uploadError;
         }
 
-        // Get public URL
         const { data: urlData } = supabase.storage
           .from('profile-avatars')
           .getPublicUrl(filePath);
 
-        // Update child record with avatar URL
         await updateChild(selectedChild.id, {
           avatar_url: urlData.publicUrl,
         });
@@ -683,9 +673,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
     flex: 1,
     marginRight: 12,
-  },
-  suggestionBold: {
-    fontWeight: '700',
   },
   recordButton: {
     backgroundColor: colors.buttonBlue,
