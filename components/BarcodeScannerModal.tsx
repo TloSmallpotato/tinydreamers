@@ -29,13 +29,15 @@ export default function BarcodeScannerModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastScannedISBNRef = useRef<string>('');
+  const lastScannedTimeRef = useRef<number>(0);
 
   useEffect(() => {
     if (visible) {
-      console.log('Scanner modal opened - resetting state');
+      console.log('📷 Scanner modal opened - resetting state');
       setScanned(false);
       setIsProcessing(false);
       lastScannedISBNRef.current = '';
+      lastScannedTimeRef.current = 0;
       
       // Clear any existing timeout
       if (processingTimeoutRef.current) {
@@ -55,13 +57,15 @@ export default function BarcodeScannerModal({
   }, []);
 
   const handleBarCodeScanned = ({ type, data }: BarcodeScanningResult) => {
+    const now = Date.now();
+    
     // Prevent multiple scans
     if (scanned || isProcessing) {
-      console.log('Scan blocked - already processing:', { scanned, isProcessing });
+      console.log('⛔ Scan blocked - already processing:', { scanned, isProcessing });
       return;
     }
 
-    console.log('Barcode scanned:', { type, data });
+    console.log('📖 Barcode scanned:', { type, data });
 
     // Extract ISBN from barcode data
     let isbn = data;
@@ -69,21 +73,24 @@ export default function BarcodeScannerModal({
     // Clean up the ISBN (remove dashes, spaces)
     isbn = isbn.replace(/[-\s]/g, '');
 
-    // Check if this is the same ISBN we just scanned (within the last 3 seconds)
-    if (isbn === lastScannedISBNRef.current) {
-      console.log('Duplicate scan detected - ignoring');
+    // Check if this is the same ISBN we just scanned (within the last 5 seconds)
+    if (isbn === lastScannedISBNRef.current && (now - lastScannedTimeRef.current) < 5000) {
+      console.log('⛔ Duplicate scan detected - ignoring (same ISBN within 5 seconds)');
       return;
     }
 
     // Validate ISBN format
     if (isbn.length === 13 && (isbn.startsWith('978') || isbn.startsWith('979'))) {
       // Valid EAN-13 ISBN
-      console.log('Valid ISBN-13:', isbn);
+      console.log('✅ Valid ISBN-13:', isbn);
       
       // Set flags immediately to prevent duplicate processing
       setScanned(true);
       setIsProcessing(true);
       lastScannedISBNRef.current = isbn;
+      lastScannedTimeRef.current = now;
+      
+      console.log('🚀 Processing ISBN - Google Custom Search will be called ONCE if book not in database');
       
       // Call the callback
       onBarcodeScanned(isbn);
@@ -91,21 +98,25 @@ export default function BarcodeScannerModal({
       // Close the modal
       onClose();
       
-      // Reset processing flag after 3 seconds (safety timeout)
+      // Reset processing flag after 5 seconds (safety timeout)
       processingTimeoutRef.current = setTimeout(() => {
-        console.log('Processing timeout - resetting flags');
+        console.log('⏰ Processing timeout - resetting flags');
         setIsProcessing(false);
         lastScannedISBNRef.current = '';
-      }, 3000);
+        lastScannedTimeRef.current = 0;
+      }, 5000);
       
     } else if (isbn.length === 10) {
       // Valid ISBN-10
-      console.log('Valid ISBN-10:', isbn);
+      console.log('✅ Valid ISBN-10:', isbn);
       
       // Set flags immediately to prevent duplicate processing
       setScanned(true);
       setIsProcessing(true);
       lastScannedISBNRef.current = isbn;
+      lastScannedTimeRef.current = now;
+      
+      console.log('🚀 Processing ISBN - Google Custom Search will be called ONCE if book not in database');
       
       // Call the callback
       onBarcodeScanned(isbn);
@@ -113,12 +124,13 @@ export default function BarcodeScannerModal({
       // Close the modal
       onClose();
       
-      // Reset processing flag after 3 seconds (safety timeout)
+      // Reset processing flag after 5 seconds (safety timeout)
       processingTimeoutRef.current = setTimeout(() => {
-        console.log('Processing timeout - resetting flags');
+        console.log('⏰ Processing timeout - resetting flags');
         setIsProcessing(false);
         lastScannedISBNRef.current = '';
-      }, 3000);
+        lastScannedTimeRef.current = 0;
+      }, 5000);
       
     } else {
       // Invalid ISBN format
@@ -255,7 +267,7 @@ export default function BarcodeScannerModal({
               {isProcessing ? 'Processing...' : 'Position the barcode within the frame'}
             </Text>
             <Text style={styles.instructionSubtext}>
-              {isProcessing ? 'Please wait' : 'Scan the ISBN barcode on the back of the book'}
+              {isProcessing ? 'Checking database and fetching cover...' : 'Scan the ISBN barcode on the back of the book'}
             </Text>
           </View>
         </View>
