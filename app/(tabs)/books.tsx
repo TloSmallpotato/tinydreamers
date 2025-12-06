@@ -22,6 +22,7 @@ import { useAddNavigation } from '@/contexts/AddNavigationContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { searchGoogleBooks, searchBookByISBN, BookSearchResult, getQuotaStatus } from '@/utils/googleBooksApi';
 import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
+import AddCustomBookBottomSheet from '@/components/AddCustomBookBottomSheet';
 import BarcodeScannerModal from '@/components/BarcodeScannerModal';
 import ToastNotification from '@/components/ToastNotification';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -32,6 +33,8 @@ interface SavedBook {
   rating: string | null;
   tags: string[];
   would_recommend: boolean;
+  is_custom_for_user: boolean;
+  cover_url_private: string | null;
   book: {
     id: string;
     google_books_id: string;
@@ -42,6 +45,7 @@ interface SavedBook {
     description: string;
     published_date: string;
     page_count: number;
+    source: string;
   };
 }
 
@@ -64,8 +68,11 @@ export default function BooksScreen() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
+  const addCustomBookRef = useRef<BottomSheetModal>(null);
   const searchInputRef = useRef<TextInput>(null);
   const hasProcessedAutoOpen = useRef(false);
   const addBookTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -76,6 +83,17 @@ export default function BooksScreen() {
     setToastMessage(message);
     setToastType(type);
     setToastVisible(true);
+  }, []);
+
+  // Get current user ID
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+    };
+    getCurrentUser();
   }, []);
 
   const checkQuotaStatus = useCallback(async () => {
@@ -155,6 +173,25 @@ export default function BooksScreen() {
     }
   }, [shouldFocusBookSearch, resetBookSearch]);
 
+  // Generate signed URLs for private covers
+  const generateSignedUrl = useCallback(async (path: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('user-covers')
+        .createSignedUrl(path, 3600); // 1 hour expiry
+
+      if (error) {
+        console.error('Error generating signed URL:', error);
+        return null;
+      }
+
+      return data.signedUrl;
+    } catch (error) {
+      console.error('Error in generateSignedUrl:', error);
+      return null;
+    }
+  }, []);
+
   // Fetch saved books for the selected child
   const fetchSavedBooks = useCallback(async () => {
     if (!selectedChild) {
@@ -173,6 +210,8 @@ export default function BooksScreen() {
           rating,
           tags,
           would_recommend,
+          is_custom_for_user,
+          cover_url_private,
           book:books_library (
             id,
             google_books_id,
@@ -182,7 +221,8 @@ export default function BooksScreen() {
             thumbnail_url,
             description,
             published_date,
-            page_count
+            page_count,
+            source
           )
         `)
         .eq('child_id', selectedChild.id)
@@ -194,12 +234,24 @@ export default function BooksScreen() {
       }
 
       setSavedBooks(data || []);
+
+      // Generate signed URLs for custom books with private covers
+      const urlMap = new Map<string, string>();
+      for (const book of data || []) {
+        if (book.is_custom_for_user && book.cover_url_private) {
+          const signedUrl = await generateSignedUrl(book.cover_url_private);
+          if (signedUrl) {
+            urlMap.set(book.id, signedUrl);
+          }
+        }
+      }
+      setSignedUrls(urlMap);
     } catch (error) {
       console.error('Error in fetchSavedBooks:', error);
     } finally {
       setIsLoadingBooks(false);
     }
-  }, [selectedChild]);
+  }, [selectedChild, generateSignedUrl]);
 
   useEffect(() => {
     fetchSavedBooks();
@@ -272,6 +324,7 @@ export default function BooksScreen() {
             description: book.description,
             published_date: book.publishedDate,
             page_count: book.pageCount,
+            source: 'google_books',
           })
           .select('id')
           .single();
@@ -322,6 +375,8 @@ export default function BooksScreen() {
         .insert({
           child_id: selectedChild.id,
           book_id: bookId,
+          user_id: currentUserId,
+          is_custom_for_user: false,
         });
 
       if (relationError) {
@@ -401,6 +456,25 @@ export default function BooksScreen() {
     }
   };
 
+  const handleAddCustomBook = useCallback(() => {
+    if (!selectedChild) {
+      showToast('Please select a child before adding books.', 'warning');
+      return;
+    }
+
+    if (!currentUserId) {
+      showToast('Please wait while we load your profile.', 'warning');
+      return;
+    }
+
+    // Close search dropdown
+    setShowDropdown(false);
+    Keyboard.dismiss();
+
+    // Open custom book bottom sheet
+    addCustomBookRef.current?.present();
+  }, [selectedChild, currentUserId, showToast]);
+
   const handleBookPress = useCallback((book: SavedBook) => {
     console.log('Book pressed:', book.book.title, 'Modal open:', isModalOpen, 'Last clicked:', lastClickedBookIdRef.current);
     
@@ -453,13 +527,21 @@ export default function BooksScreen() {
     setImageErrors(prev => new Set(prev).add(bookId));
   };
 
-  const getImageUrl = (book: SavedBook['book']) => {
-    // Try cover_url first, then thumbnail_url as fallback
-    if (book.cover_url && !imageErrors.has(book.id)) {
-      return book.cover_url;
+  const getImageUrl = (book: SavedBook) => {
+    // For custom books with private covers, use signed URL
+    if (book.is_custom_for_user && book.cover_url_private) {
+      const signedUrl = signedUrls.get(book.id);
+      if (signedUrl) {
+        return signedUrl;
+      }
     }
-    if (book.thumbnail_url && !imageErrors.has(`${book.id}-thumb`)) {
-      return book.thumbnail_url;
+
+    // For regular books, try cover_url first, then thumbnail_url as fallback
+    if (book.book.cover_url && !imageErrors.has(book.book.id)) {
+      return book.book.cover_url;
+    }
+    if (book.book.thumbnail_url && !imageErrors.has(`${book.book.id}-thumb`)) {
+      return book.book.thumbnail_url;
     }
     return null;
   };
@@ -576,6 +658,29 @@ export default function BooksScreen() {
                       </View>
                     </TouchableOpacity>
                   ))}
+                  
+                  {/* Add Custom Book Option */}
+                  <TouchableOpacity
+                    style={[styles.dropdownItem, styles.addCustomBookItem]}
+                    onPress={handleAddCustomBook}
+                  >
+                    <View style={styles.addCustomBookIcon}>
+                      <IconSymbol
+                        ios_icon_name="plus.circle.fill"
+                        android_material_icon_name="add-circle"
+                        size={32}
+                        color={colors.buttonBlue}
+                      />
+                    </View>
+                    <View style={styles.bookInfo}>
+                      <Text style={styles.addCustomBookText}>
+                        Add custom book
+                      </Text>
+                      <Text style={styles.addCustomBookSubtext}>
+                        {searchQuery ? `"${searchQuery}"` : 'Create your own entry'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                 </ScrollView>
               </View>
             )}
@@ -601,7 +706,7 @@ export default function BooksScreen() {
           ) : (
             <View style={styles.booksGrid}>
               {savedBooks.map((savedBook, index) => {
-                const imageUrl = getImageUrl(savedBook.book);
+                const imageUrl = getImageUrl(savedBook);
                 return (
                   <TouchableOpacity
                     key={`${savedBook.id}-${index}`}
@@ -632,6 +737,11 @@ export default function BooksScreen() {
                         </Text>
                       </View>
                     )}
+                    {savedBook.is_custom_for_user && (
+                      <View style={styles.customBadge}>
+                        <Text style={styles.customBadgeText}>Custom</Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -645,6 +755,17 @@ export default function BooksScreen() {
         userBook={selectedBook}
         onClose={handleCloseBookDetail}
         onRefresh={fetchSavedBooks}
+      />
+
+      <AddCustomBookBottomSheet
+        ref={addCustomBookRef}
+        prefillTitle={searchQuery}
+        onClose={() => {
+          console.log('Custom book bottom sheet closed');
+        }}
+        onBookAdded={fetchSavedBooks}
+        childId={selectedChild?.id || ''}
+        userId={currentUserId || ''}
       />
 
       <BarcodeScannerModal
@@ -757,6 +878,27 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.background,
     alignItems: 'center',
   },
+  addCustomBookItem: {
+    backgroundColor: colors.background,
+    borderBottomWidth: 0,
+  },
+  addCustomBookIcon: {
+    marginRight: 12,
+    width: 50,
+    height: 75,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addCustomBookText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.buttonBlue,
+    marginBottom: 4,
+  },
+  addCustomBookSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
   bookCoverContainer: {
     marginRight: 12,
     backgroundColor: colors.background,
@@ -822,6 +964,7 @@ const styles = StyleSheet.create({
     aspectRatio: 0.7,
     marginBottom: 16,
     overflow: 'visible',
+    position: 'relative',
   },
   bookCoverLarge: {
     width: '100%',
@@ -840,5 +983,19 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 8,
+  },
+  customBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: colors.buttonBlue,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  customBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
   },
 });
