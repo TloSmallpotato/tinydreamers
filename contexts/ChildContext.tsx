@@ -51,6 +51,7 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   const fetchChildren = useCallback(async () => {
     // Don't fetch if auth is still loading
@@ -72,6 +73,9 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
       console.log('ChildContext: Fetching children for user:', user.id);
       setError(null);
       
+      // Add a small delay to ensure database is ready
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       const { data, error: fetchError } = await supabase
         .from('children')
         .select('*')
@@ -81,12 +85,21 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
       if (fetchError) {
         console.error('ChildContext: Error fetching children:', fetchError);
         setError(fetchError.message);
-        // Don't throw, just set error state
+        
+        // Retry logic for transient errors
+        if (retryCount < 3 && (fetchError.message.includes('timeout') || fetchError.message.includes('network'))) {
+          console.log(`ChildContext: Retrying fetch (attempt ${retryCount + 1}/3)...`);
+          setRetryCount(prev => prev + 1);
+          setTimeout(() => fetchChildren(), 1000 * (retryCount + 1));
+          return;
+        }
+        
         setChildren([]);
         setSelectedChild(null);
       } else {
         console.log('ChildContext: Fetched children:', data?.length || 0);
         setChildren(data || []);
+        setRetryCount(0); // Reset retry count on success
 
         // Auto-select first child if none selected and children exist
         if (data && data.length > 0 && !selectedChild) {
@@ -99,16 +112,29 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
       }
     } catch (err) {
       console.error('ChildContext: Unexpected error in fetchChildren:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      
+      // Retry logic for unexpected errors
+      if (retryCount < 3) {
+        console.log(`ChildContext: Retrying after unexpected error (attempt ${retryCount + 1}/3)...`);
+        setRetryCount(prev => prev + 1);
+        setTimeout(() => fetchChildren(), 1000 * (retryCount + 1));
+        return;
+      }
+      
       setChildren([]);
       setSelectedChild(null);
     } finally {
       setLoading(false);
     }
-  }, [user, authLoading, selectedChild]);
+  }, [user, authLoading, selectedChild, retryCount]);
 
   useEffect(() => {
-    fetchChildren();
+    // Only fetch when auth is done loading
+    if (!authLoading) {
+      fetchChildren();
+    }
   }, [user, authLoading]);
 
   const selectChild = (childId: string) => {
@@ -221,6 +247,7 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
   };
 
   const refreshChildren = async () => {
+    setRetryCount(0); // Reset retry count on manual refresh
     await fetchChildren();
   };
 

@@ -62,10 +62,18 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Wait for child context to finish loading before fetching profile data
+    if (childLoading) {
+      console.log('ProfileScreen (iOS): Child context still loading, waiting...');
+      return;
+    }
+
     if (selectedChild) {
+      console.log('ProfileScreen (iOS): Selected child changed, fetching profile data');
       fetchProfileData();
-    } else if (!childLoading) {
+    } else {
       // No child selected and not loading, clear stats
+      console.log('ProfileScreen (iOS): No child selected, clearing stats');
       setLoading(false);
       setStats({
         totalWords: 0,
@@ -90,11 +98,15 @@ export default function ProfileScreen() {
       setError(null);
       console.log('ProfileScreen (iOS): Fetching profile data for child:', selectedChild.id);
 
+      // Add a small delay to ensure database is ready
+      await new Promise(resolve => setTimeout(resolve, 200));
+
       const startOfWeek = getStartOfWeek();
       const startOfWeekISO = startOfWeek.toISOString();
       console.log('ProfileScreen (iOS): Start of week (Monday):', startOfWeekISO);
 
       // Fetch all data with proper error handling for each query
+      // Using Promise.allSettled to ensure all queries complete even if some fail
       const [
         totalWordsResult,
         wordsThisWeekResult,

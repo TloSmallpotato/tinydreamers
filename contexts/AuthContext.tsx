@@ -36,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Get initial session with error handling
     const initializeAuth = async () => {
       try {
+        console.log('AuthProvider: Fetching initial session...');
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setUser(null);
       } finally {
+        console.log('AuthProvider: Auth initialization complete');
         setLoading(false);
       }
     };
@@ -61,14 +63,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       console.log('AuthProvider: Auth state changed:', _event, session?.user?.id || 'none');
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      
+      try {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        // Give a small delay after sign-in to ensure everything is ready
+        if (_event === 'SIGNED_IN' && session) {
+          console.log('AuthProvider: User signed in, waiting for session to stabilize...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (err) {
+        console.error('AuthProvider: Error handling auth state change:', err);
+      } finally {
+        setLoading(false);
+      }
     });
 
     return () => {
+      console.log('AuthProvider: Cleaning up subscription');
       subscription.unsubscribe();
     };
   }, []);
@@ -76,12 +91,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       console.log('AuthProvider: Signing out');
+      setLoading(true);
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('AuthProvider: Sign out error:', error);
+      } else {
+        console.log('AuthProvider: Sign out successful');
       }
     } catch (err) {
       console.error('AuthProvider: Unexpected error during sign out:', err);
+    } finally {
+      setLoading(false);
     }
   };
 

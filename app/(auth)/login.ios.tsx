@@ -32,7 +32,7 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
-    console.log('Attempting login with email:', email);
+    console.log('Login: Attempting login with email:', email);
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -41,15 +41,20 @@ export default function LoginScreen() {
       });
 
       if (error) {
-        console.error('Login error:', error);
+        console.error('Login: Error:', error);
         Alert.alert('Login Failed', error.message || 'An error occurred during login');
       } else if (data.user) {
-        console.log('Login successful:', data.user.id);
+        console.log('Login: Successful, user ID:', data.user.id);
+        
+        // Give the auth context time to update
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        console.log('Login: Navigating to profile...');
         router.replace('/(tabs)/profile');
       }
     } catch (err) {
-      console.error('Unexpected error during login:', err);
-      Alert.alert('Error', 'An unexpected error occurred');
+      console.error('Login: Unexpected error:', err);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -62,7 +67,7 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
-    console.log('Sending password reset email to:', email);
+    console.log('Login: Sending password reset email to:', email);
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
@@ -70,7 +75,7 @@ export default function LoginScreen() {
       });
 
       if (error) {
-        console.error('Password reset error:', error);
+        console.error('Login: Password reset error:', error);
         Alert.alert('Error', error.message || 'Failed to send reset email');
       } else {
         Alert.alert(
@@ -79,7 +84,7 @@ export default function LoginScreen() {
         );
       }
     } catch (err) {
-      console.error('Unexpected error during password reset:', err);
+      console.error('Login: Unexpected error during password reset:', err);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);
