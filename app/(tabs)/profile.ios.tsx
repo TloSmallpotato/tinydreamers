@@ -10,6 +10,7 @@ import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
+import SettingsBottomSheet from '@/components/SettingsBottomSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as ImagePicker from 'expo-image-picker';
@@ -46,6 +47,7 @@ export default function ProfileScreen() {
   const { triggerCamera } = useCameraTrigger();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
+  const settingsRef = useRef<BottomSheetModal>(null);
 
   const [stats, setStats] = useState<ProfileStats>({
     totalWords: 0,
@@ -210,13 +212,8 @@ export default function ProfileScreen() {
   };
 
   const handleOpenSettings = () => {
-    console.log('Settings button pressed - navigating to settings');
-    try {
-      router.push('/settings' as any);
-      console.log('Navigation command sent');
-    } catch (error) {
-      console.error('Error navigating to settings:', error);
-    }
+    console.log('Settings button pressed - opening settings bottom sheet');
+    settingsRef.current?.present();
   };
 
   const handleRecordMoment = () => {
@@ -481,6 +478,8 @@ export default function ProfileScreen() {
         ref={addChildRef}
         onAddChild={handleAddChild}
       />
+
+      <SettingsBottomSheet ref={settingsRef} />
     </View>
   );
 }
