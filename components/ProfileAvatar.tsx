@@ -40,8 +40,8 @@ export default function ProfileAvatar({
     setRetryCount(0);
     
     if (imageUri) {
-      // Add cache-busting parameter and retry count to force reload
-      const cacheBuster = `?t=${Date.now()}&v=${retryCount}`;
+      // Add cache-busting parameter to force reload
+      const cacheBuster = `?t=${Date.now()}`;
       const uriWithCacheBuster = imageUri.includes('?') 
         ? `${imageUri.split('?')[0]}${cacheBuster}`
         : `${imageUri}${cacheBuster}`;
@@ -73,7 +73,7 @@ export default function ProfileAvatar({
         setRetryCount(prev => prev + 1);
         setImageError(false);
         
-        const cacheBuster = `?t=${Date.now()}&v=${retryCount + 1}`;
+        const cacheBuster = `?t=${Date.now()}&retry=${retryCount + 1}`;
         const uriWithCacheBuster = imageUri 
           ? (imageUri.includes('?') 
               ? `${imageUri.split('?')[0]}${cacheBuster}`
@@ -93,7 +93,7 @@ export default function ProfileAvatar({
 
   const content = (
     <View style={[styles.container, { width: size, height: scaledHeight }]}>
-      {/* Native approach: Use expo-image with mask overlay */}
+      {/* Native approach: Use expo-image directly with proper masking */}
       {Platform.OS !== 'web' ? (
         <>
           {/* Background shape */}
@@ -109,43 +109,45 @@ export default function ProfileAvatar({
             />
           </Svg>
 
-          {/* Image with clipping */}
-          {displayUri && showImage && (
+          {/* Image with expo-image - this is the key fix */}
+          {displayUri && (
             <View style={StyleSheet.absoluteFill}>
+              <Image
+                source={{ uri: displayUri }}
+                style={[
+                  StyleSheet.absoluteFill,
+                  { 
+                    opacity: showImage ? 1 : 0,
+                  }
+                ]}
+                contentFit="cover"
+                onLoad={handleImageLoad}
+                onError={handleImageError}
+                cachePolicy="none"
+                priority="high"
+              />
+              {/* Mask overlay to create the shape */}
               <Svg 
                 width={size} 
                 height={scaledHeight} 
                 viewBox={`0 0 ${originalWidth} ${originalHeight}`}
+                style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}
               >
                 <Defs>
-                  <ClipPath id={`shapeClip-${size}`}>
+                  <ClipPath id={`shapeMask-${size}`}>
                     <Path d={shapePath} />
                   </ClipPath>
                 </Defs>
-                <G clipPath={`url(#shapeClip-${size})`}>
-                  <SvgImage
-                    href={displayUri}
-                    x="0"
-                    y="0"
-                    width={originalWidth}
-                    height={originalHeight}
-                    preserveAspectRatio="xMidYMid slice"
+                {/* This creates a mask effect by covering everything outside the shape */}
+                <G>
+                  <Path 
+                    d={`M0,0 L${originalWidth},0 L${originalWidth},${originalHeight} L0,${originalHeight} Z ${shapePath}`}
+                    fill={colors.background}
+                    fillRule="evenodd"
                   />
                 </G>
               </Svg>
             </View>
-          )}
-
-          {/* Hidden Image component for loading control */}
-          {displayUri && (
-            <Image
-              source={{ uri: displayUri }}
-              style={styles.hiddenImage}
-              onLoad={handleImageLoad}
-              onError={handleImageError}
-              cachePolicy="none"
-              priority="high"
-            />
           )}
         </>
       ) : (
