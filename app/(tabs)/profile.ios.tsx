@@ -13,7 +13,7 @@ import AddChildBottomSheet from '@/components/AddChildBottomSheet';
 import SettingsBottomSheet from '@/components/SettingsBottomSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { supabase } from '@/app/integrations/supabase/client';
-import * as ImagePicker from 'expo-image-picker';
+import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
 
 interface ProfileStats {
   totalWords: number;
@@ -67,7 +67,6 @@ export default function ProfileScreen() {
     if (selectedChild && !isFetchingRef.current) {
       fetchProfileData();
     } else if (!childLoading && !selectedChild) {
-      // No child selected and not loading, clear stats
       setLoading(false);
       setStats({
         totalWords: 0,
@@ -94,14 +93,12 @@ export default function ProfileScreen() {
       setError(null);
       console.log('ProfileScreen (iOS): Fetching profile data for child:', selectedChild.id);
 
-      // iOS-specific delay to prevent TurboModule crashes during data loading
       await new Promise(resolve => setTimeout(resolve, 400));
 
       const startOfWeek = getStartOfWeek();
       const startOfWeekISO = startOfWeek.toISOString();
       console.log('ProfileScreen (iOS): Start of week (Monday):', startOfWeekISO);
 
-      // Fetch all data with proper error handling for each query
       const [
         totalWordsResult,
         wordsThisWeekResult,
@@ -141,7 +138,6 @@ export default function ProfileScreen() {
           .limit(10),
       ]);
 
-      // Extract counts with fallback to 0
       const totalWordsCount = totalWordsResult.status === 'fulfilled' && !totalWordsResult.value.error
         ? totalWordsResult.value.count || 0
         : 0;
@@ -166,7 +162,6 @@ export default function ProfileScreen() {
         ? momentsDataResult.value.data || []
         : [];
 
-      // Log any errors
       if (totalWordsResult.status === 'rejected') {
         console.error('ProfileScreen (iOS): Error fetching total words:', totalWordsResult.reason);
       }
@@ -187,12 +182,6 @@ export default function ProfileScreen() {
       }
 
       console.log('ProfileScreen (iOS): Profile data fetched successfully');
-      console.log('ProfileScreen (iOS): Total words:', totalWordsCount);
-      console.log('ProfileScreen (iOS): Words this week:', wordsThisWeekCount);
-      console.log('ProfileScreen (iOS): Total books:', totalBooksCount);
-      console.log('ProfileScreen (iOS): Books this week:', booksThisWeekCount);
-      console.log('ProfileScreen (iOS): Moments this week:', momentsThisWeekCount);
-      console.log('ProfileScreen (iOS): Moments:', momentsData.length);
 
       setStats({
         totalWords: totalWordsCount,
@@ -309,74 +298,46 @@ export default function ProfileScreen() {
     }
 
     try {
-      console.log('ProfileScreen (iOS): Opening image picker for avatar');
+      console.log('ProfileScreen (iOS): Starting avatar change process');
       
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        console.log('ProfileScreen (iOS): Permission to access media library was denied');
-        Alert.alert('Permission Required', 'Please grant permission to access your photo library');
+      const imageUri = await pickProfileImage();
+      
+      if (!imageUri) {
+        console.log('ProfileScreen (iOS): No image selected');
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'images',
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
+      setUploadingAvatar(true);
+
+      const oldAvatarUrl = selectedChild.avatar_url;
+
+      const result = await uploadProfileAvatar(selectedChild.id, imageUri);
+
+      if (!result.success) {
+        console.error('ProfileScreen (iOS): Upload failed:', result.error);
+        Alert.alert('Upload Failed', result.error || 'Failed to upload image');
+        setUploadingAvatar(false);
+        return;
+      }
+
+      console.log('ProfileScreen (iOS): Upload successful, updating database');
+
+      await updateChild(selectedChild.id, {
+        avatar_url: result.url,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        setUploadingAvatar(true);
-        const imageUri = result.assets[0].uri;
-        console.log('ProfileScreen (iOS): Image selected:', imageUri);
+      console.log('ProfileScreen (iOS): Database updated, refreshing children');
 
-        const fileExt = imageUri.split('.').pop() || 'jpg';
-        const fileName = `${selectedChild.id}-${Date.now()}.${fileExt}`;
-        const filePath = `avatars/${fileName}`;
+      await refreshChildren();
 
-        console.log('ProfileScreen (iOS): Uploading to:', filePath);
-
-        const response = await fetch(imageUri);
-        const blob = await response.blob();
-
-        const { error: uploadError } = await supabase.storage
-          .from('profile-avatars')
-          .upload(filePath, blob, {
-            contentType: `image/${fileExt}`,
-            upsert: true,
-          });
-
-        if (uploadError) {
-          console.error('ProfileScreen (iOS): Error uploading avatar:', uploadError);
-          Alert.alert('Upload Failed', uploadError.message);
-          setUploadingAvatar(false);
-          throw uploadError;
-        }
-
-        console.log('ProfileScreen (iOS): Upload successful, getting public URL');
-
-        const { data: urlData } = supabase.storage
-          .from('profile-avatars')
-          .getPublicUrl(filePath);
-
-        console.log('ProfileScreen (iOS): Public URL:', urlData.publicUrl);
-
-        await updateChild(selectedChild.id, {
-          avatar_url: urlData.publicUrl,
-        });
-
-        console.log('ProfileScreen (iOS): Avatar updated in database');
-        
-        // Refresh children to get the updated avatar
-        await refreshChildren();
-        
-        console.log('ProfileScreen (iOS): Children refreshed, stopping upload indicator');
-        
-        // Stop uploading state after refresh completes
-        setUploadingAvatar(false);
-        
-        Alert.alert('Success', 'Profile photo updated successfully!');
+      if (oldAvatarUrl && oldAvatarUrl !== result.url) {
+        console.log('ProfileScreen (iOS): Deleting old avatar');
+        await deleteProfileAvatar(oldAvatarUrl);
       }
+
+      setUploadingAvatar(false);
+      
+      Alert.alert('Success', 'Profile photo updated successfully!');
     } catch (err) {
       console.error('ProfileScreen (iOS): Error changing avatar:', err);
       setUploadingAvatar(false);
@@ -384,7 +345,6 @@ export default function ProfileScreen() {
     }
   };
 
-  // Show loading state
   if (childLoading || loading) {
     return (
       <View style={styles.container}>
@@ -398,7 +358,6 @@ export default function ProfileScreen() {
     );
   }
 
-  // Show error state
   if (error) {
     return (
       <View style={styles.container}>

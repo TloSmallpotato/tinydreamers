@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
-import Svg, { Path, Defs, ClipPath, Image as SvgImage, Circle } from 'react-native-svg';
+import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
+import Svg, { Path, Defs, ClipPath, Circle } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 
@@ -14,9 +15,7 @@ interface ProfileAvatarProps {
 
 export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploading = false }: ProfileAvatarProps) {
   const [imageError, setImageError] = useState(false);
-  const [displayUri, setDisplayUri] = useState<string | null>(null);
-  const [localLoading, setLocalLoading] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
 
   // Scale the SVG path to fit the desired size
   // Original SVG viewBox is "0 0 196 194"
@@ -30,104 +29,102 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
   useEffect(() => {
     console.log('ProfileAvatar: imageUri changed:', imageUri);
     setImageError(false);
-    setImageLoaded(false);
-    
     if (imageUri) {
-      // Add cache-busting parameter to force reload
-      const cacheBuster = `?t=${Date.now()}`;
-      const uri = imageUri.includes('?') ? imageUri : `${imageUri}${cacheBuster}`;
-      console.log('ProfileAvatar: Setting display URI:', uri);
-      setDisplayUri(uri);
-      setLocalLoading(true);
-      
-      // Set a timeout to stop loading after 5 seconds regardless
-      const loadingTimeout = setTimeout(() => {
-        console.log('ProfileAvatar: Loading timeout reached, stopping loading indicator');
-        setLocalLoading(false);
-      }, 5000);
-      
-      return () => clearTimeout(loadingTimeout);
-    } else {
-      setDisplayUri(null);
-      setLocalLoading(false);
+      setImageLoading(true);
     }
   }, [imageUri]);
 
   const handleImageLoad = () => {
     console.log('ProfileAvatar: Image loaded successfully');
-    setLocalLoading(false);
+    setImageLoading(false);
     setImageError(false);
-    setImageLoaded(true);
   };
 
   const handleImageError = (error: any) => {
     console.error('ProfileAvatar: Image failed to load', error);
-    setLocalLoading(false);
+    setImageLoading(false);
     setImageError(true);
-    setImageLoaded(false);
   };
 
-  const showLoading = isUploading || localLoading;
-  const showImage = displayUri && !imageError && imageLoaded;
+  const showLoading = isUploading || imageLoading;
+  const showImage = imageUri && !imageError;
 
   const content = (
     <View style={[styles.container, { width: size, height: scaledHeight }]}>
-      {/* Use a regular Image component with absolute positioning and clip path via View */}
-      <View style={styles.imageContainer}>
-        <Svg 
-          width={size} 
-          height={scaledHeight} 
-          viewBox={`0 0 ${originalWidth} ${originalHeight}`}
-          style={StyleSheet.absoluteFill}
-        >
-          <Defs>
-            <ClipPath id={`profileClip-${size}`}>
-              <Path d={shapePath} />
-            </ClipPath>
-          </Defs>
-          
-          {/* Background shape */}
-          <Path 
-            d={shapePath}
-            fill={colors.cardPurple}
-          />
-          
-          {/* Image with clip path - using preserveAspectRatio to ensure proper scaling */}
-          {displayUri && !imageError && (
-            <SvgImage
-              x="0"
-              y="0"
-              width={originalWidth}
-              height={originalHeight}
-              href={displayUri}
-              clipPath={`url(#profileClip-${size})`}
-              preserveAspectRatio="xMidYMid slice"
-              onLoad={handleImageLoad}
-              onError={handleImageError}
+      {/* SVG Shape with clipping */}
+      <Svg 
+        width={size} 
+        height={scaledHeight} 
+        viewBox={`0 0 ${originalWidth} ${originalHeight}`}
+        style={StyleSheet.absoluteFill}
+      >
+        <Defs>
+          <ClipPath id={`profileClip-${size}`}>
+            <Path d={shapePath} />
+          </ClipPath>
+        </Defs>
+        
+        {/* Background shape */}
+        <Path 
+          d={shapePath}
+          fill={colors.cardPurple}
+        />
+        
+        {/* Empty state with subtle circles to indicate tappability */}
+        {(!showImage || showLoading) && (
+          <>
+            <Circle
+              cx={originalWidth / 2}
+              cy={originalHeight / 2}
+              r="35"
+              fill="rgba(255, 255, 255, 0.15)"
+              opacity="0.6"
             />
-          )}
-          
-          {/* Empty state with subtle circles to indicate tappability */}
-          {(!displayUri || imageError) && (
-            <>
-              <Circle
-                cx={originalWidth / 2}
-                cy={originalHeight / 2}
-                r="35"
-                fill="rgba(255, 255, 255, 0.15)"
-                opacity="0.6"
-              />
-              <Circle
-                cx={originalWidth / 2}
-                cy={originalHeight / 2}
-                r="28"
-                fill="rgba(255, 255, 255, 0.25)"
-                opacity="0.8"
-              />
-            </>
-          )}
-        </Svg>
-      </View>
+            <Circle
+              cx={originalWidth / 2}
+              cy={originalHeight / 2}
+              r="28"
+              fill="rgba(255, 255, 255, 0.25)"
+              opacity="0.8"
+            />
+          </>
+        )}
+      </Svg>
+
+      {/* Image with absolute positioning and clipping via overflow */}
+      {showImage && (
+        <View style={[styles.imageWrapper, { width: size, height: scaledHeight }]}>
+          <Image
+            source={{ uri: imageUri }}
+            style={[styles.image, { width: size, height: scaledHeight }]}
+            contentFit="cover"
+            transition={300}
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+            cachePolicy="memory-disk"
+          />
+          {/* SVG mask overlay to clip the image */}
+          <Svg 
+            width={size} 
+            height={scaledHeight} 
+            viewBox={`0 0 ${originalWidth} ${originalHeight}`}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          >
+            <Defs>
+              <ClipPath id={`profileMask-${size}`}>
+                <Path d={shapePath} />
+              </ClipPath>
+            </Defs>
+            {/* Invisible rect with clip path to mask the image */}
+            <Path 
+              d={shapePath}
+              fill="transparent"
+              clipPath={`url(#profileMask-${size})`}
+            />
+          </Svg>
+        </View>
+      )}
 
       {/* Loading indicator */}
       {showLoading && (
@@ -137,7 +134,7 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
       )}
       
       {/* Camera icon overlay for empty state or error */}
-      {(!displayUri || imageError) && !showLoading && (
+      {(!showImage || imageError) && !showLoading && (
         <View style={styles.emptyStateIcon}>
           <IconSymbol 
             ios_icon_name="camera.fill" 
@@ -167,10 +164,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
   },
-  imageContainer: {
-    width: '100%',
-    height: '100%',
-    position: 'relative',
+  imageWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    overflow: 'hidden',
+  },
+  image: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -178,11 +181,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.1)',
     borderRadius: 100,
+    zIndex: 10,
   },
   emptyStateIcon: {
     position: 'absolute',
     top: '50%',
     left: '50%',
     transform: [{ translateX: -16 }, { translateY: -16 }],
+    zIndex: 5,
   },
 });
