@@ -1,6 +1,6 @@
 
 import React, { forwardRef, useMemo, useState, useCallback, useImperativeHandle } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 
@@ -197,6 +197,8 @@ const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
         onChange={handleSheetChanges}
+        animateOnMount={false}
+        enableContentPanningGesture={Platform.OS !== 'ios'}
       >
         <BottomSheetScrollView 
           style={styles.scrollView}

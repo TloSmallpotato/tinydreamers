@@ -1,6 +1,6 @@
 
 import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, ScrollView, TextInput, Platform } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -220,6 +220,8 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
         onDismiss={handleDismiss}
+        animateOnMount={false}
+        enableContentPanningGesture={Platform.OS !== 'ios'}
       >
         <BottomSheetScrollView 
           style={styles.scrollView}

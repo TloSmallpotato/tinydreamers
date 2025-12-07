@@ -1,6 +1,6 @@
 
 import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -68,6 +68,8 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
         keyboardBehavior="interactive"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
+        animateOnMount={false}
+        enableContentPanningGesture={Platform.OS !== 'ios'}
       >
         <BottomSheetScrollView 
           style={styles.scrollView}

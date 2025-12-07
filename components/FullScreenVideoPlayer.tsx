@@ -1,6 +1,6 @@
 
 import React, { useRef, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Modal, StatusBar } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Modal, StatusBar, Platform } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { colors } from '@/styles/commonStyles';
@@ -33,7 +33,7 @@ export default function FullScreenVideoPlayer({
   return (
     <Modal
       visible={visible}
-      animationType="fade"
+      animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent
     >

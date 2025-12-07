@@ -59,6 +59,8 @@ const AddChildBottomSheet = forwardRef<BottomSheetModal, AddChildBottomSheetProp
         keyboardBehavior="interactive"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
+        animateOnMount={false}
+        enableContentPanningGesture={Platform.OS !== 'ios'}
       >
         <BottomSheetScrollView 
           style={styles.scrollView}

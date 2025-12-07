@@ -1,6 +1,6 @@
 
 import React, { forwardRef, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -46,6 +46,8 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
+        animateOnMount={false}
+        enableContentPanningGesture={Platform.OS !== 'ios'}
       >
         <BottomSheetScrollView 
           style={styles.scrollView}
