@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
@@ -43,7 +43,7 @@ const getStartOfWeek = (): Date => {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { children, selectedChild, selectChild, addChild, updateChild, loading: childLoading } = useChild();
+  const { children, selectedChild, selectChild, addChild, updateChild, refreshChildren, loading: childLoading } = useChild();
   const { triggerCamera } = useCameraTrigger();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
@@ -60,6 +60,7 @@ export default function ProfileScreen() {
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const isFetchingRef = useRef(false);
 
   useEffect(() => {
@@ -298,6 +299,12 @@ export default function ProfileScreen() {
   const handleChangeAvatar = async () => {
     if (!selectedChild) {
       console.log('ProfileScreen: No selected child for avatar change');
+      Alert.alert('No Child Selected', 'Please select a child first');
+      return;
+    }
+
+    if (uploadingAvatar) {
+      console.log('ProfileScreen: Avatar upload already in progress');
       return;
     }
 
@@ -307,6 +314,7 @@ export default function ProfileScreen() {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         console.log('ProfileScreen: Permission to access media library was denied');
+        Alert.alert('Permission Required', 'Please grant permission to access your photo library');
         return;
       }
 
@@ -318,12 +326,15 @@ export default function ProfileScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
+        setUploadingAvatar(true);
         const imageUri = result.assets[0].uri;
         console.log('ProfileScreen: Image selected:', imageUri);
 
-        const fileExt = imageUri.split('.').pop();
+        const fileExt = imageUri.split('.').pop() || 'jpg';
         const fileName = `${selectedChild.id}-${Date.now()}.${fileExt}`;
         const filePath = `avatars/${fileName}`;
+
+        console.log('ProfileScreen: Uploading to:', filePath);
 
         const response = await fetch(imageUri);
         const blob = await response.blob();
@@ -337,21 +348,34 @@ export default function ProfileScreen() {
 
         if (uploadError) {
           console.error('ProfileScreen: Error uploading avatar:', uploadError);
+          Alert.alert('Upload Failed', uploadError.message);
           throw uploadError;
         }
+
+        console.log('ProfileScreen: Upload successful, getting public URL');
 
         const { data: urlData } = supabase.storage
           .from('profile-avatars')
           .getPublicUrl(filePath);
+
+        console.log('ProfileScreen: Public URL:', urlData.publicUrl);
 
         await updateChild(selectedChild.id, {
           avatar_url: urlData.publicUrl,
         });
 
         console.log('ProfileScreen: Avatar updated successfully');
+        
+        // Refresh children to get the updated avatar
+        await refreshChildren();
+        
+        Alert.alert('Success', 'Profile photo updated successfully!');
       }
     } catch (err) {
       console.error('ProfileScreen: Error changing avatar:', err);
+      Alert.alert('Error', 'Failed to update profile photo. Please try again.');
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -419,6 +443,12 @@ export default function ProfileScreen() {
               size={180}
               onPress={handleChangeAvatar}
             />
+            {uploadingAvatar && (
+              <View style={styles.uploadingOverlay}>
+                <ActivityIndicator size="small" color={colors.backgroundAlt} />
+                <Text style={styles.uploadingText}>Uploading...</Text>
+              </View>
+            )}
             <TouchableOpacity style={styles.profileInfo} onPress={handleOpenChildSelector}>
               <Text style={styles.profileName}>
                 {selectedChild?.name || 'Add a child'}
@@ -681,6 +711,22 @@ const styles = StyleSheet.create({
   profileSection: {
     alignItems: 'center',
     marginBottom: 24,
+  },
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.buttonBlue,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  uploadingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.backgroundAlt,
   },
   profileInfo: {
     flexDirection: 'row',
