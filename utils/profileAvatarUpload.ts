@@ -88,7 +88,7 @@ export async function uploadProfileAvatar(
       };
     }
 
-    // Generate unique filename
+    // Generate unique filename with timestamp to ensure uniqueness
     const timestamp = Date.now();
     const fileName = `${childId}-${timestamp}.${fileExt}`;
     const filePath = `avatars/${fileName}`;
@@ -137,13 +137,13 @@ export async function uploadProfileAvatar(
       };
     }
 
-    // Upload to Supabase Storage
+    // Upload to Supabase Storage (NOT using upsert to create a new file each time)
     console.log('uploadProfileAvatar: Uploading to Supabase Storage...');
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('profile-avatars')
       .upload(filePath, arrayBuffer, {
         contentType: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
-        upsert: true,
+        upsert: false, // Changed to false to create new files instead of overwriting
         cacheControl: '3600',
       });
 
@@ -157,13 +157,14 @@ export async function uploadProfileAvatar(
 
     console.log('uploadProfileAvatar: Upload successful:', uploadData);
 
-    // Get public URL
+    // Get public URL with cache-busting timestamp
     const { data: publicUrlData } = supabase.storage
       .from('profile-avatars')
       .getPublicUrl(filePath);
 
-    const avatarUrl = publicUrlData.publicUrl;
-    console.log('uploadProfileAvatar: Public URL:', avatarUrl);
+    // Add cache-busting query parameter to force image refresh
+    const avatarUrl = `${publicUrlData.publicUrl}?t=${timestamp}`;
+    console.log('uploadProfileAvatar: Public URL with cache-busting:', avatarUrl);
 
     return {
       success: true,
@@ -186,8 +187,9 @@ export async function deleteProfileAvatar(avatarUrl: string): Promise<void> {
   try {
     console.log('deleteProfileAvatar: Deleting avatar:', avatarUrl);
 
-    // Extract the file path from the URL
-    const urlMatch = avatarUrl.match(/\/profile-avatars\/(.+?)(\?|$)/);
+    // Extract the file path from the URL (remove query parameters first)
+    const urlWithoutQuery = avatarUrl.split('?')[0];
+    const urlMatch = urlWithoutQuery.match(/\/profile-avatars\/(.+?)$/);
     
     if (!urlMatch || !urlMatch[1]) {
       console.warn('deleteProfileAvatar: Could not extract file path from URL');

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
 import { Image } from 'expo-image';
 import { colors } from '@/styles/commonStyles';
@@ -20,6 +20,16 @@ export default function ProfileAvatar({
 }: ProfileAvatarProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
+  const [imageKey, setImageKey] = useState(0);
+
+  // Reset error state and force re-render when imageUrl changes
+  useEffect(() => {
+    console.log('ProfileAvatar: Image URL changed:', imageUrl);
+    setImageError(false);
+    setImageLoading(!!imageUrl);
+    // Increment key to force Image component to remount with new URL
+    setImageKey(prev => prev + 1);
+  }, [imageUrl]);
 
   const handleImageLoad = () => {
     console.log('ProfileAvatar: Image loaded successfully');
@@ -43,12 +53,15 @@ export default function ProfileAvatar({
         {/* Image */}
         {showImage && (
           <Image
+            key={imageKey}
             source={{ uri: imageUrl }}
             style={[styles.image, { borderRadius: size / 2 }]}
             contentFit="cover"
             onLoad={handleImageLoad}
             onError={handleImageError}
             transition={200}
+            cachePolicy="none"
+            priority="high"
           />
         )}
 

@@ -61,13 +61,11 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [localImageUri, setLocalImageUri] = useState<string | null>(null);
   const isFetchingRef = useRef(false);
 
   useEffect(() => {
     if (selectedChild && !isFetchingRef.current) {
       fetchProfileData();
-      setLocalImageUri(null);
     } else if (!childLoading && !selectedChild) {
       setLoading(false);
       setStats({
@@ -79,7 +77,6 @@ export default function ProfileScreen() {
         newWordsThisWeek: 0,
       });
       setMoments([]);
-      setLocalImageUri(null);
     }
   }, [selectedChild, childLoading]);
 
@@ -313,24 +310,25 @@ export default function ProfileScreen() {
 
       console.log('ProfileScreen: Image selected:', imageUri);
       
-      // Step 2: Show local image immediately
-      setLocalImageUri(imageUri);
+      // Step 2: Set uploading state
       setUploadingAvatar(true);
 
-      // Step 3: Upload to Supabase Storage
+      // Step 3: Get old avatar URL before uploading new one
+      const oldAvatarUrl = selectedChild.avatar_url;
+
+      // Step 4: Upload to Supabase Storage
       const uploadResult = await uploadProfileAvatar(selectedChild.id, imageUri);
 
       if (!uploadResult.success || !uploadResult.url) {
         console.error('ProfileScreen: Upload failed:', uploadResult.error);
         Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image');
-        setLocalImageUri(null);
         setUploadingAvatar(false);
         return;
       }
 
       console.log('ProfileScreen: Upload successful, URL:', uploadResult.url);
 
-      // Step 4: Update database with new avatar URL
+      // Step 5: Update database with new avatar URL
       const { error: updateError } = await supabase
         .from('children')
         .update({ 
@@ -342,39 +340,32 @@ export default function ProfileScreen() {
       if (updateError) {
         console.error('ProfileScreen: Database update failed:', updateError);
         Alert.alert('Update Failed', 'Failed to save profile photo');
-        setLocalImageUri(null);
         setUploadingAvatar(false);
         return;
       }
 
       console.log('ProfileScreen: Database updated successfully');
 
-      // Step 5: Delete old avatar if it exists
-      if (selectedChild.avatar_url && selectedChild.avatar_url !== uploadResult.url) {
-        console.log('ProfileScreen: Deleting old avatar');
-        await deleteProfileAvatar(selectedChild.avatar_url);
+      // Step 6: Delete old avatar if it exists and is different
+      if (oldAvatarUrl && oldAvatarUrl !== uploadResult.url) {
+        console.log('ProfileScreen: Deleting old avatar:', oldAvatarUrl);
+        await deleteProfileAvatar(oldAvatarUrl);
       }
 
-      // Step 6: Refresh children data to get updated avatar
+      // Step 7: Refresh children data to get updated avatar
       console.log('ProfileScreen: Refreshing children data...');
       await refreshChildren();
 
-      // Clear local image URI now that server URL is loaded
-      setLocalImageUri(null);
       setUploadingAvatar(false);
       
       console.log('ProfileScreen: Avatar change complete!');
       Alert.alert('Success', 'Profile photo updated successfully!');
     } catch (err) {
       console.error('ProfileScreen: Error changing avatar:', err);
-      setLocalImageUri(null);
       setUploadingAvatar(false);
       Alert.alert('Error', 'Failed to update profile photo. Please try again.');
     }
   };
-
-  // Determine which image to display
-  const displayImageUrl = localImageUri || selectedChild?.avatar_url;
 
   if (childLoading || loading) {
     return (
@@ -434,7 +425,7 @@ export default function ProfileScreen() {
 
           <View style={styles.profileSection}>
             <ProfileAvatar 
-              imageUrl={displayImageUrl}
+              imageUrl={selectedChild?.avatar_url}
               size={180}
               onPress={handleChangeAvatar}
               isUploading={uploadingAvatar}
