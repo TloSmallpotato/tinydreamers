@@ -32,7 +32,7 @@ export async function pickProfileImage(): Promise<string | null> {
       mediaTypes: 'images',
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.7,
+      quality: 0.8,
     });
 
     if (result.canceled || !result.assets[0]) {
@@ -143,6 +143,9 @@ export async function uploadProfileAvatar(
 
     console.log('uploadProfileAvatar: Upload successful:', uploadData);
 
+    // Wait a bit to ensure the file is fully available in storage
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
     // Get public URL
     const { data: urlData } = supabase.storage
       .from('profile-avatars')
@@ -150,6 +153,18 @@ export async function uploadProfileAvatar(
 
     const publicUrl = urlData.publicUrl;
     console.log('uploadProfileAvatar: Public URL:', publicUrl);
+
+    // Verify the image is accessible by making a HEAD request
+    try {
+      const response = await fetch(publicUrl, { method: 'HEAD' });
+      console.log('uploadProfileAvatar: Image accessibility check:', response.status);
+      
+      if (!response.ok) {
+        console.warn('uploadProfileAvatar: Image not immediately accessible, but continuing...');
+      }
+    } catch (fetchError) {
+      console.warn('uploadProfileAvatar: Could not verify image accessibility:', fetchError);
+    }
 
     return {
       success: true,

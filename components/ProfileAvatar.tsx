@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
 import { Image } from 'expo-image';
-import Svg, { Path, Defs, Mask, Rect } from 'react-native-svg';
+import Svg, { Path, Defs, ClipPath, G, Image as SvgImage } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 
@@ -22,6 +22,7 @@ export default function ProfileAvatar({
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [displayUri, setDisplayUri] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Scale the SVG path to fit the desired size
   // Original SVG viewBox is "0 0 196 194"
@@ -36,12 +37,13 @@ export default function ProfileAvatar({
     console.log('ProfileAvatar: imageUri changed:', imageUri);
     setImageError(false);
     setImageLoaded(false);
+    setRetryCount(0);
     
     if (imageUri) {
-      // Add cache-busting parameter to force reload
-      const cacheBuster = `?t=${Date.now()}`;
+      // Add cache-busting parameter and retry count to force reload
+      const cacheBuster = `?t=${Date.now()}&v=${retryCount}`;
       const uriWithCacheBuster = imageUri.includes('?') 
-        ? `${imageUri}&t=${Date.now()}`
+        ? `${imageUri.split('?')[0]}${cacheBuster}`
         : `${imageUri}${cacheBuster}`;
       
       console.log('ProfileAvatar: Setting display URI with cache buster:', uriWithCacheBuster);
@@ -61,64 +63,79 @@ export default function ProfileAvatar({
     console.error('ProfileAvatar: Image failed to load', error);
     setImageLoaded(false);
     setImageError(true);
+
+    // Retry loading the image up to 3 times with exponential backoff
+    if (retryCount < 3 && imageUri) {
+      const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+      console.log(`ProfileAvatar: Retrying in ${delay}ms (attempt ${retryCount + 1}/3)`);
+      
+      setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        setImageError(false);
+        
+        const cacheBuster = `?t=${Date.now()}&v=${retryCount + 1}`;
+        const uriWithCacheBuster = imageUri 
+          ? (imageUri.includes('?') 
+              ? `${imageUri.split('?')[0]}${cacheBuster}`
+              : `${imageUri}${cacheBuster}`)
+          : null;
+        
+        console.log('ProfileAvatar: Retry attempt with URI:', uriWithCacheBuster);
+        if (uriWithCacheBuster) {
+          setDisplayUri(uriWithCacheBuster);
+        }
+      }, delay);
+    }
   };
 
   const showImage = displayUri && imageLoaded && !imageError;
-  const showPlaceholder = !displayUri || imageError || !imageLoaded;
+  const showPlaceholder = !displayUri || (imageError && retryCount >= 3) || (!imageLoaded && !imageError);
 
   const content = (
     <View style={[styles.container, { width: size, height: scaledHeight }]}>
-      {/* Background SVG Shape */}
       <Svg 
         width={size} 
         height={scaledHeight} 
         viewBox={`0 0 ${originalWidth} ${originalHeight}`}
-        style={StyleSheet.absoluteFill}
       >
+        <Defs>
+          <ClipPath id={`shapeClip-${size}-${Date.now()}`}>
+            <Path d={shapePath} />
+          </ClipPath>
+        </Defs>
+        
+        {/* Background shape */}
         <Path 
           d={shapePath}
           fill={colors.cardPurple}
         />
+        
+        {/* Clipped image */}
+        {displayUri && showImage && (
+          <G clipPath={`url(#shapeClip-${size}-${Date.now()})`}>
+            <SvgImage
+              href={displayUri}
+              x="0"
+              y="0"
+              width={originalWidth}
+              height={originalHeight}
+              preserveAspectRatio="xMidYMid slice"
+            />
+          </G>
+        )}
       </Svg>
 
-      {/* Image with custom shape clipping */}
+      {/* Regular Image component for better loading control */}
       {displayUri && (
-        <View style={[styles.imageWrapper, { width: size, height: scaledHeight }]}>
-          <Image
-            source={{ uri: displayUri }}
-            style={[styles.profileImage, { width: size, height: scaledHeight }]}
-            contentFit="cover"
-            transition={200}
-            onLoad={handleImageLoad}
-            onError={handleImageError}
-            cachePolicy="none"
-            priority="high"
-          />
-          {/* Overlay SVG to create the shape mask effect */}
-          <Svg 
-            width={size} 
-            height={scaledHeight} 
-            viewBox={`0 0 ${originalWidth} ${originalHeight}`}
-            style={styles.shapeOverlay}
-            pointerEvents="none"
-          >
-            <Defs>
-              <Mask id={`shapeMask-${size}`}>
-                <Rect x="0" y="0" width={originalWidth} height={originalHeight} fill="white" />
-                <Path d={shapePath} fill="black" />
-              </Mask>
-            </Defs>
-            {/* Inverted mask to hide everything outside the shape */}
-            <Rect 
-              x="0" 
-              y="0" 
-              width={originalWidth} 
-              height={originalHeight} 
-              fill={colors.background}
-              mask={`url(#shapeMask-${size})`}
-            />
-          </Svg>
-        </View>
+        <Image
+          source={{ uri: displayUri }}
+          style={styles.hiddenImage}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+          cachePolicy="memory-disk"
+          priority="high"
+          recyclingKey={displayUri}
+        />
       )}
 
       {/* Loading indicator */}
@@ -128,9 +145,17 @@ export default function ProfileAvatar({
           <Text style={styles.loadingText}>Uploading...</Text>
         </View>
       )}
+
+      {/* Retry indicator */}
+      {imageError && retryCount < 3 && !isUploading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={colors.backgroundAlt} />
+          <Text style={styles.loadingText}>Loading image...</Text>
+        </View>
+      )}
       
       {/* Camera icon overlay for empty state */}
-      {showPlaceholder && !isUploading && (
+      {showPlaceholder && !isUploading && !(imageError && retryCount < 3) && (
         <View style={styles.emptyStateIcon}>
           <IconSymbol 
             ios_icon_name="camera.fill" 
@@ -160,23 +185,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    overflow: 'hidden',
   },
-  imageWrapper: {
+  hiddenImage: {
+    width: 0,
+    height: 0,
+    opacity: 0,
     position: 'absolute',
-    top: 0,
-    left: 0,
-    overflow: 'hidden',
-  },
-  profileImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-  },
-  shapeOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -184,6 +198,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
     zIndex: 10,
+    borderRadius: 16,
   },
   loadingText: {
     fontSize: 12,
