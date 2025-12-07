@@ -61,8 +61,18 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [avatarRefreshKey, setAvatarRefreshKey] = useState(0);
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const isFetchingRef = useRef(false);
+
+  // Update local avatar URL when selectedChild changes
+  useEffect(() => {
+    if (selectedChild?.avatar_url) {
+      console.log('ProfileScreen: Updating local avatar URL from context:', selectedChild.avatar_url);
+      setLocalAvatarUrl(selectedChild.avatar_url);
+    } else {
+      setLocalAvatarUrl(null);
+    }
+  }, [selectedChild?.avatar_url]);
 
   useEffect(() => {
     if (selectedChild && !isFetchingRef.current) {
@@ -311,7 +321,8 @@ export default function ProfileScreen() {
 
       console.log('ProfileScreen: Image selected:', imageUri);
       
-      // Step 2: Set uploading state
+      // Step 2: Show local image immediately for instant feedback
+      setLocalAvatarUrl(imageUri);
       setUploadingAvatar(true);
 
       // Step 3: Get old avatar URL before uploading new one
@@ -323,6 +334,8 @@ export default function ProfileScreen() {
       if (!uploadResult.success || !uploadResult.url) {
         console.error('ProfileScreen: Upload failed:', uploadResult.error);
         Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image');
+        // Revert to old avatar URL on failure
+        setLocalAvatarUrl(oldAvatarUrl || null);
         setUploadingAvatar(false);
         return;
       }
@@ -341,25 +354,35 @@ export default function ProfileScreen() {
       if (updateError) {
         console.error('ProfileScreen: Database update failed:', updateError);
         Alert.alert('Update Failed', 'Failed to save profile photo');
+        // Revert to old avatar URL on failure
+        setLocalAvatarUrl(oldAvatarUrl || null);
         setUploadingAvatar(false);
         return;
       }
 
       console.log('ProfileScreen: Database updated successfully');
 
-      // Step 6: Delete old avatar if it exists and is different
+      // Step 6: Update local state with server URL immediately
+      setLocalAvatarUrl(uploadResult.url);
+
+      // Step 7: Delete old avatar if it exists and is different
       if (oldAvatarUrl && oldAvatarUrl !== uploadResult.url) {
         console.log('ProfileScreen: Deleting old avatar:', oldAvatarUrl);
-        await deleteProfileAvatar(oldAvatarUrl);
+        // Don't await this - let it happen in background
+        deleteProfileAvatar(oldAvatarUrl).catch(err => {
+          console.error('ProfileScreen: Error deleting old avatar:', err);
+        });
       }
 
-      // Step 7: Refresh children data to get updated avatar
-      console.log('ProfileScreen: Refreshing children data...');
+      // Step 8: Refresh children data in context
+      console.log('ProfileScreen: Refreshing children data in context...');
       await refreshChildren();
 
-      // Step 8: Force ProfileAvatar component to refresh
-      console.log('ProfileScreen: Forcing avatar refresh...');
-      setAvatarRefreshKey(prev => prev + 1);
+      // Step 9: Re-select the child to get updated data from context
+      if (selectedChild?.id) {
+        console.log('ProfileScreen: Re-selecting child to update context reference...');
+        selectChild(selectedChild.id);
+      }
 
       setUploadingAvatar(false);
       
@@ -368,6 +391,8 @@ export default function ProfileScreen() {
     } catch (err) {
       console.error('ProfileScreen: Error changing avatar:', err);
       setUploadingAvatar(false);
+      // Revert to context avatar URL on error
+      setLocalAvatarUrl(selectedChild?.avatar_url || null);
       Alert.alert('Error', 'Failed to update profile photo. Please try again.');
     }
   };
@@ -430,11 +455,10 @@ export default function ProfileScreen() {
 
           <View style={styles.profileSection}>
             <ProfileAvatar 
-              imageUrl={selectedChild?.avatar_url}
+              imageUrl={localAvatarUrl}
               size={180}
               onPress={handleChangeAvatar}
               isUploading={uploadingAvatar}
-              refreshKey={avatarRefreshKey}
             />
             <TouchableOpacity style={styles.profileInfo} onPress={handleOpenChildSelector}>
               <Text style={styles.profileName}>

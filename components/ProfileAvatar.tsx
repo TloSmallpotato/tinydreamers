@@ -10,28 +10,23 @@ interface ProfileAvatarProps {
   size?: number;
   onPress?: () => void;
   isUploading?: boolean;
-  refreshKey?: number; // Add a refresh key to force re-render
 }
 
 export default function ProfileAvatar({ 
   imageUrl, 
   size = 120, 
   onPress, 
-  isUploading = false,
-  refreshKey = 0
+  isUploading = false
 }: ProfileAvatarProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
-  const [imageKey, setImageKey] = useState(0);
 
-  // Reset error state and force re-render when imageUrl or refreshKey changes
+  // Reset error state when imageUrl changes
   useEffect(() => {
-    console.log('ProfileAvatar: Image URL or refresh key changed:', imageUrl, 'refreshKey:', refreshKey);
+    console.log('ProfileAvatar: Image URL changed:', imageUrl);
     setImageError(false);
     setImageLoading(!!imageUrl);
-    // Increment key to force Image component to remount with new URL
-    setImageKey(prev => prev + 1);
-  }, [imageUrl, refreshKey]);
+  }, [imageUrl]);
 
   const handleImageLoad = () => {
     console.log('ProfileAvatar: Image loaded successfully');
@@ -55,7 +50,7 @@ export default function ProfileAvatar({
         {/* Image */}
         {showImage && (
           <Image
-            key={`${imageKey}-${refreshKey}`}
+            key={imageUrl}
             source={{ uri: imageUrl }}
             style={[styles.image, { borderRadius: size / 2 }]}
             contentFit="cover"
