@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import Svg, { Path, Defs, ClipPath, Image as SvgImage, Circle } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
@@ -16,6 +16,7 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
   const [imageError, setImageError] = useState(false);
   const [displayUri, setDisplayUri] = useState<string | null>(null);
   const [localLoading, setLocalLoading] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   // Scale the SVG path to fit the desired size
   // Original SVG viewBox is "0 0 196 194"
@@ -29,6 +30,7 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
   useEffect(() => {
     console.log('ProfileAvatar: imageUri changed:', imageUri);
     setImageError(false);
+    setImageLoaded(false);
     
     if (imageUri) {
       // Add cache-busting parameter to force reload
@@ -38,11 +40,11 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
       setDisplayUri(uri);
       setLocalLoading(true);
       
-      // Set a timeout to stop loading after 3 seconds regardless
+      // Set a timeout to stop loading after 5 seconds regardless
       const loadingTimeout = setTimeout(() => {
         console.log('ProfileAvatar: Loading timeout reached, stopping loading indicator');
         setLocalLoading(false);
-      }, 3000);
+      }, 5000);
       
       return () => clearTimeout(loadingTimeout);
     } else {
@@ -55,64 +57,77 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
     console.log('ProfileAvatar: Image loaded successfully');
     setLocalLoading(false);
     setImageError(false);
+    setImageLoaded(true);
   };
 
-  const handleImageError = () => {
-    console.error('ProfileAvatar: Image failed to load');
+  const handleImageError = (error: any) => {
+    console.error('ProfileAvatar: Image failed to load', error);
     setLocalLoading(false);
     setImageError(true);
+    setImageLoaded(false);
   };
 
   const showLoading = isUploading || localLoading;
+  const showImage = displayUri && !imageError && imageLoaded;
 
   const content = (
     <View style={[styles.container, { width: size, height: scaledHeight }]}>
-      <Svg width={size} height={scaledHeight} viewBox={`0 0 ${originalWidth} ${originalHeight}`}>
-        <Defs>
-          <ClipPath id={`profileClip-${size}`}>
-            <Path d={shapePath} />
-          </ClipPath>
-        </Defs>
-        
-        {/* Background shape */}
-        <Path 
-          d={shapePath}
-          fill={displayUri && !imageError ? colors.cardPurple : colors.cardPurple}
-        />
-        
-        {/* Image with clip path */}
-        {displayUri && !imageError ? (
-          <SvgImage
-            x="0"
-            y="0"
-            width={originalWidth}
-            height={originalHeight}
-            href={displayUri}
-            clipPath={`url(#profileClip-${size})`}
-            preserveAspectRatio="xMidYMid slice"
-            onLoad={handleImageLoad}
-            onError={handleImageError}
+      {/* Use a regular Image component with absolute positioning and clip path via View */}
+      <View style={styles.imageContainer}>
+        <Svg 
+          width={size} 
+          height={scaledHeight} 
+          viewBox={`0 0 ${originalWidth} ${originalHeight}`}
+          style={StyleSheet.absoluteFill}
+        >
+          <Defs>
+            <ClipPath id={`profileClip-${size}`}>
+              <Path d={shapePath} />
+            </ClipPath>
+          </Defs>
+          
+          {/* Background shape */}
+          <Path 
+            d={shapePath}
+            fill={colors.cardPurple}
           />
-        ) : (
-          <>
-            {/* Empty state with subtle circles to indicate tappability */}
-            <Circle
-              cx={originalWidth / 2}
-              cy={originalHeight / 2}
-              r="35"
-              fill="rgba(255, 255, 255, 0.15)"
-              opacity="0.6"
+          
+          {/* Image with clip path - using preserveAspectRatio to ensure proper scaling */}
+          {displayUri && !imageError && (
+            <SvgImage
+              x="0"
+              y="0"
+              width={originalWidth}
+              height={originalHeight}
+              href={displayUri}
+              clipPath={`url(#profileClip-${size})`}
+              preserveAspectRatio="xMidYMid slice"
+              onLoad={handleImageLoad}
+              onError={handleImageError}
             />
-            <Circle
-              cx={originalWidth / 2}
-              cy={originalHeight / 2}
-              r="28"
-              fill="rgba(255, 255, 255, 0.25)"
-              opacity="0.8"
-            />
-          </>
-        )}
-      </Svg>
+          )}
+          
+          {/* Empty state with subtle circles to indicate tappability */}
+          {(!displayUri || imageError) && (
+            <>
+              <Circle
+                cx={originalWidth / 2}
+                cy={originalHeight / 2}
+                r="35"
+                fill="rgba(255, 255, 255, 0.15)"
+                opacity="0.6"
+              />
+              <Circle
+                cx={originalWidth / 2}
+                cy={originalHeight / 2}
+                r="28"
+                fill="rgba(255, 255, 255, 0.25)"
+                opacity="0.8"
+              />
+            </>
+          )}
+        </Svg>
+      </View>
 
       {/* Loading indicator */}
       {showLoading && (
@@ -150,6 +165,12 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  imageContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
