@@ -1,8 +1,9 @@
 
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import Svg, { Path, Defs, ClipPath, Image as SvgImage } from 'react-native-svg';
+import Svg, { Path, Defs, ClipPath, Image as SvgImage, Circle } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
+import { IconSymbol } from './IconSymbol';
 
 interface ProfileAvatarProps {
   imageUri?: string | null;
@@ -34,7 +35,7 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress }: Profile
         />
         
         {/* Image with clip path */}
-        {imageUri && (
+        {imageUri ? (
           <SvgImage
             x="0"
             y="0"
@@ -44,8 +45,39 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress }: Profile
             clipPath="url(#profileClip)"
             preserveAspectRatio="xMidYMid slice"
           />
+        ) : (
+          // Empty state with subtle camera icon indicator
+          <>
+            {/* Subtle pulsing circle to indicate tappability */}
+            <Circle
+              cx={originalWidth / 2}
+              cy={originalHeight / 2}
+              r="35"
+              fill="rgba(255, 255, 255, 0.15)"
+              opacity="0.6"
+            />
+            <Circle
+              cx={originalWidth / 2}
+              cy={originalHeight / 2}
+              r="28"
+              fill="rgba(255, 255, 255, 0.25)"
+              opacity="0.8"
+            />
+          </>
         )}
       </Svg>
+      
+      {/* Camera icon overlay for empty state */}
+      {!imageUri && (
+        <View style={styles.emptyStateIcon}>
+          <IconSymbol 
+            ios_icon_name="camera.fill" 
+            android_material_icon_name="photo-camera" 
+            size={32} 
+            color="rgba(255, 255, 255, 0.6)" 
+          />
+        </View>
+      )}
     </View>
   );
 
@@ -64,5 +96,11 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emptyStateIcon: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -16 }, { translateY: -16 }],
   },
 });
