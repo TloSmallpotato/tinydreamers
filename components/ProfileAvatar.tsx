@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import Svg, { Path, Defs, ClipPath, G, Image as SvgImage } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
@@ -93,49 +93,109 @@ export default function ProfileAvatar({
 
   const content = (
     <View style={[styles.container, { width: size, height: scaledHeight }]}>
-      <Svg 
-        width={size} 
-        height={scaledHeight} 
-        viewBox={`0 0 ${originalWidth} ${originalHeight}`}
-      >
-        <Defs>
-          <ClipPath id={`shapeClip-${size}-${Date.now()}`}>
-            <Path d={shapePath} />
-          </ClipPath>
-        </Defs>
-        
-        {/* Background shape */}
-        <Path 
-          d={shapePath}
-          fill={colors.cardPurple}
-        />
-        
-        {/* Clipped image */}
-        {displayUri && showImage && (
-          <G clipPath={`url(#shapeClip-${size}-${Date.now()})`}>
-            <SvgImage
-              href={displayUri}
-              x="0"
-              y="0"
-              width={originalWidth}
-              height={originalHeight}
-              preserveAspectRatio="xMidYMid slice"
+      {/* Native approach: Use expo-image with mask overlay */}
+      {Platform.OS !== 'web' ? (
+        <>
+          {/* Background shape */}
+          <Svg 
+            width={size} 
+            height={scaledHeight} 
+            viewBox={`0 0 ${originalWidth} ${originalHeight}`}
+            style={StyleSheet.absoluteFill}
+          >
+            <Path 
+              d={shapePath}
+              fill={colors.cardPurple}
             />
-          </G>
-        )}
-      </Svg>
+          </Svg>
 
-      {/* Regular Image component for better loading control */}
-      {displayUri && (
-        <Image
-          source={{ uri: displayUri }}
-          style={styles.hiddenImage}
-          onLoad={handleImageLoad}
-          onError={handleImageError}
-          cachePolicy="memory-disk"
-          priority="high"
-          recyclingKey={displayUri}
-        />
+          {/* Image with clipping */}
+          {displayUri && showImage && (
+            <View style={StyleSheet.absoluteFill}>
+              <Svg 
+                width={size} 
+                height={scaledHeight} 
+                viewBox={`0 0 ${originalWidth} ${originalHeight}`}
+              >
+                <Defs>
+                  <ClipPath id={`shapeClip-${size}`}>
+                    <Path d={shapePath} />
+                  </ClipPath>
+                </Defs>
+                <G clipPath={`url(#shapeClip-${size})`}>
+                  <SvgImage
+                    href={displayUri}
+                    x="0"
+                    y="0"
+                    width={originalWidth}
+                    height={originalHeight}
+                    preserveAspectRatio="xMidYMid slice"
+                  />
+                </G>
+              </Svg>
+            </View>
+          )}
+
+          {/* Hidden Image component for loading control */}
+          {displayUri && (
+            <Image
+              source={{ uri: displayUri }}
+              style={styles.hiddenImage}
+              onLoad={handleImageLoad}
+              onError={handleImageError}
+              cachePolicy="none"
+              priority="high"
+            />
+          )}
+        </>
+      ) : (
+        /* Web approach: Use SVG with embedded image */
+        <>
+          <Svg 
+            width={size} 
+            height={scaledHeight} 
+            viewBox={`0 0 ${originalWidth} ${originalHeight}`}
+          >
+            <Defs>
+              <ClipPath id={`shapeClip-${size}-${Date.now()}`}>
+                <Path d={shapePath} />
+              </ClipPath>
+            </Defs>
+            
+            {/* Background shape */}
+            <Path 
+              d={shapePath}
+              fill={colors.cardPurple}
+            />
+            
+            {/* Clipped image */}
+            {displayUri && showImage && (
+              <G clipPath={`url(#shapeClip-${size}-${Date.now()})`}>
+                <SvgImage
+                  href={displayUri}
+                  x="0"
+                  y="0"
+                  width={originalWidth}
+                  height={originalHeight}
+                  preserveAspectRatio="xMidYMid slice"
+                />
+              </G>
+            )}
+          </Svg>
+
+          {/* Hidden Image component for loading control */}
+          {displayUri && (
+            <Image
+              source={{ uri: displayUri }}
+              style={styles.hiddenImage}
+              onLoad={handleImageLoad}
+              onError={handleImageError}
+              cachePolicy="memory-disk"
+              priority="high"
+              recyclingKey={displayUri}
+            />
+          )}
+        </>
       )}
 
       {/* Loading indicator */}
