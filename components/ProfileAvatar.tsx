@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
-import Svg, { Path, Defs, ClipPath, Circle } from 'react-native-svg';
+import Svg, { Path, Defs, Mask, Rect, Circle, G } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 
@@ -16,6 +16,7 @@ interface ProfileAvatarProps {
 export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploading = false }: ProfileAvatarProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
+  const [displayUri, setDisplayUri] = useState<string | null>(null);
 
   // Scale the SVG path to fit the desired size
   // Original SVG viewBox is "0 0 196 194"
@@ -29,8 +30,20 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
   useEffect(() => {
     console.log('ProfileAvatar: imageUri changed:', imageUri);
     setImageError(false);
+    
     if (imageUri) {
+      // Add cache-busting parameter to force reload
+      const cacheBuster = `?t=${Date.now()}`;
+      const uriWithCacheBuster = imageUri.includes('?') 
+        ? `${imageUri}&t=${Date.now()}`
+        : `${imageUri}${cacheBuster}`;
+      
+      console.log('ProfileAvatar: Setting display URI with cache buster:', uriWithCacheBuster);
+      setDisplayUri(uriWithCacheBuster);
       setImageLoading(true);
+    } else {
+      setDisplayUri(null);
+      setImageLoading(false);
     }
   }, [imageUri]);
 
@@ -47,24 +60,17 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
   };
 
   const showLoading = isUploading || imageLoading;
-  const showImage = imageUri && !imageError;
+  const showImage = displayUri && !imageError;
 
   const content = (
     <View style={[styles.container, { width: size, height: scaledHeight }]}>
-      {/* SVG Shape with clipping */}
+      {/* Background SVG Shape */}
       <Svg 
         width={size} 
         height={scaledHeight} 
         viewBox={`0 0 ${originalWidth} ${originalHeight}`}
         style={StyleSheet.absoluteFill}
       >
-        <Defs>
-          <ClipPath id={`profileClip-${size}`}>
-            <Path d={shapePath} />
-          </ClipPath>
-        </Defs>
-        
-        {/* Background shape */}
         <Path 
           d={shapePath}
           fill={colors.cardPurple}
@@ -91,36 +97,40 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
         )}
       </Svg>
 
-      {/* Image with absolute positioning and clipping via overflow */}
+      {/* Image with custom shape clipping */}
       {showImage && (
         <View style={[styles.imageWrapper, { width: size, height: scaledHeight }]}>
           <Image
-            source={{ uri: imageUri }}
-            style={[styles.image, { width: size, height: scaledHeight }]}
+            source={{ uri: displayUri }}
+            style={[styles.profileImage, { width: size, height: scaledHeight }]}
             contentFit="cover"
             transition={300}
             onLoad={handleImageLoad}
             onError={handleImageError}
             cachePolicy="memory-disk"
           />
-          {/* SVG mask overlay to clip the image */}
+          {/* Overlay SVG to create the shape mask effect */}
           <Svg 
             width={size} 
             height={scaledHeight} 
             viewBox={`0 0 ${originalWidth} ${originalHeight}`}
-            style={StyleSheet.absoluteFill}
+            style={styles.shapeOverlay}
             pointerEvents="none"
           >
             <Defs>
-              <ClipPath id={`profileMask-${size}`}>
-                <Path d={shapePath} />
-              </ClipPath>
+              <Mask id={`shapeMask-${size}`}>
+                <Rect x="0" y="0" width={originalWidth} height={originalHeight} fill="white" />
+                <Path d={shapePath} fill="black" />
+              </Mask>
             </Defs>
-            {/* Invisible rect with clip path to mask the image */}
-            <Path 
-              d={shapePath}
-              fill="transparent"
-              clipPath={`url(#profileMask-${size})`}
+            {/* Inverted mask to hide everything outside the shape */}
+            <Rect 
+              x="0" 
+              y="0" 
+              width={originalWidth} 
+              height={originalHeight} 
+              fill={colors.background}
+              mask={`url(#shapeMask-${size})`}
             />
           </Svg>
         </View>
@@ -163,6 +173,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    overflow: 'hidden',
   },
   imageWrapper: {
     position: 'absolute',
@@ -170,7 +181,12 @@ const styles = StyleSheet.create({
     left: 0,
     overflow: 'hidden',
   },
-  image: {
+  profileImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  shapeOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,

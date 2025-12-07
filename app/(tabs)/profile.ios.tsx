@@ -61,6 +61,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarKey, setAvatarKey] = useState(0);
   const isFetchingRef = useRef(false);
 
   useEffect(() => {
@@ -236,6 +237,7 @@ export default function ProfileScreen() {
       console.log('ProfileScreen (iOS): Selecting child:', childId);
       selectChild(childId);
       childSelectorRef.current?.dismiss();
+      setAvatarKey(prev => prev + 1);
     } catch (err) {
       console.error('ProfileScreen (iOS): Error selecting child:', err);
     }
@@ -322,14 +324,30 @@ export default function ProfileScreen() {
 
       console.log('ProfileScreen (iOS): Upload successful, updating database');
 
-      await updateChild(selectedChild.id, {
-        avatar_url: result.url,
-      });
+      const { error: updateError } = await supabase
+        .from('children')
+        .update({ avatar_url: result.url })
+        .eq('id', selectedChild.id);
 
-      console.log('ProfileScreen (iOS): Database updated, refreshing children');
+      if (updateError) {
+        console.error('ProfileScreen (iOS): Database update failed:', updateError);
+        Alert.alert('Update Failed', 'Failed to update profile photo in database');
+        setUploadingAvatar(false);
+        return;
+      }
 
+      console.log('ProfileScreen (iOS): Database updated successfully');
+
+      // Wait a bit for the storage to be ready
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Refresh children data
       await refreshChildren();
 
+      // Force avatar component to re-render with new key
+      setAvatarKey(prev => prev + 1);
+
+      // Delete old avatar if it exists
       if (oldAvatarUrl && oldAvatarUrl !== result.url) {
         console.log('ProfileScreen (iOS): Deleting old avatar');
         await deleteProfileAvatar(oldAvatarUrl);
@@ -403,6 +421,7 @@ export default function ProfileScreen() {
 
           <View style={styles.profileSection}>
             <ProfileAvatar 
+              key={`avatar-${avatarKey}-${selectedChild?.id}`}
               imageUri={selectedChild?.avatar_url}
               size={180}
               onPress={handleChangeAvatar}
