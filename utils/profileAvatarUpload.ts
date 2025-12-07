@@ -2,6 +2,7 @@
 import { supabase } from '@/app/integrations/supabase/client';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { decode } from 'base64-arraybuffer';
 
 export interface UploadAvatarResult {
   success: boolean;
@@ -50,39 +51,35 @@ export async function uploadProfileAvatar(
 
     console.log('uploadProfileAvatar: File read successfully, size:', base64.length, 'characters');
 
-    // Convert base64 to blob
-    const byteCharacters = atob(base64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}` });
-
-    console.log('uploadProfileAvatar: Blob created, size:', blob.size, 'bytes');
-
-    // Check file size (max 5MB)
+    // Check approximate file size (base64 is ~33% larger than binary)
+    const approximateSize = (base64.length * 3) / 4;
     const maxSize = 5 * 1024 * 1024; // 5MB
-    if (blob.size > maxSize) {
-      console.error('uploadProfileAvatar: File too large:', blob.size);
+    
+    if (approximateSize > maxSize) {
+      console.error('uploadProfileAvatar: File too large:', approximateSize);
       return {
         success: false,
         error: 'Image is too large. Please use an image smaller than 5MB.',
       };
     }
 
-    if (blob.size === 0) {
-      console.error('uploadProfileAvatar: Blob is empty');
+    if (base64.length === 0) {
+      console.error('uploadProfileAvatar: Base64 string is empty');
       return {
         success: false,
         error: 'Failed to read image file. Please try again.',
       };
     }
 
-    // Upload to Supabase Storage
+    // Convert base64 to ArrayBuffer using base64-arraybuffer
+    const arrayBuffer = decode(base64);
+
+    console.log('uploadProfileAvatar: ArrayBuffer created, size:', arrayBuffer.byteLength, 'bytes');
+
+    // Upload to Supabase Storage using ArrayBuffer
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('profile-avatars')
-      .upload(filePath, blob, {
+      .upload(filePath, arrayBuffer, {
         contentType: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
         upsert: true,
         cacheControl: '3600',
