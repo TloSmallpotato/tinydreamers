@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import Svg, { Path, Defs, ClipPath, Image as SvgImage, Circle, Mask, Rect } from 'react-native-svg';
+import Svg, { Path, Defs, ClipPath, Image as SvgImage, Circle } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 
@@ -9,12 +9,13 @@ interface ProfileAvatarProps {
   imageUri?: string | null;
   size?: number;
   onPress?: () => void;
+  isUploading?: boolean;
 }
 
-export default function ProfileAvatar({ imageUri, size = 120, onPress }: ProfileAvatarProps) {
-  const [imageLoading, setImageLoading] = useState(false);
+export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploading = false }: ProfileAvatarProps) {
   const [imageError, setImageError] = useState(false);
   const [displayUri, setDisplayUri] = useState<string | null>(null);
+  const [localLoading, setLocalLoading] = useState(false);
 
   // Scale the SVG path to fit the desired size
   // Original SVG viewBox is "0 0 196 194"
@@ -35,24 +36,34 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress }: Profile
       const uri = imageUri.includes('?') ? imageUri : `${imageUri}${cacheBuster}`;
       console.log('ProfileAvatar: Setting display URI:', uri);
       setDisplayUri(uri);
-      setImageLoading(true);
+      setLocalLoading(true);
+      
+      // Set a timeout to stop loading after 3 seconds regardless
+      const loadingTimeout = setTimeout(() => {
+        console.log('ProfileAvatar: Loading timeout reached, stopping loading indicator');
+        setLocalLoading(false);
+      }, 3000);
+      
+      return () => clearTimeout(loadingTimeout);
     } else {
       setDisplayUri(null);
-      setImageLoading(false);
+      setLocalLoading(false);
     }
   }, [imageUri]);
 
   const handleImageLoad = () => {
     console.log('ProfileAvatar: Image loaded successfully');
-    setImageLoading(false);
+    setLocalLoading(false);
     setImageError(false);
   };
 
   const handleImageError = () => {
     console.error('ProfileAvatar: Image failed to load');
-    setImageLoading(false);
+    setLocalLoading(false);
     setImageError(true);
   };
+
+  const showLoading = isUploading || localLoading;
 
   const content = (
     <View style={[styles.container, { width: size, height: scaledHeight }]}>
@@ -104,14 +115,14 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress }: Profile
       </Svg>
 
       {/* Loading indicator */}
-      {imageLoading && (
+      {showLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.backgroundAlt} />
         </View>
       )}
       
       {/* Camera icon overlay for empty state or error */}
-      {(!displayUri || imageError) && !imageLoading && (
+      {(!displayUri || imageError) && !showLoading && (
         <View style={styles.emptyStateIcon}>
           <IconSymbol 
             ios_icon_name="camera.fill" 
@@ -126,7 +137,7 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress }: Profile
 
   if (onPress) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.8} disabled={showLoading}>
         {content}
       </TouchableOpacity>
     );

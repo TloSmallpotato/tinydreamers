@@ -349,6 +349,7 @@ export default function ProfileScreen() {
         if (uploadError) {
           console.error('ProfileScreen (iOS): Error uploading avatar:', uploadError);
           Alert.alert('Upload Failed', uploadError.message);
+          setUploadingAvatar(false);
           throw uploadError;
         }
 
@@ -364,18 +365,22 @@ export default function ProfileScreen() {
           avatar_url: urlData.publicUrl,
         });
 
-        console.log('ProfileScreen (iOS): Avatar updated successfully');
+        console.log('ProfileScreen (iOS): Avatar updated in database');
         
         // Refresh children to get the updated avatar
         await refreshChildren();
+        
+        console.log('ProfileScreen (iOS): Children refreshed, stopping upload indicator');
+        
+        // Stop uploading state after refresh completes
+        setUploadingAvatar(false);
         
         Alert.alert('Success', 'Profile photo updated successfully!');
       }
     } catch (err) {
       console.error('ProfileScreen (iOS): Error changing avatar:', err);
-      Alert.alert('Error', 'Failed to update profile photo. Please try again.');
-    } finally {
       setUploadingAvatar(false);
+      Alert.alert('Error', 'Failed to update profile photo. Please try again.');
     }
   };
 
@@ -442,13 +447,8 @@ export default function ProfileScreen() {
               imageUri={selectedChild?.avatar_url}
               size={180}
               onPress={handleChangeAvatar}
+              isUploading={uploadingAvatar}
             />
-            {uploadingAvatar && (
-              <View style={styles.uploadingOverlay}>
-                <ActivityIndicator size="small" color={colors.backgroundAlt} />
-                <Text style={styles.uploadingText}>Uploading...</Text>
-              </View>
-            )}
             <TouchableOpacity style={styles.profileInfo} onPress={handleOpenChildSelector}>
               <Text style={styles.profileName}>
                 {selectedChild?.name || 'Add a child'}
@@ -713,22 +713,6 @@ const styles = StyleSheet.create({
   profileSection: {
     alignItems: 'center',
     marginBottom: 24,
-  },
-  uploadingOverlay: {
-    position: 'absolute',
-    top: 70,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.buttonBlue,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  uploadingText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.backgroundAlt,
   },
   profileInfo: {
     flexDirection: 'row',
