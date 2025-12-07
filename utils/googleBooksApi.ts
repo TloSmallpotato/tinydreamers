@@ -83,6 +83,25 @@ let isQuotaExceeded = false;
 let quotaExceededTimestamp = 0;
 const QUOTA_RESET_DURATION = 1000 * 60 * 60 * 24; // 24 hours
 
+// Timeout for API calls
+const API_TIMEOUT = 10000; // 10 seconds
+
+/**
+ * Creates a promise that rejects after a timeout
+ */
+function createTimeout(ms: number): Promise<never> {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Request timeout')), ms);
+  });
+}
+
+/**
+ * Wraps a promise with a timeout
+ */
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([promise, createTimeout(timeoutMs)]);
+}
+
 /**
  * Loads quota exceeded state from AsyncStorage
  */
@@ -171,11 +190,14 @@ async function checkBookInDatabase(googleBooksId: string): Promise<{ coverUrl: s
   try {
     console.log('🔍 Checking database for book:', googleBooksId);
     
-    const { data, error } = await supabase
-      .from('books_library')
-      .select('cover_url, thumbnail_url')
-      .eq('google_books_id', googleBooksId)
-      .single();
+    const { data, error } = await withTimeout(
+      supabase
+        .from('books_library')
+        .select('cover_url, thumbnail_url')
+        .eq('google_books_id', googleBooksId)
+        .single(),
+      5000 // 5 second timeout for database query
+    );
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -223,14 +245,17 @@ async function isHighResolution(imageUrl: string): Promise<boolean> {
       headers['Authorization'] = `Bearer ${session.access_token}`;
     }
 
-    // Call the Edge Function to check image dimensions
-    const response = await fetch(
-      'https://vxglluxqhceajceizbbm.supabase.co/functions/v1/check-image-resolution',
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ imageUrl }),
-      }
+    // Call the Edge Function to check image dimensions with timeout
+    const response = await withTimeout(
+      fetch(
+        'https://vxglluxqhceajceizbbm.supabase.co/functions/v1/check-image-resolution',
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ imageUrl }),
+        }
+      ),
+      API_TIMEOUT
     );
 
     if (!response.ok) {
@@ -250,7 +275,11 @@ async function isHighResolution(imageUrl: string): Promise<boolean> {
     
     return isHighRes;
   } catch (error) {
-    console.error('Error checking image resolution:', error);
+    if (error instanceof Error && error.message === 'Request timeout') {
+      console.error('Image resolution check timed out');
+    } else {
+      console.error('Error checking image resolution:', error);
+    }
     return false;
   }
 }
@@ -269,8 +298,11 @@ async function getOpenLibraryCover(isbn: string): Promise<string | null> {
     // We'll try large first
     const coverUrl = `https://covers.openlibrary.org/b/isbn/${cleanISBN}-L.jpg`;
     
-    // Check if the cover exists by making a HEAD request
-    const response = await fetch(coverUrl, { method: 'HEAD' });
+    // Check if the cover exists by making a HEAD request with timeout
+    const response = await withTimeout(
+      fetch(coverUrl, { method: 'HEAD' }),
+      API_TIMEOUT
+    );
     
     if (response.ok) {
       console.log('✅ Found cover on OpenLibrary');
@@ -280,7 +312,11 @@ async function getOpenLibraryCover(isbn: string): Promise<string | null> {
     console.log('❌ No cover found on OpenLibrary');
     return null;
   } catch (error) {
-    console.error('Error fetching OpenLibrary cover:', error);
+    if (error instanceof Error && error.message === 'Request timeout') {
+      console.error('OpenLibrary API timed out');
+    } else {
+      console.error('Error fetching OpenLibrary cover:', error);
+    }
     return null;
   }
 }
@@ -360,16 +396,19 @@ async function searchGoogleCustomSearch(
 
     // Call the Supabase Edge Function instead of making direct API calls
     // This keeps the API keys secure on the server
-    const response = await fetch(
-      'https://vxglluxqhceajceizbbm.supabase.co/functions/v1/search-book-cover',
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          query,
-          fileType,
-        }),
-      }
+    const response = await withTimeout(
+      fetch(
+        'https://vxglluxqhceajceizbbm.supabase.co/functions/v1/search-book-cover',
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            query,
+            fileType,
+          }),
+        }
+      ),
+      API_TIMEOUT
     );
 
     // Handle quota exceeded error
@@ -418,7 +457,11 @@ async function searchGoogleCustomSearch(
       thumbnailUrl: data.thumbnailUrl || data.coverUrl,
     };
   } catch (error) {
-    console.error('Error searching Google Custom Search:', error);
+    if (error instanceof Error && error.message === 'Request timeout') {
+      console.error('Google Custom Search API timed out');
+    } else {
+      console.error('Error searching Google Custom Search:', error);
+    }
     return null;
   }
 }
@@ -469,14 +512,19 @@ async function getBestCoverUrl(
   
   // Step 2: Check database first
   if (googleBooksId) {
-    const dbResult = await checkBookInDatabase(googleBooksId);
-    if (dbResult) {
-      // Cache the result
-      coverUrlCache.set(cacheKey, {
-        ...dbResult,
-        timestamp: Date.now(),
-      });
-      return dbResult;
+    try {
+      const dbResult = await checkBookInDatabase(googleBooksId);
+      if (dbResult) {
+        // Cache the result
+        coverUrlCache.set(cacheKey, {
+          ...dbResult,
+          timestamp: Date.now(),
+        });
+        return dbResult;
+      }
+    } catch (error) {
+      console.error('Error checking database:', error);
+      // Continue to other methods
     }
   }
   
@@ -491,26 +539,38 @@ async function getBestCoverUrl(
     const query = `${isbn} ${title} ${author} book cover`;
     console.log('Attempt 1: Google Custom Search (SINGLE CALL)');
     
-    // Try JPG first (most common format for book covers)
-    const result = await searchGoogleCustomSearch(query, 'jpg');
-    if (result) {
-      // Check if it's high resolution
-      const isHighRes = await isHighResolution(result.coverUrl);
-      if (isHighRes) {
-        console.log('✅ High-res cover found on Google Custom Search');
-        const finalResult = { ...result, source: 'googlecustomsearch' };
-        // Cache the result
-        coverUrlCache.set(cacheKey, {
-          ...finalResult,
-          timestamp: Date.now(),
-        });
-        return finalResult;
-      } else {
-        console.log('⚠️ Low-res cover from Google Custom Search, will try fallbacks');
-        bestCoverUrl = result.coverUrl;
-        bestThumbnailUrl = result.thumbnailUrl;
-        bestSource = 'googlecustomsearch';
+    try {
+      // Try JPG first (most common format for book covers)
+      const result = await searchGoogleCustomSearch(query, 'jpg');
+      if (result) {
+        // Check if it's high resolution (with timeout protection)
+        try {
+          const isHighRes = await isHighResolution(result.coverUrl);
+          if (isHighRes) {
+            console.log('✅ High-res cover found on Google Custom Search');
+            const finalResult = { ...result, source: 'googlecustomsearch' };
+            // Cache the result
+            coverUrlCache.set(cacheKey, {
+              ...finalResult,
+              timestamp: Date.now(),
+            });
+            return finalResult;
+          } else {
+            console.log('⚠️ Low-res cover from Google Custom Search, will try fallbacks');
+            bestCoverUrl = result.coverUrl;
+            bestThumbnailUrl = result.thumbnailUrl;
+            bestSource = 'googlecustomsearch';
+          }
+        } catch (error) {
+          console.error('Error checking resolution, using result anyway:', error);
+          // Use the result even if resolution check fails
+          bestCoverUrl = result.coverUrl;
+          bestThumbnailUrl = result.thumbnailUrl;
+          bestSource = 'googlecustomsearch';
+        }
       }
+    } catch (error) {
+      console.error('Error in Google Custom Search, continuing to fallbacks:', error);
     }
   } else if (!isAvailable) {
     console.log('⚠️ Skipping Google Custom Search - quota exceeded, using fallback methods');
@@ -519,56 +579,82 @@ async function getBestCoverUrl(
   // Step 4: Try OpenLibrary API (fallback #1)
   if (isbn) {
     console.log('Attempt 2: Trying OpenLibrary API');
-    const openLibraryCover = await getOpenLibraryCover(isbn);
-    if (openLibraryCover) {
-      const isHighRes = await isHighResolution(openLibraryCover);
-      if (isHighRes) {
-        console.log('✅ High-res cover found on OpenLibrary');
-        const finalResult = {
-          coverUrl: openLibraryCover,
-          thumbnailUrl: openLibraryCover,
-          source: 'openlibrary',
-        };
-        // Cache the result
-        coverUrlCache.set(cacheKey, {
-          ...finalResult,
-          timestamp: Date.now(),
-        });
-        return finalResult;
-      } else if (!bestCoverUrl) {
-        console.log('⚠️ Low-res cover from OpenLibrary');
-        bestCoverUrl = openLibraryCover;
-        bestThumbnailUrl = openLibraryCover;
-        bestSource = 'openlibrary';
+    try {
+      const openLibraryCover = await getOpenLibraryCover(isbn);
+      if (openLibraryCover) {
+        try {
+          const isHighRes = await isHighResolution(openLibraryCover);
+          if (isHighRes) {
+            console.log('✅ High-res cover found on OpenLibrary');
+            const finalResult = {
+              coverUrl: openLibraryCover,
+              thumbnailUrl: openLibraryCover,
+              source: 'openlibrary',
+            };
+            // Cache the result
+            coverUrlCache.set(cacheKey, {
+              ...finalResult,
+              timestamp: Date.now(),
+            });
+            return finalResult;
+          } else if (!bestCoverUrl) {
+            console.log('⚠️ Low-res cover from OpenLibrary');
+            bestCoverUrl = openLibraryCover;
+            bestThumbnailUrl = openLibraryCover;
+            bestSource = 'openlibrary';
+          }
+        } catch (error) {
+          console.error('Error checking resolution, using result anyway:', error);
+          if (!bestCoverUrl) {
+            bestCoverUrl = openLibraryCover;
+            bestThumbnailUrl = openLibraryCover;
+            bestSource = 'openlibrary';
+          }
+        }
       }
+    } catch (error) {
+      console.error('Error in OpenLibrary API, continuing to next fallback:', error);
     }
   }
 
   // Step 5: Try Google Books API (fallback #2)
   if (volumeInfo) {
     console.log('Attempt 3: Trying Google Books API');
-    const googleBooksCover = getGoogleBooksCover(volumeInfo);
-    if (googleBooksCover) {
-      const isHighRes = await isHighResolution(googleBooksCover);
-      if (isHighRes) {
-        console.log('✅ High-res cover found on Google Books API');
-        const finalResult = {
-          coverUrl: googleBooksCover,
-          thumbnailUrl: googleBooksCover,
-          source: 'google',
-        };
-        // Cache the result
-        coverUrlCache.set(cacheKey, {
-          ...finalResult,
-          timestamp: Date.now(),
-        });
-        return finalResult;
-      } else if (!bestCoverUrl) {
-        console.log('⚠️ Low-res cover from Google Books API');
-        bestCoverUrl = googleBooksCover;
-        bestThumbnailUrl = googleBooksCover;
-        bestSource = 'google';
+    try {
+      const googleBooksCover = getGoogleBooksCover(volumeInfo);
+      if (googleBooksCover) {
+        try {
+          const isHighRes = await isHighResolution(googleBooksCover);
+          if (isHighRes) {
+            console.log('✅ High-res cover found on Google Books API');
+            const finalResult = {
+              coverUrl: googleBooksCover,
+              thumbnailUrl: googleBooksCover,
+              source: 'google',
+            };
+            // Cache the result
+            coverUrlCache.set(cacheKey, {
+              ...finalResult,
+              timestamp: Date.now(),
+            });
+            return finalResult;
+          } else if (!bestCoverUrl) {
+            console.log('⚠️ Low-res cover from Google Books API');
+            bestCoverUrl = googleBooksCover;
+            bestThumbnailUrl = googleBooksCover;
+            bestSource = 'google';
+          }
+        } catch (error) {
+          console.error('Error checking resolution, using result anyway:', error);
+          if (!bestCoverUrl) {
+            bestCoverUrl = googleBooksCover;
+            bestThumbnailUrl = googleBooksCover;
+            bestSource = 'google';
+          }
+        }
       }
+    } catch (error) {
+      console.error('Error in Google Books API:', error);
     }
   }
 
@@ -615,8 +701,9 @@ function extractISBN(volumeInfo: GoogleBook['volumeInfo']): string | undefined {
 async function searchOpenLibrary(query: string): Promise<BookSearchResult[]> {
   try {
     const encodedQuery = encodeURIComponent(query.trim());
-    const response = await fetch(
-      `https://openlibrary.org/search.json?q=${encodedQuery}&limit=10`
+    const response = await withTimeout(
+      fetch(`https://openlibrary.org/search.json?q=${encodedQuery}&limit=10`),
+      API_TIMEOUT
     );
 
     if (!response.ok) {
@@ -658,7 +745,11 @@ async function searchOpenLibrary(query: string): Promise<BookSearchResult[]> {
 
     return results.filter((book: BookSearchResult) => book.title && book.authors);
   } catch (error) {
-    console.error('Error searching OpenLibrary:', error);
+    if (error instanceof Error && error.message === 'Request timeout') {
+      console.error('OpenLibrary search timed out');
+    } else {
+      console.error('Error searching OpenLibrary:', error);
+    }
     return [];
   }
 }
@@ -671,8 +762,9 @@ async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult |
     const cleanISBN = isbn.replace(/[-\s]/g, '');
     console.log('Searching OpenLibrary for ISBN:', cleanISBN);
     
-    const response = await fetch(
-      `https://openlibrary.org/isbn/${cleanISBN}.json`
+    const response = await withTimeout(
+      fetch(`https://openlibrary.org/isbn/${cleanISBN}.json`),
+      API_TIMEOUT
     );
 
     if (!response.ok) {
@@ -712,7 +804,11 @@ async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult |
       source: 'openlibrary',
     };
   } catch (error) {
-    console.error('Error searching OpenLibrary by ISBN:', error);
+    if (error instanceof Error && error.message === 'Request timeout') {
+      console.error('OpenLibrary ISBN search timed out');
+    } else {
+      console.error('Error searching OpenLibrary by ISBN:', error);
+    }
     return null;
   }
 }
@@ -740,8 +836,9 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
   try {
     const encodedQuery = encodeURIComponent(query.trim());
     // Request full projection to get all available image sizes
-    const response = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=10&printType=books&projection=full`
+    const response = await withTimeout(
+      fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=10&printType=books&projection=full`),
+      API_TIMEOUT
     );
 
     if (!response.ok) {
@@ -802,7 +899,11 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
 
     return googleResults.filter((book: BookSearchResult) => book.title && book.authors);
   } catch (error) {
-    console.error('Error searching Google Books:', error);
+    if (error instanceof Error && error.message === 'Request timeout') {
+      console.error('Google Books search timed out');
+    } else {
+      console.error('Error searching Google Books:', error);
+    }
     // Fallback to OpenLibrary
     console.log('Error occurred, falling back to OpenLibrary API');
     return await searchOpenLibrary(query);
@@ -836,8 +937,9 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
     console.log('🔍 Searching for ISBN:', cleanISBN);
     
     // Search by ISBN using the isbn: prefix with full projection
-    const response = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanISBN}&projection=full`
+    const response = await withTimeout(
+      fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanISBN}&projection=full`),
+      API_TIMEOUT
     );
 
     if (!response.ok) {
@@ -861,6 +963,9 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
     const title = item.volumeInfo.title || 'Unknown Title';
     const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
     
+    console.log('Found book on Google Books:', title);
+    console.log('Fetching cover image...');
+    
     // This will check cache, database, then try Google Custom Search ONCE (if quota not exceeded), then OpenLibrary, then Google Books
     const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
       itemISBN,
@@ -870,7 +975,6 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
       item.id
     );
 
-    console.log('Found book on Google Books:', title);
     console.log('Book image URLs:', {
       title,
       coverUrl,
@@ -890,7 +994,11 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
       source: source as 'google' | 'openlibrary' | 'googlecustomsearch',
     };
   } catch (error) {
-    console.error('Error searching book by ISBN:', error);
+    if (error instanceof Error && error.message === 'Request timeout') {
+      console.error('ISBN search timed out');
+    } else {
+      console.error('Error searching book by ISBN:', error);
+    }
     // Fallback to OpenLibrary
     console.log('Error occurred, falling back to OpenLibrary API for ISBN');
     const cleanISBN = isbn.replace(/[-\s]/g, '');
