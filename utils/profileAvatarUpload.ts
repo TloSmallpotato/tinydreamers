@@ -1,6 +1,7 @@
 
 import { supabase } from '@/app/integrations/supabase/client';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export interface UploadAvatarResult {
   success: boolean;
@@ -42,18 +43,23 @@ export async function uploadProfileAvatar(
 
     console.log('uploadProfileAvatar: Uploading to path:', filePath);
 
-    // Fetch the image as a blob
-    const response = await fetch(imageUri);
-    if (!response.ok) {
-      console.error('uploadProfileAvatar: Failed to fetch image:', response.status);
-      return {
-        success: false,
-        error: 'Failed to read image file.',
-      };
-    }
+    // Read the file as base64
+    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
 
-    const blob = await response.blob();
-    console.log('uploadProfileAvatar: Blob size:', blob.size, 'bytes');
+    console.log('uploadProfileAvatar: File read successfully, size:', base64.length, 'characters');
+
+    // Convert base64 to blob
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}` });
+
+    console.log('uploadProfileAvatar: Blob created, size:', blob.size, 'bytes');
 
     // Check file size (max 5MB)
     const maxSize = 5 * 1024 * 1024; // 5MB
@@ -62,6 +68,14 @@ export async function uploadProfileAvatar(
       return {
         success: false,
         error: 'Image is too large. Please use an image smaller than 5MB.',
+      };
+    }
+
+    if (blob.size === 0) {
+      console.error('uploadProfileAvatar: Blob is empty');
+      return {
+        success: false,
+        error: 'Failed to read image file. Please try again.',
       };
     }
 
@@ -91,6 +105,9 @@ export async function uploadProfileAvatar(
 
     const publicUrl = urlData.publicUrl;
     console.log('uploadProfileAvatar: Public URL:', publicUrl);
+
+    // Wait a moment for the file to be fully processed
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Verify the URL is accessible
     try {

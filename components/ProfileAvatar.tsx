@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
 import { Image } from 'expo-image';
-import Svg, { Path, Defs, Mask, Rect, Circle, G } from 'react-native-svg';
+import Svg, { Path, Defs, Mask, Rect, Circle } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 
@@ -17,6 +17,7 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
   const [displayUri, setDisplayUri] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Scale the SVG path to fit the desired size
   // Original SVG viewBox is "0 0 196 194"
@@ -30,6 +31,7 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
   useEffect(() => {
     console.log('ProfileAvatar: imageUri changed:', imageUri);
     setImageError(false);
+    setRetryCount(0);
     
     if (imageUri) {
       // Add cache-busting parameter to force reload
@@ -51,12 +53,34 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
     console.log('ProfileAvatar: Image loaded successfully');
     setImageLoading(false);
     setImageError(false);
+    setRetryCount(0);
   };
 
   const handleImageError = (error: any) => {
     console.error('ProfileAvatar: Image failed to load', error);
     setImageLoading(false);
     setImageError(true);
+    
+    // Auto-retry up to 2 times with increasing delays
+    if (retryCount < 2 && imageUri) {
+      const delay = (retryCount + 1) * 1000; // 1s, 2s
+      console.log(`ProfileAvatar: Retrying in ${delay}ms (attempt ${retryCount + 1}/2)`);
+      
+      setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        setImageError(false);
+        setImageLoading(true);
+        
+        // Force a new cache-busting parameter
+        const cacheBuster = `?t=${Date.now()}&retry=${retryCount + 1}`;
+        const uriWithCacheBuster = imageUri.includes('?') 
+          ? `${imageUri.split('?')[0]}${cacheBuster}`
+          : `${imageUri}${cacheBuster}`;
+        
+        console.log('ProfileAvatar: Retry with new URI:', uriWithCacheBuster);
+        setDisplayUri(uriWithCacheBuster);
+      }, delay);
+    }
   };
 
   const showLoading = isUploading || imageLoading;
@@ -107,7 +131,8 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
             transition={300}
             onLoad={handleImageLoad}
             onError={handleImageError}
-            cachePolicy="memory-disk"
+            cachePolicy="none"
+            priority="high"
           />
           {/* Overlay SVG to create the shape mask effect */}
           <Svg 
@@ -140,6 +165,9 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
       {showLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.backgroundAlt} />
+          {isUploading && (
+            <Text style={styles.loadingText}>Uploading...</Text>
+          )}
         </View>
       )}
       
@@ -152,6 +180,9 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
             size={32} 
             color="rgba(255, 255, 255, 0.6)" 
           />
+          {imageError && retryCount >= 2 && (
+            <Text style={styles.errorText}>Tap to retry</Text>
+          )}
         </View>
       )}
     </View>
@@ -199,11 +230,25 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     zIndex: 10,
   },
+  loadingText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.backgroundAlt,
+    marginTop: 8,
+  },
   emptyStateIcon: {
     position: 'absolute',
     top: '50%',
     left: '50%',
     transform: [{ translateX: -16 }, { translateY: -16 }],
     zIndex: 5,
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 4,
+    textAlign: 'center',
   },
 });
