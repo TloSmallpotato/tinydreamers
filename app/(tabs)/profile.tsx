@@ -60,11 +60,12 @@ export default function ProfileScreen() {
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isFetchingRef = useRef(false);
 
   useEffect(() => {
-    if (selectedChild) {
+    if (selectedChild && !isFetchingRef.current) {
       fetchProfileData();
-    } else if (!childLoading) {
+    } else if (!childLoading && !selectedChild) {
       // No child selected and not loading, clear stats
       setLoading(false);
       setStats({
@@ -80,15 +81,20 @@ export default function ProfileScreen() {
   }, [selectedChild, childLoading]);
 
   const fetchProfileData = async () => {
-    if (!selectedChild) {
-      console.log('ProfileScreen: No selected child, skipping fetch');
+    if (!selectedChild || isFetchingRef.current) {
+      console.log('ProfileScreen: Skipping fetch - no child or already fetching');
       return;
     }
+
+    isFetchingRef.current = true;
 
     try {
       setLoading(true);
       setError(null);
       console.log('ProfileScreen: Fetching profile data for child:', selectedChild.id);
+
+      // Add delay to prevent TurboModule crashes during data loading
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       const startOfWeek = getStartOfWeek();
       const startOfWeekISO = startOfWeek.toISOString();
@@ -202,6 +208,7 @@ export default function ProfileScreen() {
       setError(err instanceof Error ? err.message : 'Failed to load profile data');
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
@@ -226,22 +233,34 @@ export default function ProfileScreen() {
   };
 
   const handleOpenChildSelector = () => {
-    console.log('ProfileScreen: Opening child selector bottom sheet');
-    childSelectorRef.current?.present();
+    try {
+      console.log('ProfileScreen: Opening child selector bottom sheet');
+      childSelectorRef.current?.present();
+    } catch (err) {
+      console.error('ProfileScreen: Error opening child selector:', err);
+    }
   };
 
   const handleSelectChild = (childId: string) => {
-    console.log('ProfileScreen: Selecting child:', childId);
-    selectChild(childId);
-    childSelectorRef.current?.dismiss();
+    try {
+      console.log('ProfileScreen: Selecting child:', childId);
+      selectChild(childId);
+      childSelectorRef.current?.dismiss();
+    } catch (err) {
+      console.error('ProfileScreen: Error selecting child:', err);
+    }
   };
 
   const handleOpenAddChild = () => {
-    console.log('ProfileScreen: Opening add child bottom sheet');
-    childSelectorRef.current?.dismiss();
-    setTimeout(() => {
-      addChildRef.current?.present();
-    }, 300);
+    try {
+      console.log('ProfileScreen: Opening add child bottom sheet');
+      childSelectorRef.current?.dismiss();
+      setTimeout(() => {
+        addChildRef.current?.present();
+      }, 300);
+    } catch (err) {
+      console.error('ProfileScreen: Error opening add child sheet:', err);
+    }
   };
 
   const handleAddChild = async (name: string, birthDate: Date) => {
@@ -255,13 +274,21 @@ export default function ProfileScreen() {
   };
 
   const handleOpenSettings = () => {
-    console.log('ProfileScreen: Settings button pressed - opening settings bottom sheet');
-    settingsRef.current?.present();
+    try {
+      console.log('ProfileScreen: Settings button pressed - opening settings bottom sheet');
+      settingsRef.current?.present();
+    } catch (err) {
+      console.error('ProfileScreen: Error opening settings:', err);
+    }
   };
 
   const handleRecordMoment = () => {
-    console.log('ProfileScreen: Record button pressed - triggering camera');
-    triggerCamera();
+    try {
+      console.log('ProfileScreen: Record button pressed - triggering camera');
+      triggerCamera();
+    } catch (err) {
+      console.error('ProfileScreen: Error triggering camera:', err);
+    }
   };
 
   const handleViewMoreMoments = () => {

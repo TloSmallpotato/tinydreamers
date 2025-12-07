@@ -60,20 +60,13 @@ export default function ProfileScreen() {
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isFetchingRef = useRef(false);
 
   useEffect(() => {
-    // Wait for child context to finish loading before fetching profile data
-    if (childLoading) {
-      console.log('ProfileScreen (iOS): Child context still loading, waiting...');
-      return;
-    }
-
-    if (selectedChild) {
-      console.log('ProfileScreen (iOS): Selected child changed, fetching profile data');
+    if (selectedChild && !isFetchingRef.current) {
       fetchProfileData();
-    } else {
+    } else if (!childLoading && !selectedChild) {
       // No child selected and not loading, clear stats
-      console.log('ProfileScreen (iOS): No child selected, clearing stats');
       setLoading(false);
       setStats({
         totalWords: 0,
@@ -88,25 +81,26 @@ export default function ProfileScreen() {
   }, [selectedChild, childLoading]);
 
   const fetchProfileData = async () => {
-    if (!selectedChild) {
-      console.log('ProfileScreen (iOS): No selected child, skipping fetch');
+    if (!selectedChild || isFetchingRef.current) {
+      console.log('ProfileScreen (iOS): Skipping fetch - no child or already fetching');
       return;
     }
+
+    isFetchingRef.current = true;
 
     try {
       setLoading(true);
       setError(null);
       console.log('ProfileScreen (iOS): Fetching profile data for child:', selectedChild.id);
 
-      // Add a small delay to ensure database is ready
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // iOS-specific delay to prevent TurboModule crashes during data loading
+      await new Promise(resolve => setTimeout(resolve, 400));
 
       const startOfWeek = getStartOfWeek();
       const startOfWeekISO = startOfWeek.toISOString();
       console.log('ProfileScreen (iOS): Start of week (Monday):', startOfWeekISO);
 
       // Fetch all data with proper error handling for each query
-      // Using Promise.allSettled to ensure all queries complete even if some fail
       const [
         totalWordsResult,
         wordsThisWeekResult,
@@ -214,6 +208,7 @@ export default function ProfileScreen() {
       setError(err instanceof Error ? err.message : 'Failed to load profile data');
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
@@ -238,22 +233,34 @@ export default function ProfileScreen() {
   };
 
   const handleOpenChildSelector = () => {
-    console.log('ProfileScreen (iOS): Opening child selector bottom sheet');
-    childSelectorRef.current?.present();
+    try {
+      console.log('ProfileScreen (iOS): Opening child selector bottom sheet');
+      childSelectorRef.current?.present();
+    } catch (err) {
+      console.error('ProfileScreen (iOS): Error opening child selector:', err);
+    }
   };
 
   const handleSelectChild = (childId: string) => {
-    console.log('ProfileScreen (iOS): Selecting child:', childId);
-    selectChild(childId);
-    childSelectorRef.current?.dismiss();
+    try {
+      console.log('ProfileScreen (iOS): Selecting child:', childId);
+      selectChild(childId);
+      childSelectorRef.current?.dismiss();
+    } catch (err) {
+      console.error('ProfileScreen (iOS): Error selecting child:', err);
+    }
   };
 
   const handleOpenAddChild = () => {
-    console.log('ProfileScreen (iOS): Opening add child bottom sheet');
-    childSelectorRef.current?.dismiss();
-    setTimeout(() => {
-      addChildRef.current?.present();
-    }, 300);
+    try {
+      console.log('ProfileScreen (iOS): Opening add child bottom sheet');
+      childSelectorRef.current?.dismiss();
+      setTimeout(() => {
+        addChildRef.current?.present();
+      }, 300);
+    } catch (err) {
+      console.error('ProfileScreen (iOS): Error opening add child sheet:', err);
+    }
   };
 
   const handleAddChild = async (name: string, birthDate: Date) => {
@@ -267,13 +274,21 @@ export default function ProfileScreen() {
   };
 
   const handleOpenSettings = () => {
-    console.log('ProfileScreen (iOS): Settings button pressed - opening settings bottom sheet');
-    settingsRef.current?.present();
+    try {
+      console.log('ProfileScreen (iOS): Settings button pressed - opening settings bottom sheet');
+      settingsRef.current?.present();
+    } catch (err) {
+      console.error('ProfileScreen (iOS): Error opening settings:', err);
+    }
   };
 
   const handleRecordMoment = () => {
-    console.log('ProfileScreen (iOS): Record button pressed - triggering camera');
-    triggerCamera();
+    try {
+      console.log('ProfileScreen (iOS): Record button pressed - triggering camera');
+      triggerCamera();
+    } catch (err) {
+      console.error('ProfileScreen (iOS): Error triggering camera:', err);
+    }
   };
 
   const handleViewMoreMoments = () => {

@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 
@@ -46,17 +46,25 @@ export const useChild = () => {
 };
 
 export function ChildProvider({ children: childrenProp }: { children: React.ReactNode }) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isInitialized } = useAuth();
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const isFetching = useRef(false);
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchChildren = useCallback(async () => {
-    // Don't fetch if auth is still loading
-    if (authLoading) {
-      console.log('ChildContext: Auth still loading, skipping fetch');
+    // Prevent concurrent fetches
+    if (isFetching.current) {
+      console.log('ChildContext: Already fetching, skipping');
+      return;
+    }
+
+    // Don't fetch if auth is still loading or not initialized
+    if (authLoading || !isInitialized) {
+      console.log('ChildContext: Auth not ready, skipping fetch');
       return;
     }
 
@@ -69,12 +77,17 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
       return;
     }
 
+    isFetching.current = true;
+
     try {
       console.log('ChildContext: Fetching children for user:', user.id);
       setError(null);
       
-      // Add a small delay to ensure database is ready
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Extended delay to ensure database and native modules are ready
+      // This prevents TurboModule crashes during data loading
+      await new Promise(resolve => {
+        fetchTimeoutRef.current = setTimeout(resolve, 500);
+      });
       
       const { data, error: fetchError } = await supabase
         .from('children')
@@ -90,7 +103,8 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
         if (retryCount < 3 && (fetchError.message.includes('timeout') || fetchError.message.includes('network'))) {
           console.log(`ChildContext: Retrying fetch (attempt ${retryCount + 1}/3)...`);
           setRetryCount(prev => prev + 1);
-          setTimeout(() => fetchChildren(), 1000 * (retryCount + 1));
+          isFetching.current = false;
+          setTimeout(() => fetchChildren(), 2000 * (retryCount + 1));
           return;
         }
         
@@ -119,7 +133,8 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
       if (retryCount < 3) {
         console.log(`ChildContext: Retrying after unexpected error (attempt ${retryCount + 1}/3)...`);
         setRetryCount(prev => prev + 1);
-        setTimeout(() => fetchChildren(), 1000 * (retryCount + 1));
+        isFetching.current = false;
+        setTimeout(() => fetchChildren(), 2000 * (retryCount + 1));
         return;
       }
       
@@ -127,23 +142,36 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
       setSelectedChild(null);
     } finally {
       setLoading(false);
+      isFetching.current = false;
     }
-  }, [user, authLoading, selectedChild, retryCount]);
+  }, [user, authLoading, isInitialized, selectedChild, retryCount]);
 
   useEffect(() => {
-    // Only fetch when auth is done loading
-    if (!authLoading) {
+    // Only fetch when auth is initialized and done loading
+    if (isInitialized && !authLoading) {
       fetchChildren();
     }
-  }, [user, authLoading]);
+
+    // Cleanup function
+    return () => {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+        fetchTimeoutRef.current = null;
+      }
+    };
+  }, [user, authLoading, isInitialized]);
 
   const selectChild = (childId: string) => {
-    const child = children.find((c) => c.id === childId);
-    if (child) {
-      console.log('ChildContext: Selected child:', child.name);
-      setSelectedChild(child);
-    } else {
-      console.warn('ChildContext: Child not found:', childId);
+    try {
+      const child = children.find((c) => c.id === childId);
+      if (child) {
+        console.log('ChildContext: Selected child:', child.name);
+        setSelectedChild(child);
+      } else {
+        console.warn('ChildContext: Child not found:', childId);
+      }
+    } catch (err) {
+      console.error('ChildContext: Error selecting child:', err);
     }
   };
 
@@ -171,6 +199,11 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
       }
 
       console.log('ChildContext: Child added successfully');
+      
+      // Reset retry count before refresh
+      setRetryCount(0);
+      isFetching.current = false;
+      
       await fetchChildren();
       
       // Auto-select the newly added child
@@ -206,6 +239,11 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
       }
 
       console.log('ChildContext: Child updated successfully');
+      
+      // Reset retry count before refresh
+      setRetryCount(0);
+      isFetching.current = false;
+      
       await fetchChildren();
     } catch (err) {
       console.error('ChildContext: Error in updateChild:', err);
@@ -239,6 +277,10 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
         setSelectedChild(null);
       }
       
+      // Reset retry count before refresh
+      setRetryCount(0);
+      isFetching.current = false;
+      
       await fetchChildren();
     } catch (err) {
       console.error('ChildContext: Error in deleteChild:', err);
@@ -247,7 +289,9 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
   };
 
   const refreshChildren = async () => {
+    console.log('ChildContext: Manual refresh requested');
     setRetryCount(0); // Reset retry count on manual refresh
+    isFetching.current = false; // Reset fetching flag
     await fetchChildren();
   };
 

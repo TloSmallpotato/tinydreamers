@@ -6,14 +6,15 @@ import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 
 export default function Index() {
-  const { user, loading } = useAuth();
+  const { user, loading, isInitialized } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const [isNavigating, setIsNavigating] = useState(false);
 
   useEffect(() => {
-    if (loading) {
-      console.log('Index (iOS): Auth loading...');
+    // Don't do anything until auth is initialized
+    if (!isInitialized || loading) {
+      console.log('Index (iOS): Waiting for auth initialization...');
       return;
     }
 
@@ -23,25 +24,32 @@ export default function Index() {
     console.log('Index (iOS): Current segments:', segments);
     console.log('Index (iOS): In auth group:', inAuthGroup);
 
-    // Prevent multiple navigation attempts
+    // Prevent navigation if already navigating
     if (isNavigating) {
-      console.log('Index (iOS): Already navigating, skipping...');
+      console.log('Index (iOS): Already navigating, skipping');
       return;
     }
 
-    const navigate = async () => {
+    const handleNavigation = async () => {
       try {
         setIsNavigating(true);
-        
+
         if (!user && !inAuthGroup) {
           // User is not signed in and not in auth group, redirect to login
           console.log('Index (iOS): Redirecting to login');
-          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Add delay to prevent TurboModule crashes during navigation
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
           router.replace('/(auth)/login');
         } else if (user && inAuthGroup) {
           // User is signed in but in auth group, redirect to profile
-          console.log('Index (iOS): Redirecting to profile');
-          await new Promise(resolve => setTimeout(resolve, 100));
+          console.log('Index (iOS): Redirecting to profile after sign-in');
+          
+          // Extended delay after sign-in to prevent TurboModule crashes
+          // iOS requires slightly longer delays due to native module initialization
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
           router.replace('/(tabs)/profile');
         }
       } catch (err) {
@@ -51,16 +59,16 @@ export default function Index() {
       }
     };
 
-    navigate();
-  }, [user, loading, segments]);
+    handleNavigation();
+  }, [user, loading, isInitialized, segments, router, isNavigating]);
 
-  // Show loading spinner while checking auth state
-  if (loading || isNavigating) {
+  // Show loading spinner while checking auth state or navigating
+  if (!isInitialized || loading || isNavigating) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.buttonBlue} />
         <Text style={styles.loadingText}>
-          {loading ? 'Loading...' : 'Redirecting...'}
+          {!isInitialized ? 'Initializing...' : isNavigating ? 'Loading...' : 'Checking authentication...'}
         </Text>
       </View>
     );
