@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
 import { Image } from 'expo-image';
-import Svg, { Path, Defs, Mask, Rect, Circle } from 'react-native-svg';
+import Svg, { Path, Defs, Mask, Rect } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 
@@ -13,11 +13,15 @@ interface ProfileAvatarProps {
   isUploading?: boolean;
 }
 
-export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploading = false }: ProfileAvatarProps) {
+export default function ProfileAvatar({ 
+  imageUri, 
+  size = 120, 
+  onPress, 
+  isUploading = false 
+}: ProfileAvatarProps) {
   const [imageError, setImageError] = useState(false);
-  const [imageLoading, setImageLoading] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [displayUri, setDisplayUri] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
 
   // Scale the SVG path to fit the desired size
   // Original SVG viewBox is "0 0 196 194"
@@ -31,7 +35,7 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
   useEffect(() => {
     console.log('ProfileAvatar: imageUri changed:', imageUri);
     setImageError(false);
-    setRetryCount(0);
+    setImageLoaded(false);
     
     if (imageUri) {
       // Add cache-busting parameter to force reload
@@ -42,49 +46,25 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
       
       console.log('ProfileAvatar: Setting display URI with cache buster:', uriWithCacheBuster);
       setDisplayUri(uriWithCacheBuster);
-      setImageLoading(true);
     } else {
       setDisplayUri(null);
-      setImageLoading(false);
     }
   }, [imageUri]);
 
   const handleImageLoad = () => {
     console.log('ProfileAvatar: Image loaded successfully');
-    setImageLoading(false);
+    setImageLoaded(true);
     setImageError(false);
-    setRetryCount(0);
   };
 
   const handleImageError = (error: any) => {
     console.error('ProfileAvatar: Image failed to load', error);
-    setImageLoading(false);
+    setImageLoaded(false);
     setImageError(true);
-    
-    // Auto-retry up to 2 times with increasing delays
-    if (retryCount < 2 && imageUri) {
-      const delay = (retryCount + 1) * 1000; // 1s, 2s
-      console.log(`ProfileAvatar: Retrying in ${delay}ms (attempt ${retryCount + 1}/2)`);
-      
-      setTimeout(() => {
-        setRetryCount(prev => prev + 1);
-        setImageError(false);
-        setImageLoading(true);
-        
-        // Force a new cache-busting parameter
-        const cacheBuster = `?t=${Date.now()}&retry=${retryCount + 1}`;
-        const uriWithCacheBuster = imageUri.includes('?') 
-          ? `${imageUri.split('?')[0]}${cacheBuster}`
-          : `${imageUri}${cacheBuster}`;
-        
-        console.log('ProfileAvatar: Retry with new URI:', uriWithCacheBuster);
-        setDisplayUri(uriWithCacheBuster);
-      }, delay);
-    }
   };
 
-  const showLoading = isUploading || imageLoading;
-  const showImage = displayUri && !imageError;
+  const showImage = displayUri && imageLoaded && !imageError;
+  const showPlaceholder = !displayUri || imageError || !imageLoaded;
 
   const content = (
     <View style={[styles.container, { width: size, height: scaledHeight }]}>
@@ -99,36 +79,16 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
           d={shapePath}
           fill={colors.cardPurple}
         />
-        
-        {/* Empty state with subtle circles to indicate tappability */}
-        {(!showImage || showLoading) && (
-          <>
-            <Circle
-              cx={originalWidth / 2}
-              cy={originalHeight / 2}
-              r="35"
-              fill="rgba(255, 255, 255, 0.15)"
-              opacity="0.6"
-            />
-            <Circle
-              cx={originalWidth / 2}
-              cy={originalHeight / 2}
-              r="28"
-              fill="rgba(255, 255, 255, 0.25)"
-              opacity="0.8"
-            />
-          </>
-        )}
       </Svg>
 
       {/* Image with custom shape clipping */}
-      {showImage && (
+      {displayUri && (
         <View style={[styles.imageWrapper, { width: size, height: scaledHeight }]}>
           <Image
             source={{ uri: displayUri }}
             style={[styles.profileImage, { width: size, height: scaledHeight }]}
             contentFit="cover"
-            transition={300}
+            transition={200}
             onLoad={handleImageLoad}
             onError={handleImageError}
             cachePolicy="none"
@@ -162,27 +122,23 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
       )}
 
       {/* Loading indicator */}
-      {showLoading && (
+      {isUploading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.backgroundAlt} />
-          {isUploading && (
-            <Text style={styles.loadingText}>Uploading...</Text>
-          )}
+          <Text style={styles.loadingText}>Uploading...</Text>
         </View>
       )}
       
-      {/* Camera icon overlay for empty state or error */}
-      {(!showImage || imageError) && !showLoading && (
+      {/* Camera icon overlay for empty state */}
+      {showPlaceholder && !isUploading && (
         <View style={styles.emptyStateIcon}>
           <IconSymbol 
             ios_icon_name="camera.fill" 
             android_material_icon_name="photo-camera" 
-            size={32} 
-            color="rgba(255, 255, 255, 0.6)" 
+            size={40} 
+            color="rgba(255, 255, 255, 0.7)" 
           />
-          {imageError && retryCount >= 2 && (
-            <Text style={styles.errorText}>Tap to retry</Text>
-          )}
+          <Text style={styles.tapToAddText}>Tap to add photo</Text>
         </View>
       )}
     </View>
@@ -190,7 +146,7 @@ export default function ProfileAvatar({ imageUri, size = 120, onPress, isUploadi
 
   if (onPress) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.8} disabled={showLoading}>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.8} disabled={isUploading}>
         {content}
       </TouchableOpacity>
     );
@@ -226,8 +182,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-    borderRadius: 100,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
     zIndex: 10,
   },
   loadingText: {
@@ -238,17 +193,15 @@ const styles = StyleSheet.create({
   },
   emptyStateIcon: {
     position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -16 }, { translateY: -16 }],
-    zIndex: 5,
     alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
   },
-  errorText: {
-    fontSize: 10,
+  tapToAddText: {
+    fontSize: 11,
     fontWeight: '600',
     color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 4,
+    marginTop: 8,
     textAlign: 'center',
   },
 });

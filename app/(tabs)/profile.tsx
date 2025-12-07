@@ -61,7 +61,6 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [avatarKey, setAvatarKey] = useState(0);
   const isFetchingRef = useRef(false);
 
   useEffect(() => {
@@ -237,7 +236,6 @@ export default function ProfileScreen() {
       console.log('ProfileScreen: Selecting child:', childId);
       selectChild(childId);
       childSelectorRef.current?.dismiss();
-      setAvatarKey(prev => prev + 1);
     } catch (err) {
       console.error('ProfileScreen: Error selecting child:', err);
     }
@@ -302,6 +300,7 @@ export default function ProfileScreen() {
     try {
       console.log('ProfileScreen: Starting avatar change process');
       
+      // Step 1: Pick image
       const imageUri = await pickProfileImage();
       
       if (!imageUri) {
@@ -309,49 +308,47 @@ export default function ProfileScreen() {
         return;
       }
 
+      console.log('ProfileScreen: Image selected, starting upload');
       setUploadingAvatar(true);
 
-      const oldAvatarUrl = selectedChild.avatar_url;
+      // Step 2: Upload to Supabase Storage
+      const uploadResult = await uploadProfileAvatar(selectedChild.id, imageUri);
 
-      const result = await uploadProfileAvatar(selectedChild.id, imageUri);
-
-      if (!result.success) {
-        console.error('ProfileScreen: Upload failed:', result.error);
-        Alert.alert('Upload Failed', result.error || 'Failed to upload image');
+      if (!uploadResult.success || !uploadResult.url) {
+        console.error('ProfileScreen: Upload failed:', uploadResult.error);
+        Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image');
         setUploadingAvatar(false);
         return;
       }
 
-      console.log('ProfileScreen: Upload successful, updating database');
+      console.log('ProfileScreen: Upload successful, URL:', uploadResult.url);
 
+      // Step 3: Update database with new avatar URL
       const { error: updateError } = await supabase
         .from('children')
-        .update({ avatar_url: result.url })
+        .update({ 
+          avatar_url: uploadResult.url,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', selectedChild.id);
 
       if (updateError) {
         console.error('ProfileScreen: Database update failed:', updateError);
-        Alert.alert('Update Failed', 'Failed to update profile photo in database');
+        Alert.alert('Update Failed', 'Failed to save profile photo');
         setUploadingAvatar(false);
         return;
       }
 
       console.log('ProfileScreen: Database updated successfully');
 
-      // Wait a bit for the storage to be ready
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Refresh children data
-      await refreshChildren();
-
-      // Force avatar component to re-render with new key
-      setAvatarKey(prev => prev + 1);
-
-      // Delete old avatar if it exists
-      if (oldAvatarUrl && oldAvatarUrl !== result.url) {
+      // Step 4: Delete old avatar if it exists
+      if (selectedChild.avatar_url && selectedChild.avatar_url !== uploadResult.url) {
         console.log('ProfileScreen: Deleting old avatar');
-        await deleteProfileAvatar(oldAvatarUrl);
+        await deleteProfileAvatar(selectedChild.avatar_url);
       }
+
+      // Step 5: Refresh children data to get updated avatar
+      await refreshChildren();
 
       setUploadingAvatar(false);
       
@@ -421,7 +418,7 @@ export default function ProfileScreen() {
 
           <View style={styles.profileSection}>
             <ProfileAvatar 
-              key={`avatar-${avatarKey}-${selectedChild?.id}`}
+              key={selectedChild?.id}
               imageUri={selectedChild?.avatar_url}
               size={180}
               onPress={handleChangeAvatar}

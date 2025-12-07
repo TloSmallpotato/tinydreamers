@@ -11,6 +11,46 @@ export interface UploadAvatarResult {
 }
 
 /**
+ * Pick an image from the device's photo library
+ * @returns The URI of the selected image, or null if cancelled
+ */
+export async function pickProfileImage(): Promise<string | null> {
+  try {
+    console.log('pickProfileImage: Requesting permissions');
+
+    // Request permissions
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      console.log('pickProfileImage: Permission denied');
+      return null;
+    }
+
+    console.log('pickProfileImage: Launching image picker');
+
+    // Launch image picker
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (result.canceled || !result.assets[0]) {
+      console.log('pickProfileImage: User cancelled or no image selected');
+      return null;
+    }
+
+    const imageUri = result.assets[0].uri;
+    console.log('pickProfileImage: Image selected:', imageUri);
+
+    return imageUri;
+  } catch (error) {
+    console.error('pickProfileImage: Error:', error);
+    return null;
+  }
+}
+
+/**
  * Upload a profile avatar to Supabase Storage
  * @param childId - The ID of the child
  * @param imageUri - The local URI of the image to upload
@@ -76,6 +116,14 @@ export async function uploadProfileAvatar(
 
     console.log('uploadProfileAvatar: ArrayBuffer created, size:', arrayBuffer.byteLength, 'bytes');
 
+    if (arrayBuffer.byteLength === 0) {
+      console.error('uploadProfileAvatar: ArrayBuffer is empty');
+      return {
+        success: false,
+        error: 'Failed to process image. Please try again.',
+      };
+    }
+
     // Upload to Supabase Storage using ArrayBuffer
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('profile-avatars')
@@ -102,21 +150,6 @@ export async function uploadProfileAvatar(
 
     const publicUrl = urlData.publicUrl;
     console.log('uploadProfileAvatar: Public URL:', publicUrl);
-
-    // Wait a moment for the file to be fully processed
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Verify the URL is accessible
-    try {
-      const verifyResponse = await fetch(publicUrl, { method: 'HEAD' });
-      if (!verifyResponse.ok) {
-        console.warn('uploadProfileAvatar: URL verification failed:', verifyResponse.status);
-      } else {
-        console.log('uploadProfileAvatar: URL verified successfully');
-      }
-    } catch (verifyError) {
-      console.warn('uploadProfileAvatar: URL verification error:', verifyError);
-    }
 
     return {
       success: true,
@@ -146,7 +179,7 @@ export async function deleteProfileAvatar(avatarUrl: string): Promise<void> {
       return;
     }
 
-    const filePath = urlParts[1];
+    const filePath = urlParts[1].split('?')[0]; // Remove any query parameters
     console.log('deleteProfileAvatar: File path:', filePath);
 
     // Delete from storage
@@ -161,45 +194,5 @@ export async function deleteProfileAvatar(avatarUrl: string): Promise<void> {
     }
   } catch (error) {
     console.error('deleteProfileAvatar: Unexpected error:', error);
-  }
-}
-
-/**
- * Pick an image from the device's photo library
- * @returns The URI of the selected image, or null if cancelled
- */
-export async function pickProfileImage(): Promise<string | null> {
-  try {
-    console.log('pickProfileImage: Requesting permissions');
-
-    // Request permissions
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      console.log('pickProfileImage: Permission denied');
-      return null;
-    }
-
-    console.log('pickProfileImage: Launching image picker');
-
-    // Launch image picker
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (result.canceled || !result.assets[0]) {
-      console.log('pickProfileImage: User cancelled or no image selected');
-      return null;
-    }
-
-    const imageUri = result.assets[0].uri;
-    console.log('pickProfileImage: Image selected:', imageUri);
-
-    return imageUri;
-  } catch (error) {
-    console.error('pickProfileImage: Error:', error);
-    return null;
   }
 }
