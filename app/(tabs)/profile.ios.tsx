@@ -61,6 +61,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarRefreshKey, setAvatarRefreshKey] = useState(0);
   const isFetchingRef = useRef(false);
 
   useEffect(() => {
@@ -356,6 +357,10 @@ export default function ProfileScreen() {
       console.log('ProfileScreen (iOS): Refreshing children data...');
       await refreshChildren();
 
+      // Step 8: Force ProfileAvatar component to refresh
+      console.log('ProfileScreen (iOS): Forcing avatar refresh...');
+      setAvatarRefreshKey(prev => prev + 1);
+
       setUploadingAvatar(false);
       
       console.log('ProfileScreen (iOS): Avatar change complete!');
@@ -429,6 +434,7 @@ export default function ProfileScreen() {
               size={180}
               onPress={handleChangeAvatar}
               isUploading={uploadingAvatar}
+              refreshKey={avatarRefreshKey}
             />
             <TouchableOpacity style={styles.profileInfo} onPress={handleOpenChildSelector}>
               <Text style={styles.profileName}>
