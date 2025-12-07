@@ -299,6 +299,7 @@ export default function ProfileScreen() {
 
     try {
       console.log('ProfileScreen: Starting avatar change process');
+      console.log('ProfileScreen: Platform:', Platform.OS);
       
       // Step 1: Pick image
       const imageUri = await pickProfileImage();
@@ -308,10 +309,10 @@ export default function ProfileScreen() {
         return;
       }
 
-      console.log('ProfileScreen: Image selected, starting upload');
+      console.log('ProfileScreen: Image selected:', imageUri);
       setUploadingAvatar(true);
 
-      // Step 2: Upload to Supabase Storage
+      // Step 2: Upload to Supabase Storage (this now returns signed URL for native)
       const uploadResult = await uploadProfileAvatar(selectedChild.id, imageUri);
 
       if (!uploadResult.success || !uploadResult.url) {
@@ -322,6 +323,7 @@ export default function ProfileScreen() {
       }
 
       console.log('ProfileScreen: Upload successful, URL:', uploadResult.url);
+      console.log('ProfileScreen: URL type:', uploadResult.url.includes('/sign/') ? 'signed' : 'public');
 
       // Step 3: Update database with new avatar URL
       const { error: updateError } = await supabase
@@ -348,10 +350,12 @@ export default function ProfileScreen() {
       }
 
       // Step 5: Refresh children data to get updated avatar
+      console.log('ProfileScreen: Refreshing children data...');
       await refreshChildren();
 
       setUploadingAvatar(false);
       
+      console.log('ProfileScreen: Avatar change complete!');
       Alert.alert('Success', 'Profile photo updated successfully!');
     } catch (err) {
       console.error('ProfileScreen: Error changing avatar:', err);
@@ -418,7 +422,7 @@ export default function ProfileScreen() {
 
           <View style={styles.profileSection}>
             <ProfileAvatar 
-              key={selectedChild?.id}
+              key={`${selectedChild?.id}-${selectedChild?.avatar_url}`}
               imageUri={selectedChild?.avatar_url}
               size={180}
               onPress={handleChangeAvatar}

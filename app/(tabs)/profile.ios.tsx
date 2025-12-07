@@ -301,7 +301,9 @@ export default function ProfileScreen() {
 
     try {
       console.log('ProfileScreen (iOS): Starting avatar change process');
+      console.log('ProfileScreen (iOS): Platform:', Platform.OS);
       
+      // Step 1: Pick image
       const imageUri = await pickProfileImage();
       
       if (!imageUri) {
@@ -309,52 +311,56 @@ export default function ProfileScreen() {
         return;
       }
 
+      console.log('ProfileScreen (iOS): Image selected:', imageUri);
       setUploadingAvatar(true);
 
-      const oldAvatarUrl = selectedChild.avatar_url;
+      // Step 2: Upload to Supabase Storage (this now returns signed URL for native)
+      const uploadResult = await uploadProfileAvatar(selectedChild.id, imageUri);
 
-      const result = await uploadProfileAvatar(selectedChild.id, imageUri);
-
-      if (!result.success) {
-        console.error('ProfileScreen (iOS): Upload failed:', result.error);
-        Alert.alert('Upload Failed', result.error || 'Failed to upload image');
+      if (!uploadResult.success || !uploadResult.url) {
+        console.error('ProfileScreen (iOS): Upload failed:', uploadResult.error);
+        Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image');
         setUploadingAvatar(false);
         return;
       }
 
-      console.log('ProfileScreen (iOS): Upload successful, updating database');
+      console.log('ProfileScreen (iOS): Upload successful, URL:', uploadResult.url);
+      console.log('ProfileScreen (iOS): URL type:', uploadResult.url.includes('/sign/') ? 'signed' : 'public');
 
+      // Step 3: Update database with new avatar URL
       const { error: updateError } = await supabase
         .from('children')
-        .update({ avatar_url: result.url })
+        .update({ 
+          avatar_url: uploadResult.url,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', selectedChild.id);
 
       if (updateError) {
         console.error('ProfileScreen (iOS): Database update failed:', updateError);
-        Alert.alert('Update Failed', 'Failed to update profile photo in database');
+        Alert.alert('Update Failed', 'Failed to save profile photo');
         setUploadingAvatar(false);
         return;
       }
 
       console.log('ProfileScreen (iOS): Database updated successfully');
 
-      // Wait a bit for the storage to be ready
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Step 4: Delete old avatar if it exists
+      if (selectedChild.avatar_url && selectedChild.avatar_url !== uploadResult.url) {
+        console.log('ProfileScreen (iOS): Deleting old avatar');
+        await deleteProfileAvatar(selectedChild.avatar_url);
+      }
 
-      // Refresh children data
+      // Step 5: Refresh children data to get updated avatar
+      console.log('ProfileScreen (iOS): Refreshing children data...');
       await refreshChildren();
 
       // Force avatar component to re-render with new key
       setAvatarKey(prev => prev + 1);
 
-      // Delete old avatar if it exists
-      if (oldAvatarUrl && oldAvatarUrl !== result.url) {
-        console.log('ProfileScreen (iOS): Deleting old avatar');
-        await deleteProfileAvatar(oldAvatarUrl);
-      }
-
       setUploadingAvatar(false);
       
+      console.log('ProfileScreen (iOS): Avatar change complete!');
       Alert.alert('Success', 'Profile photo updated successfully!');
     } catch (err) {
       console.error('ProfileScreen (iOS): Error changing avatar:', err);

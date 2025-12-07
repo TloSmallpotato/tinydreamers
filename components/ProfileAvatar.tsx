@@ -23,6 +23,7 @@ export default function ProfileAvatar({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [displayUri, setDisplayUri] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [errorDetails, setErrorDetails] = useState<string>('');
 
   // Scale the SVG path to fit the desired size
   // Original SVG viewBox is "0 0 196 194"
@@ -35,20 +36,41 @@ export default function ProfileAvatar({
 
   useEffect(() => {
     console.log('ProfileAvatar: imageUri changed:', imageUri);
+    console.log('ProfileAvatar: imageUri type:', typeof imageUri);
+    console.log('ProfileAvatar: Platform:', Platform.OS);
+    
     setImageError(false);
     setImageLoaded(false);
     setRetryCount(0);
+    setErrorDetails('');
     
     if (imageUri) {
-      // Add cache-busting parameter to force reload
-      const cacheBuster = `?t=${Date.now()}`;
-      const uriWithCacheBuster = imageUri.includes('?') 
-        ? `${imageUri.split('?')[0]}${cacheBuster}`
-        : `${imageUri}${cacheBuster}`;
+      // Check if it's a valid URL
+      const isValidUrl = imageUri.startsWith('http://') || imageUri.startsWith('https://');
+      console.log('ProfileAvatar: Is valid URL:', isValidUrl);
       
-      console.log('ProfileAvatar: Setting display URI with cache buster:', uriWithCacheBuster);
-      setDisplayUri(uriWithCacheBuster);
+      if (!isValidUrl) {
+        console.error('ProfileAvatar: Invalid URL format:', imageUri);
+        setImageError(true);
+        setErrorDetails('Invalid URL format');
+        return;
+      }
+
+      // For native platforms, don't add cache busting to signed URLs
+      // Signed URLs already have query parameters that include authentication
+      if (Platform.OS !== 'web' && imageUri.includes('/sign/')) {
+        console.log('ProfileAvatar: Using signed URL as-is (no cache busting)');
+        setDisplayUri(imageUri);
+      } else {
+        // Add cache-busting parameter to force reload for public URLs
+        const cacheBuster = `${imageUri.includes('?') ? '&' : '?'}t=${Date.now()}`;
+        const uriWithCacheBuster = `${imageUri}${cacheBuster}`;
+        
+        console.log('ProfileAvatar: Setting display URI with cache buster:', uriWithCacheBuster);
+        setDisplayUri(uriWithCacheBuster);
+      }
     } else {
+      console.log('ProfileAvatar: No imageUri provided');
       setDisplayUri(null);
     }
   }, [imageUri]);
@@ -57,12 +79,19 @@ export default function ProfileAvatar({
     console.log('ProfileAvatar: Image loaded successfully');
     setImageLoaded(true);
     setImageError(false);
+    setErrorDetails('');
   };
 
   const handleImageError = (error: any) => {
-    console.error('ProfileAvatar: Image failed to load', error);
+    console.error('ProfileAvatar: Image failed to load');
+    console.error('ProfileAvatar: Error details:', JSON.stringify(error, null, 2));
+    
+    const errorMessage = error?.nativeEvent?.error || error?.error || 'Unknown error';
+    console.error('ProfileAvatar: Error message:', errorMessage);
+    
     setImageLoaded(false);
     setImageError(true);
+    setErrorDetails(errorMessage);
 
     // Retry loading the image up to 3 times with exponential backoff
     if (retryCount < 3 && imageUri) {
@@ -73,18 +102,20 @@ export default function ProfileAvatar({
         setRetryCount(prev => prev + 1);
         setImageError(false);
         
-        const cacheBuster = `?t=${Date.now()}&retry=${retryCount + 1}`;
-        const uriWithCacheBuster = imageUri 
-          ? (imageUri.includes('?') 
-              ? `${imageUri.split('?')[0]}${cacheBuster}`
-              : `${imageUri}${cacheBuster}`)
-          : null;
-        
-        console.log('ProfileAvatar: Retry attempt with URI:', uriWithCacheBuster);
-        if (uriWithCacheBuster) {
+        // For signed URLs, don't modify them on retry
+        if (Platform.OS !== 'web' && imageUri.includes('/sign/')) {
+          console.log('ProfileAvatar: Retry with signed URL (no modification)');
+          setDisplayUri(imageUri);
+        } else {
+          const cacheBuster = `${imageUri.includes('?') ? '&' : '?'}t=${Date.now()}&retry=${retryCount + 1}`;
+          const uriWithCacheBuster = `${imageUri}${cacheBuster}`;
+          
+          console.log('ProfileAvatar: Retry attempt with URI:', uriWithCacheBuster);
           setDisplayUri(uriWithCacheBuster);
         }
       }, delay);
+    } else if (retryCount >= 3) {
+      console.error('ProfileAvatar: Max retries reached, giving up');
     }
   };
 
@@ -109,7 +140,7 @@ export default function ProfileAvatar({
             />
           </Svg>
 
-          {/* Image with expo-image - this is the key fix */}
+          {/* Image with expo-image */}
           {displayUri && (
             <View style={StyleSheet.absoluteFill}>
               <Image
@@ -213,11 +244,30 @@ export default function ProfileAvatar({
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.backgroundAlt} />
           <Text style={styles.loadingText}>Loading image...</Text>
+          {retryCount > 0 && (
+            <Text style={styles.retryText}>Retry {retryCount}/3</Text>
+          )}
+        </View>
+      )}
+
+      {/* Error indicator */}
+      {imageError && retryCount >= 3 && !isUploading && (
+        <View style={styles.errorOverlay}>
+          <IconSymbol 
+            ios_icon_name="exclamationmark.triangle.fill" 
+            android_material_icon_name="error" 
+            size={32} 
+            color="rgba(255, 255, 255, 0.7)" 
+          />
+          <Text style={styles.errorText}>Failed to load</Text>
+          {errorDetails && (
+            <Text style={styles.errorDetailsText}>{errorDetails}</Text>
+          )}
         </View>
       )}
       
       {/* Camera icon overlay for empty state */}
-      {showPlaceholder && !isUploading && !(imageError && retryCount < 3) && (
+      {showPlaceholder && !isUploading && !(imageError && retryCount < 3) && !(imageError && retryCount >= 3) && (
         <View style={styles.emptyStateIcon}>
           <IconSymbol 
             ios_icon_name="camera.fill" 
@@ -267,6 +317,35 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.backgroundAlt,
     marginTop: 8,
+  },
+  retryText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: colors.backgroundAlt,
+    marginTop: 4,
+  },
+  errorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 10,
+    borderRadius: 16,
+    padding: 12,
+  },
+  errorText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  errorDetailsText: {
+    fontSize: 9,
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 4,
+    textAlign: 'center',
   },
   emptyStateIcon: {
     position: 'absolute',
