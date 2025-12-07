@@ -43,63 +43,11 @@ export async function pickProfileImage(): Promise<string | null> {
 
     const imageUri = result.assets[0].uri;
     console.log('pickProfileImage: Image selected:', imageUri);
-    console.log('pickProfileImage: URI type:', typeof imageUri);
-    console.log('pickProfileImage: URI starts with:', imageUri.substring(0, 50));
 
     return imageUri;
   } catch (error) {
     console.error('pickProfileImage: Error:', error);
     return null;
-  }
-}
-
-/**
- * Get a signed URL for an avatar that works on all platforms
- * @param filePath - The storage path of the file
- * @returns The signed URL or public URL depending on platform
- */
-export async function getAvatarUrl(filePath: string): Promise<string> {
-  try {
-    console.log('getAvatarUrl: Getting URL for path:', filePath);
-    console.log('getAvatarUrl: Platform:', Platform.OS);
-
-    // For native platforms, use signed URLs to ensure authentication works
-    if (Platform.OS !== 'web') {
-      const { data, error } = await supabase.storage
-        .from('profile-avatars')
-        .createSignedUrl(filePath, 60 * 60 * 24 * 365); // 1 year expiry
-
-      if (error) {
-        console.error('getAvatarUrl: Error creating signed URL:', error);
-        // Fallback to public URL
-        const { data: publicData } = supabase.storage
-          .from('profile-avatars')
-          .getPublicUrl(filePath);
-        
-        console.log('getAvatarUrl: Falling back to public URL:', publicData.publicUrl);
-        return publicData.publicUrl;
-      }
-
-      console.log('getAvatarUrl: Created signed URL:', data.signedUrl);
-      return data.signedUrl;
-    }
-
-    // For web, public URLs work fine
-    const { data: publicData } = supabase.storage
-      .from('profile-avatars')
-      .getPublicUrl(filePath);
-
-    console.log('getAvatarUrl: Using public URL for web:', publicData.publicUrl);
-    return publicData.publicUrl;
-  } catch (error) {
-    console.error('getAvatarUrl: Unexpected error:', error);
-    
-    // Final fallback to public URL
-    const { data: publicData } = supabase.storage
-      .from('profile-avatars')
-      .getPublicUrl(filePath);
-    
-    return publicData.publicUrl;
   }
 }
 
@@ -118,28 +66,12 @@ export async function uploadProfileAvatar(
     console.log('uploadProfileAvatar: Image URI:', imageUri);
     console.log('uploadProfileAvatar: Platform:', Platform.OS);
 
-    // Validate the URI format
+    // Validate the URI
     if (!imageUri || typeof imageUri !== 'string') {
-      console.error('uploadProfileAvatar: Invalid URI type:', typeof imageUri);
+      console.error('uploadProfileAvatar: Invalid URI');
       return {
         success: false,
         error: 'Invalid image URI',
-      };
-    }
-
-    // Check if it's a local file URI
-    const isLocalFile = imageUri.startsWith('file://') || 
-                        imageUri.startsWith('content://') || 
-                        imageUri.startsWith('ph://') ||
-                        imageUri.startsWith('/');
-    
-    console.log('uploadProfileAvatar: Is local file:', isLocalFile);
-
-    if (!isLocalFile) {
-      console.error('uploadProfileAvatar: URI is not a local file:', imageUri);
-      return {
-        success: false,
-        error: 'Selected image is not a local file. Please try again.',
       };
     }
 
@@ -156,7 +88,7 @@ export async function uploadProfileAvatar(
       };
     }
 
-    // Generate unique filename with child ID prefix
+    // Generate unique filename
     const timestamp = Date.now();
     const fileName = `${childId}-${timestamp}.${fileExt}`;
     const filePath = `avatars/${fileName}`;
@@ -171,7 +103,15 @@ export async function uploadProfileAvatar(
 
     console.log('uploadProfileAvatar: File read successfully, size:', base64.length, 'characters');
 
-    // Check approximate file size (base64 is ~33% larger than binary)
+    if (base64.length === 0) {
+      console.error('uploadProfileAvatar: Base64 string is empty');
+      return {
+        success: false,
+        error: 'Failed to read image file. Please try again.',
+      };
+    }
+
+    // Check file size (base64 is ~33% larger than binary)
     const approximateSize = (base64.length * 3) / 4;
     const maxSize = 5 * 1024 * 1024; // 5MB
     
@@ -183,15 +123,7 @@ export async function uploadProfileAvatar(
       };
     }
 
-    if (base64.length === 0) {
-      console.error('uploadProfileAvatar: Base64 string is empty');
-      return {
-        success: false,
-        error: 'Failed to read image file. Please try again.',
-      };
-    }
-
-    // Convert base64 to ArrayBuffer using base64-arraybuffer
+    // Convert base64 to ArrayBuffer
     console.log('uploadProfileAvatar: Converting to ArrayBuffer...');
     const arrayBuffer = decode(base64);
 
@@ -205,7 +137,7 @@ export async function uploadProfileAvatar(
       };
     }
 
-    // Upload to Supabase Storage using ArrayBuffer
+    // Upload to Supabase Storage
     console.log('uploadProfileAvatar: Uploading to Supabase Storage...');
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('profile-avatars')
@@ -225,28 +157,13 @@ export async function uploadProfileAvatar(
 
     console.log('uploadProfileAvatar: Upload successful:', uploadData);
 
-    // Wait a bit to ensure the file is fully available in storage
-    console.log('uploadProfileAvatar: Waiting for storage to sync...');
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Get public URL
+    const { data: publicUrlData } = supabase.storage
+      .from('profile-avatars')
+      .getPublicUrl(filePath);
 
-    // Get the appropriate URL for the platform
-    const avatarUrl = await getAvatarUrl(filePath);
-    console.log('uploadProfileAvatar: Final avatar URL:', avatarUrl);
-
-    // Verify the image is accessible
-    try {
-      console.log('uploadProfileAvatar: Verifying image accessibility...');
-      const response = await fetch(avatarUrl, { method: 'HEAD' });
-      console.log('uploadProfileAvatar: Image accessibility check status:', response.status);
-      
-      if (!response.ok) {
-        console.warn('uploadProfileAvatar: Image not immediately accessible (status:', response.status, '), but continuing...');
-      } else {
-        console.log('uploadProfileAvatar: Image is accessible!');
-      }
-    } catch (fetchError) {
-      console.warn('uploadProfileAvatar: Could not verify image accessibility:', fetchError);
-    }
+    const avatarUrl = publicUrlData.publicUrl;
+    console.log('uploadProfileAvatar: Public URL:', avatarUrl);
 
     return {
       success: true,
@@ -270,28 +187,14 @@ export async function deleteProfileAvatar(avatarUrl: string): Promise<void> {
     console.log('deleteProfileAvatar: Deleting avatar:', avatarUrl);
 
     // Extract the file path from the URL
-    // Handle both public URLs and signed URLs
-    let filePath: string | null = null;
-
-    // Try to extract from public URL format
-    const publicUrlMatch = avatarUrl.match(/\/storage\/v1\/object\/public\/profile-avatars\/(.+?)(\?|$)/);
-    if (publicUrlMatch) {
-      filePath = publicUrlMatch[1];
-    }
-
-    // Try to extract from signed URL format
-    if (!filePath) {
-      const signedUrlMatch = avatarUrl.match(/\/storage\/v1\/object\/sign\/profile-avatars\/(.+?)\?/);
-      if (signedUrlMatch) {
-        filePath = signedUrlMatch[1];
-      }
-    }
-
-    if (!filePath) {
-      console.warn('deleteProfileAvatar: Could not extract file path from URL, skipping deletion');
+    const urlMatch = avatarUrl.match(/\/profile-avatars\/(.+?)(\?|$)/);
+    
+    if (!urlMatch || !urlMatch[1]) {
+      console.warn('deleteProfileAvatar: Could not extract file path from URL');
       return;
     }
 
+    const filePath = urlMatch[1];
     console.log('deleteProfileAvatar: Extracted file path:', filePath);
 
     // Delete from storage
