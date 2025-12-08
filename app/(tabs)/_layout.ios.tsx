@@ -80,8 +80,8 @@ const tabs: TabItem[] = [
   },
 ];
 
-// Maximum recording duration in seconds (20 seconds as per requirements)
-const MAX_RECORDING_DURATION = 20;
+// Maximum recording duration in seconds (5 seconds as per requirements)
+const MAX_RECORDING_DURATION = 5;
 
 function CustomTabBar() {
   const pathname = usePathname();
@@ -138,7 +138,7 @@ function CustomTabBar() {
   }, [cameraPermission, requestCameraPermission]);
 
   const openCamera = useCallback(async () => {
-    console.log('Opening camera for video recording (max 20 seconds)');
+    console.log('Opening camera for video recording (max 5 seconds)');
     
     if (!cameraPermission) {
       console.log('Camera permission not loaded yet');
@@ -275,7 +275,7 @@ function CustomTabBar() {
       
       const status = await sound.getStatusAsync();
       if (status.isLoaded && status.durationMillis) {
-        const durationInSeconds = status.durationMillis / 1000;
+        const durationInSeconds = Math.round(status.durationMillis / 1000);
         console.log('Actual video duration:', durationInSeconds, 'seconds');
         await sound.unloadAsync();
         return durationInSeconds;
