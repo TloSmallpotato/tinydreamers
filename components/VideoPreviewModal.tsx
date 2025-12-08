@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, Animated, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, Animated, Image } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -46,8 +46,8 @@ export default function VideoPreviewModal({
   // Calculate video container height to fit within safe area
   const topSafeArea = insets.top || 44;
   const bottomSafeArea = insets.bottom || 34;
-  const titleInfoHeight = 180;
-  const trimControlsHeight = 200;
+  const titleInfoHeight = 200;
+  const trimControlsHeight = 280;
   const buttonsHeight = 100;
   const padding = 40;
   
@@ -55,10 +55,10 @@ export default function VideoPreviewModal({
   const videoWidth = screenWidth - 40;
   const videoHeight = Math.min(videoWidth * (16 / 9), maxVideoHeight);
 
-  // Timeline dimensions
-  const timelineWidth = screenWidth - 80;
-  const thumbnailWidth = 60;
-  const thumbnailHeight = 80;
+  // Timeline dimensions - make it wider and more visible
+  const timelineWidth = screenWidth - 60;
+  const thumbnailWidth = 70;
+  const thumbnailHeight = 100;
 
   useEffect(() => {
     // Load the video to get actual duration
@@ -324,105 +324,107 @@ export default function VideoPreviewModal({
                 <Text style={styles.loadingText}>Generating preview...</Text>
               </View>
             ) : (
-              <View style={[styles.timeline, { width: timelineWidth }]}>
-                {/* Thumbnail strip */}
-                <View style={styles.thumbnailStrip}>
-                  {thumbnails.map((thumbnail, index) => (
-                    <View key={index} style={[styles.thumbnailWrapper, { width: thumbnailWidth, height: thumbnailHeight }]}>
-                      <Image
-                        source={{ uri: thumbnail.uri }}
-                        style={styles.thumbnail}
-                        resizeMode="cover"
-                      />
-                    </View>
-                  ))}
-                </View>
+              <View style={styles.timelineWrapper}>
+                <View style={[styles.timeline, { width: timelineWidth }]}>
+                  {/* Thumbnail strip */}
+                  <View style={styles.thumbnailStrip}>
+                    {thumbnails.map((thumbnail, index) => (
+                      <View key={index} style={[styles.thumbnailWrapper, { width: thumbnailWidth, height: thumbnailHeight }]}>
+                        <Image
+                          source={{ uri: thumbnail.uri }}
+                          style={styles.thumbnail}
+                          resizeMode="cover"
+                        />
+                      </View>
+                    ))}
+                  </View>
 
-                {/* Overlay for non-selected regions */}
-                <View style={styles.overlayContainer}>
-                  {/* Left overlay */}
+                  {/* Overlay for non-selected regions */}
+                  <View style={styles.overlayContainer}>
+                    {/* Left overlay */}
+                    <View 
+                      style={[
+                        styles.overlay, 
+                        { 
+                          left: 0, 
+                          width: getLeftHandlePosition() 
+                        }
+                      ]} 
+                    />
+                    
+                    {/* Right overlay */}
+                    <View 
+                      style={[
+                        styles.overlay, 
+                        { 
+                          left: getRightHandlePosition(), 
+                          width: timelineWidth - getRightHandlePosition() 
+                        }
+                      ]} 
+                    />
+                  </View>
+
+                  {/* Selected region border */}
                   <View 
                     style={[
-                      styles.overlay, 
-                      { 
-                        left: 0, 
-                        width: getLeftHandlePosition() 
+                      styles.selectedRegion,
+                      {
+                        left: getLeftHandlePosition(),
+                        width: getRightHandlePosition() - getLeftHandlePosition(),
                       }
-                    ]} 
-                  />
-                  
-                  {/* Right overlay */}
-                  <View 
-                    style={[
-                      styles.overlay, 
-                      { 
-                        left: getRightHandlePosition(), 
-                        width: timelineWidth - getRightHandlePosition() 
-                      }
-                    ]} 
-                  />
-                </View>
-
-                {/* Selected region border */}
-                <View 
-                  style={[
-                    styles.selectedRegion,
-                    {
-                      left: getLeftHandlePosition(),
-                      width: getRightHandlePosition() - getLeftHandlePosition(),
-                    }
-                  ]}
-                />
-
-                {/* Current position indicator */}
-                {currentPosition >= trimStart && currentPosition <= trimEnd && (
-                  <View 
-                    style={[
-                      styles.currentPositionIndicator,
-                      { left: getCurrentPositionIndicator() }
                     ]}
                   />
-                )}
 
-                {/* Left handle (trim start) */}
-                <View
-                  {...leftHandlePanResponder.panHandlers}
-                  style={[
-                    styles.handle,
-                    styles.leftHandle,
-                    { left: getLeftHandlePosition() - 15 }
-                  ]}
-                >
-                  <View style={styles.handleBar} />
-                  <View style={styles.handleGrip}>
-                    <View style={styles.handleGripLine} />
-                    <View style={styles.handleGripLine} />
-                    <View style={styles.handleGripLine} />
-                  </View>
-                </View>
+                  {/* Current position indicator */}
+                  {currentPosition >= trimStart && currentPosition <= trimEnd && (
+                    <View 
+                      style={[
+                        styles.currentPositionIndicator,
+                        { left: getCurrentPositionIndicator() }
+                      ]}
+                    />
+                  )}
 
-                {/* Right handle (trim end) */}
-                <View
-                  {...rightHandlePanResponder.panHandlers}
-                  style={[
-                    styles.handle,
-                    styles.rightHandle,
-                    { left: getRightHandlePosition() - 15 }
-                  ]}
-                >
-                  <View style={styles.handleGrip}>
-                    <View style={styles.handleGripLine} />
-                    <View style={styles.handleGripLine} />
-                    <View style={styles.handleGripLine} />
+                  {/* Left handle (trim start) */}
+                  <View
+                    {...leftHandlePanResponder.panHandlers}
+                    style={[
+                      styles.handle,
+                      styles.leftHandle,
+                      { left: getLeftHandlePosition() - 20 }
+                    ]}
+                  >
+                    <View style={styles.handleBar} />
+                    <View style={styles.handleGrip}>
+                      <View style={styles.handleGripLine} />
+                      <View style={styles.handleGripLine} />
+                      <View style={styles.handleGripLine} />
+                    </View>
                   </View>
-                  <View style={styles.handleBar} />
+
+                  {/* Right handle (trim end) */}
+                  <View
+                    {...rightHandlePanResponder.panHandlers}
+                    style={[
+                      styles.handle,
+                      styles.rightHandle,
+                      { left: getRightHandlePosition() - 20 }
+                    ]}
+                  >
+                    <View style={styles.handleGrip}>
+                      <View style={styles.handleGripLine} />
+                      <View style={styles.handleGripLine} />
+                      <View style={styles.handleGripLine} />
+                    </View>
+                    <View style={styles.handleBar} />
+                  </View>
                 </View>
               </View>
             )}
           </View>
 
           {/* Time labels */}
-          <View style={styles.timeLabels}>
+          <View style={[styles.timeLabels, { width: timelineWidth }]}>
             <Text style={styles.timeLabel}>{formatTime(trimStart)}</Text>
             <Text style={styles.timeLabel}>{formatTime(trimEnd)}</Text>
           </View>
@@ -514,9 +516,10 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     marginBottom: 12,
+    paddingHorizontal: 10,
   },
   loadingContainer: {
-    height: 100,
+    height: 120,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -524,16 +527,23 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 14,
   },
+  timelineWrapper: {
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
   timeline: {
-    height: 80,
+    height: 100,
     position: 'relative',
     backgroundColor: '#1a1a1a',
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'visible',
   },
   thumbnailStrip: {
     flexDirection: 'row',
-    height: 80,
+    height: 100,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   thumbnailWrapper: {
     overflow: 'hidden',
@@ -554,31 +564,31 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
   selectedRegion: {
     position: 'absolute',
-    top: 0,
-    bottom: 0,
-    borderWidth: 3,
-    borderColor: '#FFD700',
-    borderRadius: 4,
+    top: -2,
+    bottom: -2,
+    borderWidth: 4,
+    borderColor: colors.primary,
+    borderRadius: 8,
     pointerEvents: 'none',
   },
   currentPositionIndicator: {
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: 2,
+    width: 3,
     backgroundColor: colors.backgroundAlt,
     zIndex: 5,
     pointerEvents: 'none',
   },
   handle: {
     position: 'absolute',
-    top: -10,
-    bottom: -10,
-    width: 30,
+    top: -15,
+    bottom: -15,
+    width: 40,
     flexDirection: 'row',
     alignItems: 'center',
     zIndex: 10,
@@ -590,44 +600,44 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   handleBar: {
-    width: 4,
+    width: 5,
     height: '100%',
-    backgroundColor: '#FFD700',
-    borderRadius: 2,
+    backgroundColor: colors.primary,
+    borderRadius: 3,
   },
   handleGrip: {
-    width: 26,
-    height: 50,
-    backgroundColor: '#FFD700',
-    borderRadius: 8,
+    width: 35,
+    height: 60,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
+    elevation: 8,
   },
   handleGripLine: {
-    width: 14,
-    height: 2,
-    backgroundColor: '#000000',
-    borderRadius: 1,
+    width: 18,
+    height: 3,
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 2,
   },
   timeLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: screenWidth - 80,
     marginBottom: 8,
+    paddingHorizontal: 10,
   },
   timeLabel: {
-    fontSize: 14,
-    color: colors.text,
-    fontWeight: '600',
+    fontSize: 15,
+    color: colors.primary,
+    fontWeight: '700',
   },
   hint: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
     fontStyle: 'italic',
     textAlign: 'center',
