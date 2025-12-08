@@ -37,6 +37,12 @@ export default function AddOptionsModal({
 
   useEffect(() => {
     if (visible) {
+      // Reset animations to initial state before animating in
+      fadeAnim.setValue(0);
+      slideAnim1.setValue(20);
+      slideAnim2.setValue(20);
+      slideAnim3.setValue(20);
+
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -123,14 +129,9 @@ export default function AddOptionsModal({
                   onPress={onAddBook}
                   activeOpacity={0.8}
                 >
-                  <LinearGradient
-                    colors={['#4A4A8A', '#6B5B95']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.gradientButton}
-                  >
-                    <Text style={styles.buttonText}>Add a new book</Text>
-                  </LinearGradient>
+                  <View style={[styles.solidButton, { backgroundColor: '#3330AF' }]}>
+                    <Text style={styles.buttonText}>Add new Book</Text>
+                  </View>
                 </TouchableOpacity>
               </Animated.View>
 
@@ -148,14 +149,9 @@ export default function AddOptionsModal({
                   onPress={onAddWord}
                   activeOpacity={0.8}
                 >
-                  <LinearGradient
-                    colors={['#8B4A5A', '#A0616A']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.gradientButton}
-                  >
-                    <Text style={styles.buttonText}>Add a new word</Text>
-                  </LinearGradient>
+                  <View style={[styles.solidButton, { backgroundColor: '#F9B6E9' }]}>
+                    <Text style={[styles.buttonText, { color: '#3330AF' }]}>Add new Word</Text>
+                  </View>
                 </TouchableOpacity>
               </Animated.View>
             </View>
@@ -175,14 +171,9 @@ export default function AddOptionsModal({
                 onPress={onCaptureMoment}
                 activeOpacity={0.8}
               >
-                <LinearGradient
-                  colors={['#2C5F5F', '#4A7C7C', '#6B9999']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.gradientButtonLarge}
-                >
-                  <Text style={styles.largeButtonText}>Capture a new moment</Text>
-                </LinearGradient>
+                <View style={[styles.solidButtonLarge, { backgroundColor: '#F54B02' }]}>
+                  <Text style={styles.largeButtonText}>Capture new Moment</Text>
+                </View>
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -222,7 +213,7 @@ const styles = StyleSheet.create({
     boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.3)',
     elevation: 8,
   },
-  gradientButton: {
+  solidButton: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -244,7 +235,7 @@ const styles = StyleSheet.create({
     boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.3)',
     elevation: 8,
   },
-  gradientButtonLarge: {
+  solidButtonLarge: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
