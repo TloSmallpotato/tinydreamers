@@ -1,5 +1,5 @@
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -62,8 +62,8 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
-  const isFetchingRef = useRef(false);
   const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const lastFetchTimeRef = useRef<number>(0);
 
   // Update local avatar URL when selectedChild changes
   useEffect(() => {
@@ -75,137 +75,26 @@ export default function ProfileScreen() {
     }
   }, [selectedChild?.avatar_url]);
 
-  useEffect(() => {
-    if (selectedChild && !isFetchingRef.current) {
-      fetchProfileData();
-    } else if (!childLoading && !selectedChild) {
-      setLoading(false);
-      setStats({
-        totalWords: 0,
-        totalBooks: 0,
-        wordsThisWeek: 0,
-        booksThisWeek: 0,
-        momentsThisWeek: 0,
-        newWordsThisWeek: 0,
-      });
-      setMoments([]);
-    }
-  }, [selectedChild, childLoading]);
-
-  // Debounced fetch function to prevent excessive API calls
-  const debouncedFetchProfileData = () => {
-    // Clear any existing timeout
-    if (fetchDebounceRef.current) {
-      clearTimeout(fetchDebounceRef.current);
-    }
-
-    // Set a new timeout
-    fetchDebounceRef.current = setTimeout(() => {
-      console.log('ProfileScreen (iOS): Debounced fetch triggered');
-      fetchProfileData();
-    }, 500); // 500ms debounce
-  };
-
-  // Set up real-time subscriptions for stats updates
-  useEffect(() => {
+  // Fetch profile data function with improved logic
+  const fetchProfileData = useCallback(async (forceRefresh: boolean = false) => {
     if (!selectedChild) {
-      console.log('ProfileScreen (iOS): No selected child, skipping subscriptions');
+      console.log('ProfileScreen (iOS): No selected child, skipping fetch');
       return;
     }
 
-    console.log('ProfileScreen (iOS): Setting up real-time subscriptions for child:', selectedChild.id);
-
-    // Subscribe to user_words changes
-    const wordsSubscription = supabase
-      .channel(`profile_user_words_${selectedChild.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_words',
-          filter: `child_id=eq.${selectedChild.id}`,
-        },
-        (payload) => {
-          console.log('ProfileScreen (iOS): user_words change detected:', payload.eventType);
-          debouncedFetchProfileData();
-        }
-      )
-      .subscribe((status) => {
-        console.log('ProfileScreen (iOS): user_words subscription status:', status);
-      });
-
-    // Subscribe to user_books changes
-    const booksSubscription = supabase
-      .channel(`profile_user_books_${selectedChild.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_books',
-          filter: `child_id=eq.${selectedChild.id}`,
-        },
-        (payload) => {
-          console.log('ProfileScreen (iOS): user_books change detected:', payload.eventType);
-          debouncedFetchProfileData();
-        }
-      )
-      .subscribe((status) => {
-        console.log('ProfileScreen (iOS): user_books subscription status:', status);
-      });
-
-    // Subscribe to moments changes
-    const momentsSubscription = supabase
-      .channel(`profile_moments_${selectedChild.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'moments',
-          filter: `child_id=eq.${selectedChild.id}`,
-        },
-        (payload) => {
-          console.log('ProfileScreen (iOS): moments change detected:', payload.eventType);
-          debouncedFetchProfileData();
-        }
-      )
-      .subscribe((status) => {
-        console.log('ProfileScreen (iOS): moments subscription status:', status);
-      });
-
-    // Cleanup subscriptions on unmount or when selectedChild changes
-    return () => {
-      console.log('ProfileScreen (iOS): Cleaning up subscriptions');
-      
-      // Clear debounce timeout
-      if (fetchDebounceRef.current) {
-        clearTimeout(fetchDebounceRef.current);
-        fetchDebounceRef.current = null;
-      }
-
-      // Unsubscribe from all channels
-      wordsSubscription.unsubscribe();
-      booksSubscription.unsubscribe();
-      momentsSubscription.unsubscribe();
-    };
-  }, [selectedChild?.id]);
-
-  const fetchProfileData = async () => {
-    if (!selectedChild || isFetchingRef.current) {
-      console.log('ProfileScreen (iOS): Skipping fetch - no child or already fetching');
+    // Prevent excessive fetches (minimum 200ms between fetches unless forced)
+    const now = Date.now();
+    if (!forceRefresh && now - lastFetchTimeRef.current < 200) {
+      console.log('ProfileScreen (iOS): Skipping fetch - too soon since last fetch');
       return;
     }
 
-    isFetchingRef.current = true;
+    lastFetchTimeRef.current = now;
 
     try {
       setLoading(true);
       setError(null);
       console.log('ProfileScreen (iOS): Fetching profile data for child:', selectedChild.id);
-
-      await new Promise(resolve => setTimeout(resolve, 400));
 
       const startOfWeek = getStartOfWeek();
       const startOfWeekISO = startOfWeek.toISOString();
@@ -294,7 +183,7 @@ export default function ProfileScreen() {
       }
 
       console.log('ProfileScreen (iOS): Profile data fetched successfully');
-      console.log('ProfileScreen (iOS): Stats - Words:', totalWordsCount, 'Books:', totalBooksCount, 'Moments:', momentsThisWeekCount);
+      console.log('ProfileScreen (iOS): Stats - Total Words:', totalWordsCount, 'Words This Week:', wordsThisWeekCount, 'Total Books:', totalBooksCount, 'Books This Week:', booksThisWeekCount, 'Moments:', momentsThisWeekCount);
 
       setStats({
         totalWords: totalWordsCount,
@@ -311,9 +200,148 @@ export default function ProfileScreen() {
       setError(err instanceof Error ? err.message : 'Failed to load profile data');
     } finally {
       setLoading(false);
-      isFetchingRef.current = false;
     }
-  };
+  }, [selectedChild]);
+
+  // Initial data fetch when selectedChild changes
+  useEffect(() => {
+    if (selectedChild) {
+      console.log('ProfileScreen (iOS): Selected child changed, fetching data...');
+      fetchProfileData(true);
+    } else if (!childLoading && !selectedChild) {
+      setLoading(false);
+      setStats({
+        totalWords: 0,
+        totalBooks: 0,
+        wordsThisWeek: 0,
+        booksThisWeek: 0,
+        momentsThisWeek: 0,
+        newWordsThisWeek: 0,
+      });
+      setMoments([]);
+    }
+  }, [selectedChild, childLoading, fetchProfileData]);
+
+  // Debounced fetch function to prevent excessive API calls
+  const debouncedFetchProfileData = useCallback(() => {
+    // Clear any existing timeout
+    if (fetchDebounceRef.current) {
+      clearTimeout(fetchDebounceRef.current);
+    }
+
+    // Set a new timeout with shorter delay for better responsiveness
+    fetchDebounceRef.current = setTimeout(() => {
+      console.log('ProfileScreen (iOS): Debounced fetch triggered');
+      fetchProfileData(false);
+    }, 300); // Reduced from 500ms to 300ms for faster updates
+  }, [fetchProfileData]);
+
+  // Set up real-time subscriptions for stats updates
+  useEffect(() => {
+    if (!selectedChild) {
+      console.log('ProfileScreen (iOS): No selected child, skipping subscriptions');
+      return;
+    }
+
+    console.log('ProfileScreen (iOS): Setting up real-time subscriptions for child:', selectedChild.id);
+
+    // Subscribe to user_words changes
+    const wordsChannel = supabase
+      .channel(`profile_words_${selectedChild.id}`, {
+        config: {
+          broadcast: { self: false },
+        },
+      })
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_words',
+          filter: `child_id=eq.${selectedChild.id}`,
+        },
+        (payload) => {
+          console.log('ProfileScreen (iOS): user_words change detected:', payload.eventType, payload);
+          debouncedFetchProfileData();
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('ProfileScreen (iOS): user_words subscription status:', status);
+        if (err) {
+          console.error('ProfileScreen (iOS): user_words subscription error:', err);
+        }
+      });
+
+    // Subscribe to user_books changes
+    const booksChannel = supabase
+      .channel(`profile_books_${selectedChild.id}`, {
+        config: {
+          broadcast: { self: false },
+        },
+      })
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_books',
+          filter: `child_id=eq.${selectedChild.id}`,
+        },
+        (payload) => {
+          console.log('ProfileScreen (iOS): user_books change detected:', payload.eventType, payload);
+          debouncedFetchProfileData();
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('ProfileScreen (iOS): user_books subscription status:', status);
+        if (err) {
+          console.error('ProfileScreen (iOS): user_books subscription error:', err);
+        }
+      });
+
+    // Subscribe to moments changes
+    const momentsChannel = supabase
+      .channel(`profile_moments_${selectedChild.id}`, {
+        config: {
+          broadcast: { self: false },
+        },
+      })
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'moments',
+          filter: `child_id=eq.${selectedChild.id}`,
+        },
+        (payload) => {
+          console.log('ProfileScreen (iOS): moments change detected:', payload.eventType, payload);
+          debouncedFetchProfileData();
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('ProfileScreen (iOS): moments subscription status:', status);
+        if (err) {
+          console.error('ProfileScreen (iOS): moments subscription error:', err);
+        }
+      });
+
+    // Cleanup subscriptions on unmount or when selectedChild changes
+    return () => {
+      console.log('ProfileScreen (iOS): Cleaning up subscriptions');
+      
+      // Clear debounce timeout
+      if (fetchDebounceRef.current) {
+        clearTimeout(fetchDebounceRef.current);
+        fetchDebounceRef.current = null;
+      }
+
+      // Unsubscribe from all channels
+      supabase.removeChannel(wordsChannel);
+      supabase.removeChannel(booksChannel);
+      supabase.removeChannel(momentsChannel);
+    };
+  }, [selectedChild?.id, debouncedFetchProfileData]);
 
   const calculateAge = (birthDate: string) => {
     try {
@@ -525,7 +553,7 @@ export default function ProfileScreen() {
             />
             <Text style={styles.errorText}>Failed to load profile</Text>
             <Text style={styles.errorSubtext}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={fetchProfileData}>
+            <TouchableOpacity style={styles.retryButton} onPress={() => fetchProfileData(true)}>
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
