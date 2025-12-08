@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, Animated, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, Animated, ScrollView, Image } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -40,9 +40,8 @@ export default function VideoPreviewModal({
   const [isGeneratingThumbnails, setIsGeneratingThumbnails] = useState(true);
   const insets = useSafeAreaInsets();
 
-  // Animation values for dragging
-  const leftHandleX = useRef(new Animated.Value(0)).current;
-  const rightHandleX = useRef(new Animated.Value(0)).current;
+  // Store initial drag positions
+  const dragStartRef = useRef({ trimStart: 0, trimEnd: 0 });
 
   // Calculate video container height to fit within safe area
   const topSafeArea = insets.top || 44;
@@ -199,27 +198,37 @@ export default function VideoPreviewModal({
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         console.log('Left handle drag started');
+        // Store the initial trim start position when drag begins
+        dragStartRef.current.trimStart = trimStart;
       },
       onPanResponderMove: (_, gestureState) => {
-        const newPosition = gestureState.dx;
+        // Calculate the time change based on drag distance
+        const pixelsMoved = gestureState.dx;
         const timePerPixel = actualDuration / timelineWidth;
-        const newStartTime = Math.max(0, trimStart + (newPosition * timePerPixel));
+        const timeChange = pixelsMoved * timePerPixel;
         
-        // Ensure we don't exceed max trim duration
-        const maxStartTime = trimEnd - 0.1;
-        const minStartTime = Math.max(0, trimEnd - MAX_TRIM_DURATION);
+        // Calculate new start time from the initial position
+        const newStartTime = dragStartRef.current.trimStart + timeChange;
         
-        const clampedStartTime = Math.max(minStartTime, Math.min(maxStartTime, newStartTime));
+        // Ensure we don't exceed boundaries
+        const minStartTime = 0;
+        const maxStartTime = trimEnd - 0.1; // Minimum 0.1s duration
         
-        if (clampedStartTime !== trimStart) {
-          setTrimStart(clampedStartTime);
-          if (videoRef.current) {
-            videoRef.current.setPositionAsync(clampedStartTime * 1000);
-          }
+        // Also ensure we don't exceed max trim duration
+        const maxStartForDuration = trimEnd - MAX_TRIM_DURATION;
+        const effectiveMinStart = Math.max(minStartTime, maxStartForDuration);
+        
+        const clampedStartTime = Math.max(effectiveMinStart, Math.min(maxStartTime, newStartTime));
+        
+        setTrimStart(clampedStartTime);
+        
+        // Update video position to show the new start frame
+        if (videoRef.current && !isPlaying) {
+          videoRef.current.setPositionAsync(clampedStartTime * 1000);
         }
       },
       onPanResponderRelease: () => {
-        console.log('Left handle drag ended');
+        console.log('Left handle drag ended at:', trimStart);
       },
     })
   ).current;
@@ -231,24 +240,32 @@ export default function VideoPreviewModal({
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         console.log('Right handle drag started');
+        // Store the initial trim end position when drag begins
+        dragStartRef.current.trimEnd = trimEnd;
       },
       onPanResponderMove: (_, gestureState) => {
-        const newPosition = gestureState.dx;
+        // Calculate the time change based on drag distance
+        const pixelsMoved = gestureState.dx;
         const timePerPixel = actualDuration / timelineWidth;
-        const newEndTime = Math.min(actualDuration, trimEnd + (newPosition * timePerPixel));
+        const timeChange = pixelsMoved * timePerPixel;
         
-        // Ensure we don't exceed max trim duration
-        const minEndTime = trimStart + 0.1;
-        const maxEndTime = Math.min(actualDuration, trimStart + MAX_TRIM_DURATION);
+        // Calculate new end time from the initial position
+        const newEndTime = dragStartRef.current.trimEnd + timeChange;
         
-        const clampedEndTime = Math.max(minEndTime, Math.min(maxEndTime, newEndTime));
+        // Ensure we don't exceed boundaries
+        const minEndTime = trimStart + 0.1; // Minimum 0.1s duration
+        const maxEndTime = actualDuration;
         
-        if (clampedEndTime !== trimEnd) {
-          setTrimEnd(clampedEndTime);
-        }
+        // Also ensure we don't exceed max trim duration
+        const maxEndForDuration = trimStart + MAX_TRIM_DURATION;
+        const effectiveMaxEnd = Math.min(maxEndTime, maxEndForDuration);
+        
+        const clampedEndTime = Math.max(minEndTime, Math.min(effectiveMaxEnd, newEndTime));
+        
+        setTrimEnd(clampedEndTime);
       },
       onPanResponderRelease: () => {
-        console.log('Right handle drag ended');
+        console.log('Right handle drag ended at:', trimEnd);
       },
     })
   ).current;
@@ -309,24 +326,17 @@ export default function VideoPreviewModal({
             ) : (
               <View style={[styles.timeline, { width: timelineWidth }]}>
                 {/* Thumbnail strip */}
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  scrollEnabled={false}
-                  style={styles.thumbnailStrip}
-                >
+                <View style={styles.thumbnailStrip}>
                   {thumbnails.map((thumbnail, index) => (
                     <View key={index} style={[styles.thumbnailWrapper, { width: thumbnailWidth, height: thumbnailHeight }]}>
-                      <Video
-                        source={{ uri: videoUri }}
+                      <Image
+                        source={{ uri: thumbnail.uri }}
                         style={styles.thumbnail}
-                        resizeMode={ResizeMode.COVER}
-                        shouldPlay={false}
-                        positionMillis={thumbnail.time * 1000}
+                        resizeMode="cover"
                       />
                     </View>
                   ))}
-                </ScrollView>
+                </View>
 
                 {/* Overlay for non-selected regions */}
                 <View style={styles.overlayContainer}>
@@ -387,6 +397,7 @@ export default function VideoPreviewModal({
                   <View style={styles.handleGrip}>
                     <View style={styles.handleGripLine} />
                     <View style={styles.handleGripLine} />
+                    <View style={styles.handleGripLine} />
                   </View>
                 </View>
 
@@ -400,6 +411,7 @@ export default function VideoPreviewModal({
                   ]}
                 >
                   <View style={styles.handleGrip}>
+                    <View style={styles.handleGripLine} />
                     <View style={styles.handleGripLine} />
                     <View style={styles.handleGripLine} />
                   </View>
@@ -517,10 +529,11 @@ const styles = StyleSheet.create({
     position: 'relative',
     backgroundColor: '#1a1a1a',
     borderRadius: 8,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   thumbnailStrip: {
     flexDirection: 'row',
+    height: 80,
   },
   thumbnailWrapper: {
     overflow: 'hidden',
@@ -535,6 +548,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    pointerEvents: 'none',
   },
   overlay: {
     position: 'absolute',
@@ -549,6 +563,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#FFD700',
     borderRadius: 4,
+    pointerEvents: 'none',
   },
   currentPositionIndicator: {
     position: 'absolute',
@@ -557,11 +572,12 @@ const styles = StyleSheet.create({
     width: 2,
     backgroundColor: colors.backgroundAlt,
     zIndex: 5,
+    pointerEvents: 'none',
   },
   handle: {
     position: 'absolute',
-    top: -5,
-    bottom: -5,
+    top: -10,
+    bottom: -10,
     width: 30,
     flexDirection: 'row',
     alignItems: 'center',
@@ -581,15 +597,20 @@ const styles = StyleSheet.create({
   },
   handleGrip: {
     width: 26,
-    height: 40,
+    height: 50,
     backgroundColor: '#FFD700',
-    borderRadius: 6,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   handleGripLine: {
-    width: 12,
+    width: 14,
     height: 2,
     backgroundColor: '#000000',
     borderRadius: 1,
