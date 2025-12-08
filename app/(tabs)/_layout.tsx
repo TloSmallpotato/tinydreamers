@@ -18,6 +18,7 @@ import AddOptionsModal from '@/components/AddOptionsModal';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { supabase } from '@/app/integrations/supabase/client';
 import { generateVideoThumbnail, uploadThumbnailToSupabase, uploadVideoToSupabase } from '@/utils/videoThumbnail';
+import { Video, AVPlaybackStatus } from 'expo-av';
 
 interface TabItem {
   name: string;
@@ -273,6 +274,30 @@ function CustomTabBar() {
     setIsCameraReady(true);
   };
 
+  const getVideoDuration = async (videoUri: string): Promise<number> => {
+    try {
+      console.log('Getting actual video duration from file...');
+      const { sound } = await Video.createAsync(
+        { uri: videoUri },
+        { shouldPlay: false }
+      );
+      
+      const status = await sound.getStatusAsync();
+      if (status.isLoaded && status.durationMillis) {
+        const durationInSeconds = Math.round(status.durationMillis / 1000);
+        console.log('Actual video duration:', durationInSeconds, 'seconds');
+        await sound.unloadAsync();
+        return durationInSeconds;
+      }
+      
+      await sound.unloadAsync();
+      return 0;
+    } catch (error) {
+      console.error('Error getting video duration:', error);
+      return 0;
+    }
+  };
+
   const startRecording = async () => {
     if (cameraRef.current && !isRecording) {
       try {
@@ -296,7 +321,12 @@ function CustomTabBar() {
         }
         
         setIsRecording(false);
-        setRecordedVideo(video.uri, recordingTime);
+        
+        // Get actual video duration from the file
+        const actualDuration = await getVideoDuration(video.uri);
+        console.log('Setting video with actual duration:', actualDuration);
+        
+        setRecordedVideo(video.uri, actualDuration);
         setShowCamera(false);
         setIsCameraReady(false);
         

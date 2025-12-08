@@ -1,9 +1,10 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Video, ResizeMode } from 'expo-av';
+import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -22,6 +23,40 @@ export default function VideoPreviewModal({
 }: VideoPreviewModalProps) {
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [actualDuration, setActualDuration] = useState(duration);
+  const insets = useSafeAreaInsets();
+
+  // Calculate video container height to fit within safe area
+  // Leave space for: top safe area + title/info section + buttons + padding
+  const topSafeArea = insets.top || 44;
+  const bottomSafeArea = insets.bottom || 34;
+  const titleInfoHeight = 140; // Space for title, duration, and hint
+  const buttonsHeight = 100; // Space for buttons
+  const padding = 40;
+  
+  const maxVideoHeight = screenHeight - topSafeArea - titleInfoHeight - buttonsHeight - padding;
+  const videoWidth = screenWidth - 40;
+  const videoHeight = Math.min(videoWidth * (16 / 9), maxVideoHeight);
+
+  useEffect(() => {
+    // Load the video to get actual duration
+    const loadVideo = async () => {
+      if (videoRef.current) {
+        try {
+          const status = await videoRef.current.getStatusAsync();
+          if (status.isLoaded && status.durationMillis) {
+            const durationInSeconds = Math.round(status.durationMillis / 1000);
+            console.log('VideoPreviewModal: Actual video duration:', durationInSeconds, 'seconds');
+            setActualDuration(durationInSeconds);
+          }
+        } catch (error) {
+          console.error('VideoPreviewModal: Error getting video duration:', error);
+        }
+      }
+    };
+
+    loadVideo();
+  }, [videoUri]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -40,50 +75,61 @@ export default function VideoPreviewModal({
     }
   };
 
+  const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+    if (status.isLoaded) {
+      setIsPlaying(status.isPlaying);
+      
+      // Update actual duration if we get it from playback status
+      if (status.durationMillis && actualDuration === 0) {
+        const durationInSeconds = Math.round(status.durationMillis / 1000);
+        console.log('VideoPreviewModal: Duration from playback status:', durationInSeconds, 'seconds');
+        setActualDuration(durationInSeconds);
+      }
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <View style={styles.videoContainer}>
-        <Video
-          ref={videoRef}
-          source={{ uri: videoUri }}
-          style={styles.video}
-          resizeMode={ResizeMode.CONTAIN}
-          isLooping
-          shouldPlay={false}
-          onPlaybackStatusUpdate={(status) => {
-            if (status.isLoaded) {
-              setIsPlaying(status.isPlaying);
-            }
-          }}
-        />
-        
-        <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
-          <MaterialIcons
-            name={isPlaying ? 'pause' : 'play-arrow'}
-            size={48}
-            color={colors.backgroundAlt}
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <View style={styles.content}>
+        <View style={[styles.videoContainer, { width: videoWidth, height: videoHeight }]}>
+          <Video
+            ref={videoRef}
+            source={{ uri: videoUri }}
+            style={styles.video}
+            resizeMode={ResizeMode.CONTAIN}
+            isLooping
+            shouldPlay={false}
+            onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
           />
-        </TouchableOpacity>
-      </View>
+          
+          <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
+            <MaterialIcons
+              name={isPlaying ? 'pause' : 'play-arrow'}
+              size={48}
+              color={colors.backgroundAlt}
+            />
+          </TouchableOpacity>
+        </View>
 
-      <View style={styles.infoContainer}>
-        <Text style={styles.title}>Video Recorded!</Text>
-        <Text style={styles.subtitle}>Duration: {formatTime(duration)}</Text>
-        <Text style={styles.hint}>Tap the video to play/pause</Text>
-      </View>
+        <View style={styles.infoContainer}>
+          <Text style={styles.title}>Video Recorded!</Text>
+          <Text style={styles.subtitle}>Duration: {formatTime(actualDuration)}</Text>
+          <Text style={styles.hint}>Tap the video to play/pause</Text>
+        </View>
 
-      <View style={styles.actions}>
-        <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-          <MaterialIcons name="close" size={24} color={colors.backgroundAlt} />
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
+        <View style={styles.actions}>
+          <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
+            <MaterialIcons name="close" size={24} color={colors.backgroundAlt} />
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.confirmButton} onPress={onConfirm}>
-          <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
-          <Text style={styles.confirmButtonText}>Confirm</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.confirmButton} onPress={onConfirm}>
+            <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
+            <Text style={styles.confirmButtonText}>Confirm</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -91,13 +137,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  content: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   videoContainer: {
-    width: screenWidth - 40,
-    height: (screenWidth - 40) * (16 / 9),
     backgroundColor: '#000000',
     borderRadius: 16,
     overflow: 'hidden',
@@ -112,7 +159,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '50%',
     left: '50%',
-    transform: [{ translateX: -24 }, { translateY: -24 }],
+    transform: [{ translateX: -32 }, { translateY: -32 }],
     width: 64,
     height: 64,
     borderRadius: 32,
