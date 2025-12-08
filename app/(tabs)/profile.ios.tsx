@@ -91,6 +91,78 @@ export default function ProfileScreen() {
     }
   }, [selectedChild, childLoading]);
 
+  // Set up real-time subscriptions for stats updates
+  useEffect(() => {
+    if (!selectedChild) {
+      console.log('ProfileScreen (iOS): No selected child, skipping subscriptions');
+      return;
+    }
+
+    console.log('ProfileScreen (iOS): Setting up real-time subscriptions for child:', selectedChild.id);
+
+    // Subscribe to user_words changes
+    const wordsSubscription = supabase
+      .channel(`user_words_${selectedChild.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_words',
+          filter: `child_id=eq.${selectedChild.id}`,
+        },
+        (payload) => {
+          console.log('ProfileScreen (iOS): user_words change detected:', payload);
+          fetchProfileData();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to user_books changes
+    const booksSubscription = supabase
+      .channel(`user_books_${selectedChild.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_books',
+          filter: `child_id=eq.${selectedChild.id}`,
+        },
+        (payload) => {
+          console.log('ProfileScreen (iOS): user_books change detected:', payload);
+          fetchProfileData();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to moments changes
+    const momentsSubscription = supabase
+      .channel(`moments_${selectedChild.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'moments',
+          filter: `child_id=eq.${selectedChild.id}`,
+        },
+        (payload) => {
+          console.log('ProfileScreen (iOS): moments change detected:', payload);
+          fetchProfileData();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscriptions on unmount or when selectedChild changes
+    return () => {
+      console.log('ProfileScreen (iOS): Cleaning up subscriptions');
+      wordsSubscription.unsubscribe();
+      booksSubscription.unsubscribe();
+      momentsSubscription.unsubscribe();
+    };
+  }, [selectedChild?.id]);
+
   const fetchProfileData = async () => {
     if (!selectedChild || isFetchingRef.current) {
       console.log('ProfileScreen (iOS): Skipping fetch - no child or already fetching');
@@ -442,7 +514,11 @@ export default function ProfileScreen() {
         >
           <View style={styles.header}>
             <View style={styles.headerSpacer} />
-            <Text style={styles.appTitle}>Tiny Dreamers</Text>
+            <Image 
+              source={require('@/assets/images/862eb74f-238b-4288-b27c-da2725bda49c.png')}
+              style={styles.appLogo}
+              resizeMode="contain"
+            />
             <TouchableOpacity style={styles.settingsButton} onPress={handleOpenSettings}>
               <IconSymbol 
                 ios_icon_name="gearshape.fill" 
@@ -497,25 +573,25 @@ export default function ProfileScreen() {
             <View style={styles.statsRow}>
               <View style={[styles.statCard, { backgroundColor: colors.buttonBlue }]}>
                 <Text style={styles.statNumber}>{stats.wordsThisWeek}</Text>
-                <Text style={styles.statLabel}>new {stats.wordsThisWeek === 1 ? 'word' : 'words'}{'\n'}this week</Text>
+                <Text style={styles.statLabel}>new {stats.wordsThisWeek === 1 ? 'word' : 'words'}</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.cardPink }]}>
                 <Text style={styles.statNumber}>{stats.booksThisWeek}</Text>
-                <Text style={[styles.statLabel, styles.highlightedStatLabel]}>new {stats.booksThisWeek === 1 ? 'book' : 'books'}{'\n'}this week</Text>
+                <Text style={styles.statLabelBlue}>new {stats.booksThisWeek === 1 ? 'book' : 'books'}</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
                 <Text style={styles.statNumber}>{stats.momentsThisWeek}</Text>
-                <Text style={styles.statLabel}>new {stats.momentsThisWeek === 1 ? 'moment' : 'moments'}{'\n'}this week</Text>
+                <Text style={styles.statLabel}>new {stats.momentsThisWeek === 1 ? 'moment' : 'moments'}</Text>
               </View>
             </View>
           </View>
 
           <View style={styles.statsSection}>
-            <Text style={styles.sectionTitle}>Total</Text>
+            <Text style={styles.sectionTitle}>All time</Text>
             <View style={styles.statsRow}>
               <View style={[styles.statCard, { backgroundColor: colors.cardGreen }]}>
                 <Text style={styles.statNumber}>{stats.totalWords}</Text>
-                <Text style={styles.statLabel}>total {stats.totalWords === 1 ? 'word' : 'words'}{'\n'}tracked</Text>
+                <Text style={styles.statLabel}>total words learnt</Text>
                 <View style={styles.statIcon}>
                   <IconSymbol 
                     ios_icon_name="text.bubble.fill" 
@@ -527,7 +603,7 @@ export default function ProfileScreen() {
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.accent }]}>
                 <Text style={styles.statNumber}>{stats.totalBooks}</Text>
-                <Text style={[styles.statLabel, styles.highlightedStatLabel]}>total {stats.totalBooks === 1 ? 'book' : 'books'}{'\n'}added</Text>
+                <Text style={styles.statLabelBlue}>total books</Text>
                 <View style={styles.statIcon}>
                   <IconSymbol 
                     ios_icon_name="book.fill" 
@@ -702,11 +778,9 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 40,
   },
-  appTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.primary,
-    textAlign: 'center',
+  appLogo: {
+    height: 40,
+    width: 200,
   },
   settingsButton: {
     width: 40,
@@ -797,8 +871,11 @@ const styles = StyleSheet.create({
     color: colors.backgroundAlt,
     lineHeight: 16,
   },
-  highlightedStatLabel: {
+  statLabelBlue: {
+    fontSize: 12,
+    fontWeight: '600',
     color: '#3330AF',
+    lineHeight: 16,
   },
   statIcon: {
     position: 'absolute',
