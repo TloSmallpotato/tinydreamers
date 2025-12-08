@@ -236,7 +236,6 @@ export default function BooksScreen() {
         return;
       }
 
-      console.log('Fetched books count:', data?.length || 0);
       setSavedBooks(data || []);
 
       // Generate signed URLs for custom books with private covers
@@ -766,7 +765,6 @@ export default function BooksScreen() {
             <View style={styles.booksGrid}>
               {savedBooks.map((savedBook, index) => {
                 const imageUrl = getImageUrl(savedBook);
-                console.log('Rendering book:', savedBook.book.title, 'Image URL:', imageUrl);
                 return (
                   <TouchableOpacity
                     key={`${savedBook.id}-${index}`}
@@ -778,7 +776,7 @@ export default function BooksScreen() {
                       <Image
                         source={{ uri: imageUrl }}
                         style={styles.bookCoverLarge}
-                        contentFit="cover"
+                        contentFit="contain"
                         cachePolicy="memory-disk"
                         priority="high"
                         transition={200}
