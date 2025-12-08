@@ -1,3 +1,4 @@
+
 {
   "name": "Natively",
   "version": "1.0.0",
@@ -52,8 +53,8 @@
     "expo-video": "^3.0.14",
     "expo-video-thumbnails": "^10.0.7",
     "expo-web-browser": "^15.0.6",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
     "react-native": "0.76.5",
     "react-native-css-interop": "^0.1.22",
     "react-native-edge-to-edge": "^1.7.0",
@@ -75,7 +76,7 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@eslint/js": "^9.19.0",
-    "@types/react": "~18.3.12",
+    "@types/react": "~19.0.1",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "babel-plugin-module-resolver": "^5.0.2",
@@ -89,6 +90,11 @@
   },
   "resolutions": {
     "@expo/prebuild-config": "latest"
+  },
+  "overrides": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "@types/react": "~19.0.1"
   },
   "private": true
 }
