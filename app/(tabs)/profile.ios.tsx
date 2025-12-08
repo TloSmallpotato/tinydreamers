@@ -580,8 +580,8 @@ export default function ProfileScreen() {
                 <Text style={styles.statLabelBlue}>new {stats.booksThisWeek === 1 ? 'book' : 'books'}</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
-                <Text style={styles.statNumberBlue}>{stats.momentsThisWeek}</Text>
-                <Text style={styles.statLabelBlue}>new {stats.momentsThisWeek === 1 ? 'moment' : 'moments'}</Text>
+                <Text style={styles.statNumber}>{stats.momentsThisWeek}</Text>
+                <Text style={styles.statLabel}>new {stats.momentsThisWeek === 1 ? 'moment' : 'moments'}</Text>
               </View>
             </View>
           </View>
