@@ -423,12 +423,7 @@ export default function ProfileScreen() {
   };
 
   const handleViewMoreMoments = () => {
-    try {
-      console.log('ProfileScreen (iOS): View more moments pressed - navigating to all-moments');
-      router.push('/(tabs)/all-moments');
-    } catch (err) {
-      console.error('ProfileScreen (iOS): Error navigating to all-moments:', err);
-    }
+    console.log('ProfileScreen (iOS): View more moments pressed');
   };
 
   const handleChangeAvatar = async () => {
