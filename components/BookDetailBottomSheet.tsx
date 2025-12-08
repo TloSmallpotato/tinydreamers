@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
   bookCover: {
     width: screenWidth * 0.5,
     height: screenWidth * 0.7,
-    borderRadius: 12,
+    borderRadius: 16,
   },
   placeholderCover: {
     backgroundColor: colors.background,

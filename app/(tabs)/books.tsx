@@ -981,13 +981,13 @@ const styles = StyleSheet.create({
   bookCoverContainer: {
     marginRight: 12,
     backgroundColor: colors.background,
-    borderRadius: 8,
+    borderRadius: 16,
     overflow: 'hidden',
   },
   bookCoverSmall: {
     width: 50,
     height: 75,
-    borderRadius: 8,
+    borderRadius: 16,
   },
   placeholderCover: {
     backgroundColor: colors.background,
@@ -1048,7 +1048,7 @@ const styles = StyleSheet.create({
   bookCoverLarge: {
     width: '100%',
     height: '100%',
-    borderRadius: 12,
+    borderRadius: 16,
   },
   placeholderCoverLarge: {
     backgroundColor: colors.backgroundAlt,

@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
   coverPreview: {
     width: 200,
     height: 300,
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: colors.background,
   },
   removeCoverButton: {
