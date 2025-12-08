@@ -421,7 +421,10 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   wordHeader: {
-    padding: 20,
+    marginTop: -24,
+    paddingTop: 44,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     alignItems: 'center',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
