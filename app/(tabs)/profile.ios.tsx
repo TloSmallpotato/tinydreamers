@@ -63,6 +63,7 @@ export default function ProfileScreen() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const isFetchingRef = useRef(false);
+  const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Update local avatar URL when selectedChild changes
   useEffect(() => {
@@ -91,6 +92,20 @@ export default function ProfileScreen() {
     }
   }, [selectedChild, childLoading]);
 
+  // Debounced fetch function to prevent excessive API calls
+  const debouncedFetchProfileData = () => {
+    // Clear any existing timeout
+    if (fetchDebounceRef.current) {
+      clearTimeout(fetchDebounceRef.current);
+    }
+
+    // Set a new timeout
+    fetchDebounceRef.current = setTimeout(() => {
+      console.log('ProfileScreen (iOS): Debounced fetch triggered');
+      fetchProfileData();
+    }, 500); // 500ms debounce
+  };
+
   // Set up real-time subscriptions for stats updates
   useEffect(() => {
     if (!selectedChild) {
@@ -102,7 +117,7 @@ export default function ProfileScreen() {
 
     // Subscribe to user_words changes
     const wordsSubscription = supabase
-      .channel(`user_words_${selectedChild.id}`)
+      .channel(`profile_user_words_${selectedChild.id}`)
       .on(
         'postgres_changes',
         {
@@ -112,15 +127,17 @@ export default function ProfileScreen() {
           filter: `child_id=eq.${selectedChild.id}`,
         },
         (payload) => {
-          console.log('ProfileScreen (iOS): user_words change detected:', payload);
-          fetchProfileData();
+          console.log('ProfileScreen (iOS): user_words change detected:', payload.eventType);
+          debouncedFetchProfileData();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('ProfileScreen (iOS): user_words subscription status:', status);
+      });
 
     // Subscribe to user_books changes
     const booksSubscription = supabase
-      .channel(`user_books_${selectedChild.id}`)
+      .channel(`profile_user_books_${selectedChild.id}`)
       .on(
         'postgres_changes',
         {
@@ -130,15 +147,17 @@ export default function ProfileScreen() {
           filter: `child_id=eq.${selectedChild.id}`,
         },
         (payload) => {
-          console.log('ProfileScreen (iOS): user_books change detected:', payload);
-          fetchProfileData();
+          console.log('ProfileScreen (iOS): user_books change detected:', payload.eventType);
+          debouncedFetchProfileData();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('ProfileScreen (iOS): user_books subscription status:', status);
+      });
 
     // Subscribe to moments changes
     const momentsSubscription = supabase
-      .channel(`moments_${selectedChild.id}`)
+      .channel(`profile_moments_${selectedChild.id}`)
       .on(
         'postgres_changes',
         {
@@ -148,15 +167,25 @@ export default function ProfileScreen() {
           filter: `child_id=eq.${selectedChild.id}`,
         },
         (payload) => {
-          console.log('ProfileScreen (iOS): moments change detected:', payload);
-          fetchProfileData();
+          console.log('ProfileScreen (iOS): moments change detected:', payload.eventType);
+          debouncedFetchProfileData();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('ProfileScreen (iOS): moments subscription status:', status);
+      });
 
     // Cleanup subscriptions on unmount or when selectedChild changes
     return () => {
       console.log('ProfileScreen (iOS): Cleaning up subscriptions');
+      
+      // Clear debounce timeout
+      if (fetchDebounceRef.current) {
+        clearTimeout(fetchDebounceRef.current);
+        fetchDebounceRef.current = null;
+      }
+
+      // Unsubscribe from all channels
       wordsSubscription.unsubscribe();
       booksSubscription.unsubscribe();
       momentsSubscription.unsubscribe();
@@ -265,6 +294,7 @@ export default function ProfileScreen() {
       }
 
       console.log('ProfileScreen (iOS): Profile data fetched successfully');
+      console.log('ProfileScreen (iOS): Stats - Words:', totalWordsCount, 'Books:', totalBooksCount, 'Moments:', momentsThisWeekCount);
 
       setStats({
         totalWords: totalWordsCount,
