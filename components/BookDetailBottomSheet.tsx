@@ -1,6 +1,6 @@
 
 import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, ScrollView, TextInput, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, ScrollView } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -43,8 +43,6 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     const snapPoints = useMemo(() => [screenHeight * 0.85], []);
     const [rating, setRating] = useState<RatingType>(null);
     const [wouldRecommend, setWouldRecommend] = useState(false);
-    const [tags, setTags] = useState<string[]>([]);
-    const [newTag, setNewTag] = useState('');
     const [showMenu, setShowMenu] = useState(false);
     const [imageError, setImageError] = useState(false);
 
@@ -57,13 +55,12 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         setCachedUserBook(userBook);
         setRating((userBook.rating as RatingType) || null);
         setWouldRecommend(userBook.would_recommend || false);
-        setTags(userBook.tags || []);
         setShowMenu(false);
         setImageError(false);
       }
     }, [userBook]);
 
-    const updateBookData = useCallback(async (field: 'rating' | 'would_recommend' | 'tags', value: any) => {
+    const updateBookData = useCallback(async (field: 'rating' | 'would_recommend', value: any) => {
       if (!cachedUserBook) return;
 
       try {
@@ -95,27 +92,6 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       setWouldRecommend(newValue);
       await updateBookData('would_recommend', newValue);
     }, [wouldRecommend, updateBookData]);
-
-    const handleAddTag = useCallback(async () => {
-      if (!newTag.trim()) return;
-      
-      const trimmedTag = newTag.trim().toLowerCase();
-      if (tags.includes(trimmedTag)) {
-        setNewTag('');
-        return;
-      }
-
-      const updatedTags = [...tags, trimmedTag];
-      setTags(updatedTags);
-      setNewTag('');
-      await updateBookData('tags', updatedTags);
-    }, [newTag, tags, updateBookData]);
-
-    const handleRemoveTag = useCallback(async (tagToRemove: string) => {
-      const updatedTags = tags.filter(tag => tag !== tagToRemove);
-      setTags(updatedTags);
-      await updateBookData('tags', updatedTags);
-    }, [tags, updateBookData]);
 
     const deleteBook = useCallback(async () => {
       if (!cachedUserBook) return;
@@ -300,60 +276,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
             )}
           </View>
 
-          {/* Description */}
-          {book.description && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Description</Text>
-              <Text style={styles.description}>{book.description}</Text>
-            </View>
-          )}
-
-          {/* Tags */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Tags</Text>
-            <View style={styles.tagsContainer}>
-              {tags.map((tag, index) => (
-                <View key={index} style={styles.tag}>
-                  <Text style={styles.tagText}>{tag}</Text>
-                  <TouchableOpacity
-                    onPress={() => handleRemoveTag(tag)}
-                    style={styles.tagRemove}
-                  >
-                    <IconSymbol
-                      ios_icon_name="xmark"
-                      android_material_icon_name="close"
-                      size={14}
-                      color={colors.backgroundAlt}
-                    />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-            <View style={styles.addTagContainer}>
-              <TextInput
-                style={styles.tagInput}
-                placeholder="Add a tag..."
-                placeholderTextColor={colors.textSecondary}
-                value={newTag}
-                onChangeText={setNewTag}
-                onSubmitEditing={handleAddTag}
-                returnKeyType="done"
-              />
-              <TouchableOpacity
-                style={styles.addTagButton}
-                onPress={handleAddTag}
-              >
-                <IconSymbol
-                  ios_icon_name="plus"
-                  android_material_icon_name="add"
-                  size={20}
-                  color={colors.backgroundAlt}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Rating */}
+          {/* Rating - Moved above description */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>How did your kids like it?</Text>
             <View style={styles.ratingContainer}>
@@ -413,7 +336,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
             </View>
           </View>
 
-          {/* Would Recommend */}
+          {/* Would Recommend - Moved above description */}
           <View style={styles.section}>
             <TouchableOpacity
               style={[
@@ -438,6 +361,14 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Description */}
+          {book.description && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Description</Text>
+              <Text style={styles.description}>{book.description}</Text>
+            </View>
+          )}
         </BottomSheetScrollView>
       </BottomSheetModal>
     );
@@ -554,51 +485,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     lineHeight: 24,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  tag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.buttonBlue,
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingLeft: 12,
-    paddingRight: 8,
-    gap: 6,
-  },
-  tagText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.backgroundAlt,
-  },
-  tagRemove: {
-    padding: 2,
-  },
-  addTagContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  tagInput: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: colors.primary,
-  },
-  addTagButton: {
-    backgroundColor: colors.buttonBlue,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   ratingContainer: {
     flexDirection: 'row',
