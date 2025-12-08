@@ -89,18 +89,22 @@ const AddChildBottomSheet = forwardRef<BottomSheetModal, AddChildBottomSheetProp
             </TouchableOpacity>
 
             {showDatePicker && (
-              <DateTimePicker
-                value={birthDate}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(event, selectedDate) => {
-                  setShowDatePicker(Platform.OS === 'ios');
-                  if (selectedDate) {
-                    setBirthDate(selectedDate);
-                  }
-                }}
-                maximumDate={new Date()}
-              />
+              <View style={styles.datePickerContainer}>
+                <DateTimePicker
+                  value={birthDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(event, selectedDate) => {
+                    setShowDatePicker(Platform.OS === 'ios');
+                    if (selectedDate) {
+                      setBirthDate(selectedDate);
+                    }
+                  }}
+                  maximumDate={new Date()}
+                  themeVariant="light"
+                  style={styles.datePicker}
+                />
+              </View>
             )}
           </View>
 
@@ -168,6 +172,17 @@ const styles = StyleSheet.create({
   dateButtonText: {
     fontSize: 16,
     color: colors.primary,
+  },
+  datePickerContainer: {
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  datePicker: {
+    width: '100%',
+    height: 200,
   },
   addButton: {
     backgroundColor: colors.buttonBlue,
