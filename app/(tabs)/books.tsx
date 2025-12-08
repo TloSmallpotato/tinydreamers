@@ -610,15 +610,19 @@ export default function BooksScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <Text style={commonStyles.title}>Books</Text>
-            <Text style={commonStyles.subtitle}>
-              {selectedChild ? `${selectedChild.name}'s library` : 'Select a child'}
-            </Text>
-            
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {savedBooks.length} {savedBooks.length === 1 ? 'book' : 'books'}
-              </Text>
+            <View style={styles.headerRow}>
+              <View style={styles.headerLeft}>
+                <Text style={commonStyles.title}>Books</Text>
+                <Text style={commonStyles.subtitle}>
+                  {selectedChild ? `${selectedChild.name}'s library` : 'Select a child'}
+                </Text>
+              </View>
+              
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {savedBooks.length} {savedBooks.length === 1 ? 'book' : 'books'}
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -871,18 +875,25 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 20,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerLeft: {
+    flex: 1,
+  },
   badge: {
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.accent,
     borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    alignSelf: 'flex-start',
-    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginLeft: 12,
   },
   badgeText: {
     color: colors.backgroundAlt,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   searchContainer: {
     position: 'relative',

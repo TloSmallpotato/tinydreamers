@@ -98,7 +98,7 @@ const getColorForLetter = (letter: string): string => {
 
 const AddWordBottomSheet = forwardRef<BottomSheetModal, AddWordBottomSheetProps>(
   ({ onAddWord, onDismiss }, ref) => {
-    const snapPoints = useMemo(() => ['50%'], []);
+    const snapPoints = useMemo(() => ['75%'], []);
     const [word, setWord] = useState('');
     const inputRef = React.useRef<TextInput>(null);
     const internalRef = React.useRef<BottomSheetModal>(null);

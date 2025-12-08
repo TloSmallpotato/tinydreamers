@@ -315,24 +315,23 @@ export default function WordsScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={commonStyles.title}>Words</Text>
-            <Text style={commonStyles.subtitle}>
-              {selectedChild ? `${selectedChild.name}'s words` : 'Select a child'}
-            </Text>
-            
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{words.length} words</Text>
+            <View style={styles.headerRow}>
+              <View style={styles.headerLeft}>
+                <Text style={commonStyles.title}>Words</Text>
+                <Text style={commonStyles.subtitle}>
+                  {selectedChild ? `${selectedChild.name}'s words` : 'Select a child'}
+                </Text>
+              </View>
+              
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{words.length} words</Text>
+              </View>
             </View>
           </View>
 
           <View style={styles.addButtonContainer}>
             <TouchableOpacity style={styles.addButton} onPress={handleOpenAddWord}>
-              <IconSymbol 
-                ios_icon_name="plus" 
-                android_material_icon_name="add" 
-                size={24} 
-                color={colors.backgroundAlt} 
-              />
+              <Text style={styles.addButtonText}>Add new word +</Text>
             </TouchableOpacity>
           </View>
 
@@ -350,7 +349,7 @@ export default function WordsScreen() {
               />
               <Text style={styles.emptyText}>No words yet</Text>
               <Text style={styles.emptySubtext}>
-                Tap the + button to add your first word
+                Tap the button above to add your first word
               </Text>
             </View>
           ) : (
@@ -405,14 +404,12 @@ export default function WordsScreen() {
                             />
                           </View>
                         )}
-                        <View style={styles.chevronButton}>
-                          <IconSymbol 
-                            ios_icon_name="chevron.right" 
-                            android_material_icon_name="chevron-right" 
-                            size={20} 
-                            color={colors.primary} 
-                          />
-                        </View>
+                        <IconSymbol 
+                          ios_icon_name="chevron.right" 
+                          android_material_icon_name="chevron-right" 
+                          size={20} 
+                          color={colors.primary} 
+                        />
                       </View>
                     </TouchableOpacity>
                   ))}
@@ -457,13 +454,20 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 20,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerLeft: {
+    flex: 1,
+  },
   badge: {
     backgroundColor: colors.accent,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    alignSelf: 'flex-start',
-    marginTop: 12,
+    marginLeft: 12,
   },
   badgeText: {
     color: colors.backgroundAlt,
@@ -476,13 +480,16 @@ const styles = StyleSheet.create({
   },
   addButton: {
     backgroundColor: colors.buttonBlue,
-    width: 48,
-    height: 48,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
     boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.15)',
     elevation: 4,
+  },
+  addButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
   },
   letterSection: {
     marginVertical: 16,
@@ -537,14 +544,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statusIndicator: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.backgroundAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chevronButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
