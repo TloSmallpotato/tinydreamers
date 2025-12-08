@@ -576,12 +576,12 @@ export default function ProfileScreen() {
                 <Text style={styles.statLabel}>new {stats.wordsThisWeek === 1 ? 'word' : 'words'}</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.cardPink }]}>
-                <Text style={styles.statNumber}>{stats.booksThisWeek}</Text>
+                <Text style={styles.statNumberBlue}>{stats.booksThisWeek}</Text>
                 <Text style={styles.statLabelBlue}>new {stats.booksThisWeek === 1 ? 'book' : 'books'}</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
-                <Text style={styles.statNumber}>{stats.momentsThisWeek}</Text>
-                <Text style={styles.statLabel}>new {stats.momentsThisWeek === 1 ? 'moment' : 'moments'}</Text>
+                <Text style={styles.statNumberBlue}>{stats.momentsThisWeek}</Text>
+                <Text style={styles.statLabelBlue}>new {stats.momentsThisWeek === 1 ? 'moment' : 'moments'}</Text>
               </View>
             </View>
           </View>
@@ -602,7 +602,7 @@ export default function ProfileScreen() {
                 </View>
               </View>
               <View style={[styles.statCard, { backgroundColor: colors.accent }]}>
-                <Text style={styles.statNumber}>{stats.totalBooks}</Text>
+                <Text style={styles.statNumberBlue}>{stats.totalBooks}</Text>
                 <Text style={styles.statLabelBlue}>total books</Text>
                 <View style={styles.statIcon}>
                   <IconSymbol 
@@ -858,6 +858,12 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '800',
     color: colors.backgroundAlt,
+    marginBottom: 4,
+  },
+  statNumberBlue: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#3330AF',
     marginBottom: 4,
   },
   statLabel: {
