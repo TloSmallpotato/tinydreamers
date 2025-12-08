@@ -1,11 +1,10 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, Animated, Image } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Alert, PanResponder } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
-import * as VideoThumbnails from 'expo-video-thumbnails';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -17,11 +16,6 @@ interface VideoPreviewModalProps {
   duration: number;
   onConfirm: (trimmedUri: string, startTime: number, endTime: number) => void;
   onCancel: () => void;
-}
-
-interface ThumbnailData {
-  uri: string;
-  time: number;
 }
 
 export default function VideoPreviewModal({
@@ -36,29 +30,13 @@ export default function VideoPreviewModal({
   const [currentPosition, setCurrentPosition] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(Math.min(duration, MAX_TRIM_DURATION));
-  const [thumbnails, setThumbnails] = useState<ThumbnailData[]>([]);
-  const [isGeneratingThumbnails, setIsGeneratingThumbnails] = useState(true);
-  const insets = useSafeAreaInsets();
 
   // Store initial drag positions
   const dragStartRef = useRef({ trimStart: 0, trimEnd: 0 });
 
-  // Calculate video container height to fit within safe area
-  const topSafeArea = insets.top || 44;
-  const bottomSafeArea = insets.bottom || 34;
-  const titleInfoHeight = 200;
-  const trimControlsHeight = 280;
-  const buttonsHeight = 100;
-  const padding = 40;
-  
-  const maxVideoHeight = screenHeight - topSafeArea - titleInfoHeight - trimControlsHeight - buttonsHeight - padding;
-  const videoWidth = screenWidth - 40;
-  const videoHeight = Math.min(videoWidth * (16 / 9), maxVideoHeight);
-
-  // Timeline dimensions - make it wider and more visible
-  const timelineWidth = screenWidth - 60;
-  const thumbnailWidth = 70;
-  const thumbnailHeight = 100;
+  // Timeline dimensions - make it prominent and easy to use
+  const timelineWidth = screenWidth - 80;
+  const handleSize = 40;
 
   useEffect(() => {
     // Load the video to get actual duration
@@ -71,48 +49,15 @@ export default function VideoPreviewModal({
             console.log('VideoPreviewModal: Actual video duration:', durationInSeconds, 'seconds');
             setActualDuration(durationInSeconds);
             setTrimEnd(Math.min(durationInSeconds, MAX_TRIM_DURATION));
-            
-            // Generate thumbnails
-            generateThumbnails(durationInSeconds);
           }
         } catch (error) {
           console.error('VideoPreviewModal: Error getting video duration:', error);
-          setIsGeneratingThumbnails(false);
         }
       }
     };
 
     loadVideo();
   }, [videoUri]);
-
-  const generateThumbnails = async (videoDuration: number) => {
-    try {
-      console.log('Generating thumbnails for video...');
-      const thumbnailCount = Math.min(Math.ceil(videoDuration), 20); // Max 20 thumbnails
-      const interval = videoDuration / thumbnailCount;
-      const generatedThumbnails: ThumbnailData[] = [];
-
-      for (let i = 0; i < thumbnailCount; i++) {
-        const time = i * interval * 1000; // Convert to milliseconds
-        try {
-          const { uri } = await VideoThumbnails.getThumbnailAsync(videoUri, {
-            time,
-            quality: 0.5,
-          });
-          generatedThumbnails.push({ uri, time: i * interval });
-        } catch (error) {
-          console.warn(`Failed to generate thumbnail at ${time}ms:`, error);
-        }
-      }
-
-      console.log(`Generated ${generatedThumbnails.length} thumbnails`);
-      setThumbnails(generatedThumbnails);
-      setIsGeneratingThumbnails(false);
-    } catch (error) {
-      console.error('Error generating thumbnails:', error);
-      setIsGeneratingThumbnails(false);
-    }
-  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -198,23 +143,17 @@ export default function VideoPreviewModal({
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         console.log('Left handle drag started');
-        // Store the initial trim start position when drag begins
         dragStartRef.current.trimStart = trimStart;
       },
       onPanResponderMove: (_, gestureState) => {
-        // Calculate the time change based on drag distance
         const pixelsMoved = gestureState.dx;
         const timePerPixel = actualDuration / timelineWidth;
         const timeChange = pixelsMoved * timePerPixel;
         
-        // Calculate new start time from the initial position
         const newStartTime = dragStartRef.current.trimStart + timeChange;
         
-        // Ensure we don't exceed boundaries
         const minStartTime = 0;
-        const maxStartTime = trimEnd - 0.1; // Minimum 0.1s duration
-        
-        // Also ensure we don't exceed max trim duration
+        const maxStartTime = trimEnd - 0.1;
         const maxStartForDuration = trimEnd - MAX_TRIM_DURATION;
         const effectiveMinStart = Math.max(minStartTime, maxStartForDuration);
         
@@ -222,7 +161,6 @@ export default function VideoPreviewModal({
         
         setTrimStart(clampedStartTime);
         
-        // Update video position to show the new start frame
         if (videoRef.current && !isPlaying) {
           videoRef.current.setPositionAsync(clampedStartTime * 1000);
         }
@@ -240,23 +178,17 @@ export default function VideoPreviewModal({
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         console.log('Right handle drag started');
-        // Store the initial trim end position when drag begins
         dragStartRef.current.trimEnd = trimEnd;
       },
       onPanResponderMove: (_, gestureState) => {
-        // Calculate the time change based on drag distance
         const pixelsMoved = gestureState.dx;
         const timePerPixel = actualDuration / timelineWidth;
         const timeChange = pixelsMoved * timePerPixel;
         
-        // Calculate new end time from the initial position
         const newEndTime = dragStartRef.current.trimEnd + timeChange;
         
-        // Ensure we don't exceed boundaries
-        const minEndTime = trimStart + 0.1; // Minimum 0.1s duration
+        const minEndTime = trimStart + 0.1;
         const maxEndTime = actualDuration;
-        
-        // Also ensure we don't exceed max trim duration
         const maxEndForDuration = trimStart + MAX_TRIM_DURATION;
         const effectiveMaxEnd = Math.min(maxEndTime, maxEndForDuration);
         
@@ -279,14 +211,11 @@ export default function VideoPreviewModal({
     return (trimEnd / actualDuration) * timelineWidth;
   };
 
-  const getCurrentPositionIndicator = () => {
-    return (currentPosition / actualDuration) * timelineWidth;
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
-        <View style={[styles.videoContainer, { width: videoWidth, height: videoHeight }]}>
+        {/* Video player with play button */}
+        <View style={styles.videoContainer}>
           <Video
             ref={videoRef}
             source={{ uri: videoUri }}
@@ -300,7 +229,7 @@ export default function VideoPreviewModal({
           <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
             <MaterialIcons
               name={isPlaying ? 'pause' : 'play-arrow'}
-              size={48}
+              size={64}
               color={colors.backgroundAlt}
             />
           </TouchableOpacity>
@@ -311,127 +240,75 @@ export default function VideoPreviewModal({
           </View>
         </View>
 
+        {/* Title and info */}
         <View style={styles.infoContainer}>
           <Text style={styles.title}>Trim Video</Text>
           <Text style={styles.subtitle}>
             {formatTime(getTrimmedDuration())} / {MAX_TRIM_DURATION}s max
           </Text>
-          
-          {/* Timeline with thumbnails */}
-          <View style={styles.timelineContainer}>
-            {isGeneratingThumbnails ? (
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Generating preview...</Text>
-              </View>
-            ) : (
-              <View style={styles.timelineWrapper}>
-                <View style={[styles.timeline, { width: timelineWidth }]}>
-                  {/* Thumbnail strip */}
-                  <View style={styles.thumbnailStrip}>
-                    {thumbnails.map((thumbnail, index) => (
-                      <View key={index} style={[styles.thumbnailWrapper, { width: thumbnailWidth, height: thumbnailHeight }]}>
-                        <Image
-                          source={{ uri: thumbnail.uri }}
-                          style={styles.thumbnail}
-                          resizeMode="cover"
-                        />
-                      </View>
-                    ))}
-                  </View>
+        </View>
 
-                  {/* Overlay for non-selected regions */}
-                  <View style={styles.overlayContainer}>
-                    {/* Left overlay */}
-                    <View 
-                      style={[
-                        styles.overlay, 
-                        { 
-                          left: 0, 
-                          width: getLeftHandlePosition() 
-                        }
-                      ]} 
-                    />
-                    
-                    {/* Right overlay */}
-                    <View 
-                      style={[
-                        styles.overlay, 
-                        { 
-                          left: getRightHandlePosition(), 
-                          width: timelineWidth - getRightHandlePosition() 
-                        }
-                      ]} 
-                    />
-                  </View>
+        {/* Simple trimming UI - just a line with two handles */}
+        <View style={styles.trimContainer}>
+          {/* Time labels above the line */}
+          <View style={[styles.timeLabelsTop, { width: timelineWidth }]}>
+            <Text style={styles.timeLabelTop}>{formatTime(trimStart)}</Text>
+            <Text style={styles.timeLabelTop}>{formatTime(trimEnd)}</Text>
+          </View>
 
-                  {/* Selected region border */}
-                  <View 
-                    style={[
-                      styles.selectedRegion,
-                      {
-                        left: getLeftHandlePosition(),
-                        width: getRightHandlePosition() - getLeftHandlePosition(),
-                      }
-                    ]}
-                  />
+          {/* The trimming line and handles */}
+          <View style={styles.trimLineContainer}>
+            <View style={[styles.trimLine, { width: timelineWidth }]}>
+              {/* The main line */}
+              <View style={styles.line} />
+              
+              {/* Selected region highlight */}
+              <View 
+                style={[
+                  styles.selectedLine,
+                  {
+                    left: getLeftHandlePosition(),
+                    width: getRightHandlePosition() - getLeftHandlePosition(),
+                  }
+                ]}
+              />
 
-                  {/* Current position indicator */}
-                  {currentPosition >= trimStart && currentPosition <= trimEnd && (
-                    <View 
-                      style={[
-                        styles.currentPositionIndicator,
-                        { left: getCurrentPositionIndicator() }
-                      ]}
-                    />
-                  )}
-
-                  {/* Left handle (trim start) */}
-                  <View
-                    {...leftHandlePanResponder.panHandlers}
-                    style={[
-                      styles.handle,
-                      styles.leftHandle,
-                      { left: getLeftHandlePosition() - 20 }
-                    ]}
-                  >
-                    <View style={styles.handleBar} />
-                    <View style={styles.handleGrip}>
-                      <View style={styles.handleGripLine} />
-                      <View style={styles.handleGripLine} />
-                      <View style={styles.handleGripLine} />
-                    </View>
-                  </View>
-
-                  {/* Right handle (trim end) */}
-                  <View
-                    {...rightHandlePanResponder.panHandlers}
-                    style={[
-                      styles.handle,
-                      styles.rightHandle,
-                      { left: getRightHandlePosition() - 20 }
-                    ]}
-                  >
-                    <View style={styles.handleGrip}>
-                      <View style={styles.handleGripLine} />
-                      <View style={styles.handleGripLine} />
-                      <View style={styles.handleGripLine} />
-                    </View>
-                    <View style={styles.handleBar} />
-                  </View>
+              {/* Left handle */}
+              <View
+                {...leftHandlePanResponder.panHandlers}
+                style={[
+                  styles.handle,
+                  { left: getLeftHandlePosition() - handleSize / 2 }
+                ]}
+              >
+                <View style={styles.handleInner}>
+                  <View style={styles.handleGripLine} />
+                  <View style={styles.handleGripLine} />
+                  <View style={styles.handleGripLine} />
                 </View>
               </View>
-            )}
+
+              {/* Right handle */}
+              <View
+                {...rightHandlePanResponder.panHandlers}
+                style={[
+                  styles.handle,
+                  { left: getRightHandlePosition() - handleSize / 2 }
+                ]}
+              >
+                <View style={styles.handleInner}>
+                  <View style={styles.handleGripLine} />
+                  <View style={styles.handleGripLine} />
+                  <View style={styles.handleGripLine} />
+                </View>
+              </View>
+            </View>
           </View>
 
-          {/* Time labels */}
-          <View style={[styles.timeLabels, { width: timelineWidth }]}>
-            <Text style={styles.timeLabel}>{formatTime(trimStart)}</Text>
-            <Text style={styles.timeLabel}>{formatTime(trimEnd)}</Text>
-          </View>
-          
           <Text style={styles.hint}>Drag handles to trim • Max {MAX_TRIM_DURATION}s</Text>
         </View>
 
+        {/* Action buttons */}
         <View style={styles.actions}>
           <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
             <MaterialIcons name="close" size={24} color={colors.backgroundAlt} />
@@ -460,10 +337,12 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   videoContainer: {
+    width: screenWidth - 40,
+    height: (screenWidth - 40) * (16 / 9),
     backgroundColor: '#000000',
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 24,
+    marginBottom: 32,
     position: 'relative',
   },
   video: {
@@ -474,10 +353,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '50%',
     left: '50%',
-    transform: [{ translateX: -32 }, { translateY: -32 }],
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    transform: [{ translateX: -48 }, { translateY: -48 }],
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -498,7 +377,7 @@ const styles = StyleSheet.create({
   },
   infoContainer: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 40,
     width: '100%',
   },
   title: {
@@ -510,137 +389,84 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: 20,
   },
-  timelineContainer: {
+  trimContainer: {
     width: '100%',
     alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 10,
+    marginBottom: 40,
   },
-  loadingContainer: {
-    height: 120,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-  },
-  timelineWrapper: {
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  timeline: {
-    height: 100,
-    position: 'relative',
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    overflow: 'visible',
-  },
-  thumbnailStrip: {
+  timeLabelsTop: {
     flexDirection: 'row',
-    height: 100,
-    borderRadius: 12,
-    overflow: 'hidden',
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  thumbnailWrapper: {
-    overflow: 'hidden',
+  timeLabelTop: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: '700',
   },
-  thumbnail: {
+  trimLineContainer: {
     width: '100%',
-    height: '100%',
+    alignItems: 'center',
+    paddingVertical: 30,
   },
-  overlayContainer: {
+  trimLine: {
+    height: 8,
+    position: 'relative',
+  },
+  line: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    pointerEvents: 'none',
+    height: 8,
+    backgroundColor: colors.textSecondary,
+    borderRadius: 4,
   },
-  overlay: {
+  selectedLine: {
     position: 'absolute',
     top: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-  },
-  selectedRegion: {
-    position: 'absolute',
-    top: -2,
-    bottom: -2,
-    borderWidth: 4,
-    borderColor: colors.primary,
-    borderRadius: 8,
-    pointerEvents: 'none',
-  },
-  currentPositionIndicator: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 3,
-    backgroundColor: colors.backgroundAlt,
-    zIndex: 5,
-    pointerEvents: 'none',
+    height: 8,
+    backgroundColor: colors.primary,
+    borderRadius: 4,
   },
   handle: {
     position: 'absolute',
-    top: -15,
-    bottom: -15,
+    top: -16,
     width: 40,
-    flexDirection: 'row',
+    height: 40,
+    justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
   },
-  leftHandle: {
-    justifyContent: 'flex-start',
-  },
-  rightHandle: {
-    justifyContent: 'flex-end',
-  },
-  handleBar: {
-    width: 5,
-    height: '100%',
+  handleInner: {
+    width: 40,
+    height: 40,
     backgroundColor: colors.primary,
-    borderRadius: 3,
-  },
-  handleGrip: {
-    width: 35,
-    height: 60,
-    backgroundColor: colors.primary,
-    borderRadius: 10,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
     elevation: 8,
+    borderWidth: 3,
+    borderColor: colors.backgroundAlt,
   },
   handleGripLine: {
-    width: 18,
-    height: 3,
+    width: 16,
+    height: 2,
     backgroundColor: colors.backgroundAlt,
-    borderRadius: 2,
-  },
-  timeLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-    paddingHorizontal: 10,
-  },
-  timeLabel: {
-    fontSize: 15,
-    color: colors.primary,
-    fontWeight: '700',
+    borderRadius: 1,
   },
   hint: {
     fontSize: 13,
     color: colors.textSecondary,
     fontStyle: 'italic',
     textAlign: 'center',
+    marginTop: 20,
   },
   actions: {
     flexDirection: 'row',
