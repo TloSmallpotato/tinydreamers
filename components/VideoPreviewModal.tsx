@@ -1,18 +1,27 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, Animated, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+// Maximum trim duration in seconds (5 seconds as per requirements)
+const MAX_TRIM_DURATION = 5;
 
 interface VideoPreviewModalProps {
   videoUri: string;
   duration: number;
   onConfirm: (trimmedUri: string, startTime: number, endTime: number) => void;
   onCancel: () => void;
+}
+
+interface ThumbnailData {
+  uri: string;
+  time: number;
 }
 
 export default function VideoPreviewModal({
@@ -26,19 +35,31 @@ export default function VideoPreviewModal({
   const [actualDuration, setActualDuration] = useState(duration);
   const [currentPosition, setCurrentPosition] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
-  const [trimEnd, setTrimEnd] = useState(duration);
+  const [trimEnd, setTrimEnd] = useState(Math.min(duration, MAX_TRIM_DURATION));
+  const [thumbnails, setThumbnails] = useState<ThumbnailData[]>([]);
+  const [isGeneratingThumbnails, setIsGeneratingThumbnails] = useState(true);
   const insets = useSafeAreaInsets();
+
+  // Animation values for dragging
+  const leftHandleX = useRef(new Animated.Value(0)).current;
+  const rightHandleX = useRef(new Animated.Value(0)).current;
 
   // Calculate video container height to fit within safe area
   const topSafeArea = insets.top || 44;
   const bottomSafeArea = insets.bottom || 34;
-  const titleInfoHeight = 240; // Increased for trim controls
+  const titleInfoHeight = 180;
+  const trimControlsHeight = 200;
   const buttonsHeight = 100;
   const padding = 40;
   
-  const maxVideoHeight = screenHeight - topSafeArea - titleInfoHeight - buttonsHeight - padding;
+  const maxVideoHeight = screenHeight - topSafeArea - titleInfoHeight - trimControlsHeight - buttonsHeight - padding;
   const videoWidth = screenWidth - 40;
   const videoHeight = Math.min(videoWidth * (16 / 9), maxVideoHeight);
+
+  // Timeline dimensions
+  const timelineWidth = screenWidth - 80;
+  const thumbnailWidth = 60;
+  const thumbnailHeight = 80;
 
   useEffect(() => {
     // Load the video to get actual duration
@@ -50,16 +71,49 @@ export default function VideoPreviewModal({
             const durationInSeconds = status.durationMillis / 1000;
             console.log('VideoPreviewModal: Actual video duration:', durationInSeconds, 'seconds');
             setActualDuration(durationInSeconds);
-            setTrimEnd(durationInSeconds);
+            setTrimEnd(Math.min(durationInSeconds, MAX_TRIM_DURATION));
+            
+            // Generate thumbnails
+            generateThumbnails(durationInSeconds);
           }
         } catch (error) {
           console.error('VideoPreviewModal: Error getting video duration:', error);
+          setIsGeneratingThumbnails(false);
         }
       }
     };
 
     loadVideo();
   }, [videoUri]);
+
+  const generateThumbnails = async (videoDuration: number) => {
+    try {
+      console.log('Generating thumbnails for video...');
+      const thumbnailCount = Math.min(Math.ceil(videoDuration), 20); // Max 20 thumbnails
+      const interval = videoDuration / thumbnailCount;
+      const generatedThumbnails: ThumbnailData[] = [];
+
+      for (let i = 0; i < thumbnailCount; i++) {
+        const time = i * interval * 1000; // Convert to milliseconds
+        try {
+          const { uri } = await VideoThumbnails.getThumbnailAsync(videoUri, {
+            time,
+            quality: 0.5,
+          });
+          generatedThumbnails.push({ uri, time: i * interval });
+        } catch (error) {
+          console.warn(`Failed to generate thumbnail at ${time}ms:`, error);
+        }
+      }
+
+      console.log(`Generated ${generatedThumbnails.length} thumbnails`);
+      setThumbnails(generatedThumbnails);
+      setIsGeneratingThumbnails(false);
+    } catch (error) {
+      console.error('Error generating thumbnails:', error);
+      setIsGeneratingThumbnails(false);
+    }
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -95,7 +149,7 @@ export default function VideoPreviewModal({
         const durationInSeconds = status.durationMillis / 1000;
         console.log('VideoPreviewModal: Duration from playback status:', durationInSeconds, 'seconds');
         setActualDuration(durationInSeconds);
-        setTrimEnd(durationInSeconds);
+        setTrimEnd(Math.min(durationInSeconds, MAX_TRIM_DURATION));
       }
 
       // Stop playback when reaching trim end
@@ -114,24 +168,16 @@ export default function VideoPreviewModal({
     }
   };
 
-  const handleTrimStartChange = async (value: number) => {
-    const newStart = Math.min(value, trimEnd - 0.1); // Ensure at least 0.1s video
-    setTrimStart(newStart);
-    if (videoRef.current) {
-      await videoRef.current.setPositionAsync(newStart * 1000);
-    }
-  };
-
-  const handleTrimEndChange = (value: number) => {
-    const newEnd = Math.max(value, trimStart + 0.1); // Ensure at least 0.1s video
-    setTrimEnd(newEnd);
-  };
-
   const handleConfirm = () => {
     const trimmedDuration = trimEnd - trimStart;
     
     if (trimmedDuration < 0.1) {
       Alert.alert('Invalid Trim', 'Video must be at least 0.1 seconds long');
+      return;
+    }
+
+    if (trimmedDuration > MAX_TRIM_DURATION) {
+      Alert.alert('Trim Too Long', `Video must be ${MAX_TRIM_DURATION} seconds or less`);
       return;
     }
 
@@ -146,15 +192,78 @@ export default function VideoPreviewModal({
     return trimEnd - trimStart;
   };
 
-  // Simple trim adjustment buttons
-  const adjustTrimStart = (delta: number) => {
-    const newStart = Math.max(0, Math.min(trimStart + delta, trimEnd - 0.1));
-    handleTrimStartChange(newStart);
+  // Create pan responder for left handle (trim start)
+  const leftHandlePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        console.log('Left handle drag started');
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const newPosition = gestureState.dx;
+        const timePerPixel = actualDuration / timelineWidth;
+        const newStartTime = Math.max(0, trimStart + (newPosition * timePerPixel));
+        
+        // Ensure we don't exceed max trim duration
+        const maxStartTime = trimEnd - 0.1;
+        const minStartTime = Math.max(0, trimEnd - MAX_TRIM_DURATION);
+        
+        const clampedStartTime = Math.max(minStartTime, Math.min(maxStartTime, newStartTime));
+        
+        if (clampedStartTime !== trimStart) {
+          setTrimStart(clampedStartTime);
+          if (videoRef.current) {
+            videoRef.current.setPositionAsync(clampedStartTime * 1000);
+          }
+        }
+      },
+      onPanResponderRelease: () => {
+        console.log('Left handle drag ended');
+      },
+    })
+  ).current;
+
+  // Create pan responder for right handle (trim end)
+  const rightHandlePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        console.log('Right handle drag started');
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const newPosition = gestureState.dx;
+        const timePerPixel = actualDuration / timelineWidth;
+        const newEndTime = Math.min(actualDuration, trimEnd + (newPosition * timePerPixel));
+        
+        // Ensure we don't exceed max trim duration
+        const minEndTime = trimStart + 0.1;
+        const maxEndTime = Math.min(actualDuration, trimStart + MAX_TRIM_DURATION);
+        
+        const clampedEndTime = Math.max(minEndTime, Math.min(maxEndTime, newEndTime));
+        
+        if (clampedEndTime !== trimEnd) {
+          setTrimEnd(clampedEndTime);
+        }
+      },
+      onPanResponderRelease: () => {
+        console.log('Right handle drag ended');
+      },
+    })
+  ).current;
+
+  // Calculate positions for trim handles
+  const getLeftHandlePosition = () => {
+    return (trimStart / actualDuration) * timelineWidth;
   };
 
-  const adjustTrimEnd = (delta: number) => {
-    const newEnd = Math.max(trimStart + 0.1, Math.min(trimEnd + delta, actualDuration));
-    handleTrimEndChange(newEnd);
+  const getRightHandlePosition = () => {
+    return (trimEnd / actualDuration) * timelineWidth;
+  };
+
+  const getCurrentPositionIndicator = () => {
+    return (currentPosition / actualDuration) * timelineWidth;
   };
 
   return (
@@ -178,88 +287,135 @@ export default function VideoPreviewModal({
               color={colors.backgroundAlt}
             />
           </TouchableOpacity>
+
+          {/* Current time display */}
+          <View style={styles.currentTimeDisplay}>
+            <Text style={styles.currentTimeText}>{formatTime(currentPosition)}</Text>
+          </View>
         </View>
 
         <View style={styles.infoContainer}>
-          <Text style={styles.title}>Video Recorded!</Text>
+          <Text style={styles.title}>Trim Video</Text>
           <Text style={styles.subtitle}>
-            Duration: {formatTime(getTrimmedDuration())} / {formatTime(actualDuration)}
+            {formatTime(getTrimmedDuration())} / {MAX_TRIM_DURATION}s max
           </Text>
           
-          {/* Trim Controls */}
-          <View style={styles.trimContainer}>
-            <Text style={styles.trimLabel}>Trim Video</Text>
-            
-            <View style={styles.trimRow}>
-              <Text style={styles.trimTime}>Start: {formatTime(trimStart)}</Text>
-              <View style={styles.trimButtons}>
-                <TouchableOpacity 
-                  style={styles.trimButton} 
-                  onPress={() => adjustTrimStart(-0.5)}
-                >
-                  <MaterialIcons name="remove" size={20} color={colors.backgroundAlt} />
-                  <Text style={styles.trimButtonText}>0.5s</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.trimButton} 
-                  onPress={() => adjustTrimStart(-0.1)}
-                >
-                  <MaterialIcons name="remove" size={16} color={colors.backgroundAlt} />
-                  <Text style={styles.trimButtonText}>0.1s</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.trimButton} 
-                  onPress={() => adjustTrimStart(0.1)}
-                >
-                  <MaterialIcons name="add" size={16} color={colors.backgroundAlt} />
-                  <Text style={styles.trimButtonText}>0.1s</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.trimButton} 
-                  onPress={() => adjustTrimStart(0.5)}
-                >
-                  <MaterialIcons name="add" size={20} color={colors.backgroundAlt} />
-                  <Text style={styles.trimButtonText}>0.5s</Text>
-                </TouchableOpacity>
+          {/* Timeline with thumbnails */}
+          <View style={styles.timelineContainer}>
+            {isGeneratingThumbnails ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Generating preview...</Text>
               </View>
-            </View>
-            
-            <View style={styles.trimRow}>
-              <Text style={styles.trimTime}>End: {formatTime(trimEnd)}</Text>
-              <View style={styles.trimButtons}>
-                <TouchableOpacity 
-                  style={styles.trimButton} 
-                  onPress={() => adjustTrimEnd(-0.5)}
+            ) : (
+              <View style={[styles.timeline, { width: timelineWidth }]}>
+                {/* Thumbnail strip */}
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  scrollEnabled={false}
+                  style={styles.thumbnailStrip}
                 >
-                  <MaterialIcons name="remove" size={20} color={colors.backgroundAlt} />
-                  <Text style={styles.trimButtonText}>0.5s</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.trimButton} 
-                  onPress={() => adjustTrimEnd(-0.1)}
+                  {thumbnails.map((thumbnail, index) => (
+                    <View key={index} style={[styles.thumbnailWrapper, { width: thumbnailWidth, height: thumbnailHeight }]}>
+                      <Video
+                        source={{ uri: videoUri }}
+                        style={styles.thumbnail}
+                        resizeMode={ResizeMode.COVER}
+                        shouldPlay={false}
+                        positionMillis={thumbnail.time * 1000}
+                      />
+                    </View>
+                  ))}
+                </ScrollView>
+
+                {/* Overlay for non-selected regions */}
+                <View style={styles.overlayContainer}>
+                  {/* Left overlay */}
+                  <View 
+                    style={[
+                      styles.overlay, 
+                      { 
+                        left: 0, 
+                        width: getLeftHandlePosition() 
+                      }
+                    ]} 
+                  />
+                  
+                  {/* Right overlay */}
+                  <View 
+                    style={[
+                      styles.overlay, 
+                      { 
+                        left: getRightHandlePosition(), 
+                        width: timelineWidth - getRightHandlePosition() 
+                      }
+                    ]} 
+                  />
+                </View>
+
+                {/* Selected region border */}
+                <View 
+                  style={[
+                    styles.selectedRegion,
+                    {
+                      left: getLeftHandlePosition(),
+                      width: getRightHandlePosition() - getLeftHandlePosition(),
+                    }
+                  ]}
+                />
+
+                {/* Current position indicator */}
+                {currentPosition >= trimStart && currentPosition <= trimEnd && (
+                  <View 
+                    style={[
+                      styles.currentPositionIndicator,
+                      { left: getCurrentPositionIndicator() }
+                    ]}
+                  />
+                )}
+
+                {/* Left handle (trim start) */}
+                <View
+                  {...leftHandlePanResponder.panHandlers}
+                  style={[
+                    styles.handle,
+                    styles.leftHandle,
+                    { left: getLeftHandlePosition() - 15 }
+                  ]}
                 >
-                  <MaterialIcons name="remove" size={16} color={colors.backgroundAlt} />
-                  <Text style={styles.trimButtonText}>0.1s</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.trimButton} 
-                  onPress={() => adjustTrimEnd(0.1)}
+                  <View style={styles.handleBar} />
+                  <View style={styles.handleGrip}>
+                    <View style={styles.handleGripLine} />
+                    <View style={styles.handleGripLine} />
+                  </View>
+                </View>
+
+                {/* Right handle (trim end) */}
+                <View
+                  {...rightHandlePanResponder.panHandlers}
+                  style={[
+                    styles.handle,
+                    styles.rightHandle,
+                    { left: getRightHandlePosition() - 15 }
+                  ]}
                 >
-                  <MaterialIcons name="add" size={16} color={colors.backgroundAlt} />
-                  <Text style={styles.trimButtonText}>0.1s</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.trimButton} 
-                  onPress={() => adjustTrimEnd(0.5)}
-                >
-                  <MaterialIcons name="add" size={20} color={colors.backgroundAlt} />
-                  <Text style={styles.trimButtonText}>0.5s</Text>
-                </TouchableOpacity>
+                  <View style={styles.handleGrip}>
+                    <View style={styles.handleGripLine} />
+                    <View style={styles.handleGripLine} />
+                  </View>
+                  <View style={styles.handleBar} />
+                </View>
               </View>
-            </View>
+            )}
+          </View>
+
+          {/* Time labels */}
+          <View style={styles.timeLabels}>
+            <Text style={styles.timeLabel}>{formatTime(trimStart)}</Text>
+            <Text style={styles.timeLabel}>{formatTime(trimEnd)}</Text>
           </View>
           
-          <Text style={styles.hint}>Use buttons to trim, tap video to play/pause</Text>
+          <Text style={styles.hint}>Drag handles to trim • Max {MAX_TRIM_DURATION}s</Text>
         </View>
 
         <View style={styles.actions}>
@@ -312,6 +468,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  currentTimeDisplay: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  currentTimeText: {
+    color: colors.backgroundAlt,
+    fontSize: 14,
+    fontWeight: '600',
+  },
   infoContainer: {
     alignItems: 'center',
     marginBottom: 24,
@@ -326,50 +496,114 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  trimContainer: {
+  timelineContainer: {
     width: '100%',
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-  },
-  trimLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  trimRow: {
+    alignItems: 'center',
     marginBottom: 12,
   },
-  trimTime: {
+  loadingContainer: {
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: colors.textSecondary,
     fontSize: 14,
-    color: colors.text,
-    marginBottom: 8,
-    fontWeight: '500',
   },
-  trimButtons: {
+  timeline: {
+    height: 80,
+    position: 'relative',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  thumbnailStrip: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+  },
+  thumbnailWrapper: {
+    overflow: 'hidden',
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  overlayContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  selectedRegion: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    borderWidth: 3,
+    borderColor: '#FFD700',
+    borderRadius: 4,
+  },
+  currentPositionIndicator: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 2,
+    backgroundColor: colors.backgroundAlt,
+    zIndex: 5,
+  },
+  handle: {
+    position: 'absolute',
+    top: -5,
+    bottom: -5,
+    width: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  leftHandle: {
+    justifyContent: 'flex-start',
+  },
+  rightHandle: {
+    justifyContent: 'flex-end',
+  },
+  handleBar: {
+    width: 4,
+    height: '100%',
+    backgroundColor: '#FFD700',
+    borderRadius: 2,
+  },
+  handleGrip: {
+    width: 26,
+    height: 40,
+    backgroundColor: '#FFD700',
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: 4,
   },
-  trimButton: {
-    flex: 1,
-    backgroundColor: colors.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+  handleGripLine: {
+    width: 12,
+    height: 2,
+    backgroundColor: '#000000',
+    borderRadius: 1,
   },
-  trimButtonText: {
-    color: colors.backgroundAlt,
-    fontSize: 10,
+  timeLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: screenWidth - 80,
+    marginBottom: 8,
+  },
+  timeLabel: {
+    fontSize: 14,
+    color: colors.text,
     fontWeight: '600',
-    marginTop: 2,
   },
   hint: {
     fontSize: 12,
