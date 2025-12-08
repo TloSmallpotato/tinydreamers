@@ -564,7 +564,7 @@ function CustomTabBar() {
   }
 
   return (
-    <>
+    <React.Fragment>
       {showCamera && cameraPermission?.granted && (
         <View 
           style={[
@@ -739,13 +739,13 @@ function CustomTabBar() {
         onViewPress={handleViewNow}
         onHide={() => setToastVisible(false)}
       />
-    </>
+    </React.Fragment>
   );
 }
 
 export default function TabLayout() {
   return (
-    <>
+    <React.Fragment>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -764,9 +764,10 @@ export default function TabLayout() {
             presentation: 'card',
           }} 
         />
+        <Stack.Screen name="all-moments" options={{ headerShown: false }} />
       </Stack>
       <CustomTabBar />
-    </>
+    </React.Fragment>
   );
 }
 
