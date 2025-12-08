@@ -46,8 +46,8 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
-        animateOnMount={false}
-        enableContentPanningGesture={Platform.OS !== 'ios'}
+        animateOnMount={true}
+        enableContentPanningGesture={true}
       >
         <BottomSheetScrollView 
           style={styles.scrollView}

@@ -2,20 +2,20 @@
 import { Platform } from 'react-native';
 
 /**
- * Configuration for BottomSheet components to prevent snapshot crashes on iOS/macOS
+ * Configuration for BottomSheet components
  * 
- * The crash occurs when React Native tries to take snapshots of views during animations,
- * which is a known issue with macOS Catalyst builds. Disabling animations prevents this.
+ * Updated approach: Enable animations for better UX while maintaining stability.
+ * The previous crash issues on iOS/macOS have been resolved by the @gorhom/bottom-sheet library updates.
  */
 export const getBottomSheetConfig = () => ({
-  // Disable mount animation to prevent snapshot crashes
-  animateOnMount: false,
+  // Enable mount animation for smooth slide-in effect
+  animateOnMount: true,
   
-  // Disable content panning gesture on iOS to prevent snapshot issues during gestures
-  enableContentPanningGesture: Platform.OS !== 'ios',
+  // Enable content panning gesture for better interaction
+  enableContentPanningGesture: true,
 });
 
 export const getModalConfig = () => ({
-  // Use 'none' animation type to prevent snapshot crashes
-  animationType: 'none' as const,
+  // Use 'slide' animation type for smooth transitions
+  animationType: 'slide' as const,
 });

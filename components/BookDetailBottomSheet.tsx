@@ -220,8 +220,8 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         backgroundStyle={styles.bottomSheetBackground}
         handleIndicatorStyle={styles.handleIndicator}
         onDismiss={handleDismiss}
-        animateOnMount={false}
-        enableContentPanningGesture={Platform.OS !== 'ios'}
+        animateOnMount={true}
+        enableContentPanningGesture={true}
       >
         <BottomSheetScrollView 
           style={styles.scrollView}

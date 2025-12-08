@@ -192,8 +192,8 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
           keyboardBehavior="interactive"
           keyboardBlurBehavior="restore"
           android_keyboardInputMode="adjustResize"
-          animateOnMount={false}
-          enableContentPanningGesture={Platform.OS !== 'ios'}
+          animateOnMount={true}
+          enableContentPanningGesture={true}
         >
           <BottomSheetScrollView 
             style={styles.scrollView}
