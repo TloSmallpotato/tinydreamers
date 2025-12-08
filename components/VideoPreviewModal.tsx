@@ -1,11 +1,10 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, Animated } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
-import Slider from '@react-native-community/slider';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -30,13 +29,12 @@ export default function VideoPreviewModal({
   const [currentPosition, setCurrentPosition] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(Math.min(duration, MAX_TRIM_DURATION));
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const insets = useSafeAreaInsets();
 
   // Calculate video container height to fit within safe area
   const topSafeArea = insets.top || 44;
   const bottomSafeArea = insets.bottom || 34;
-  const controlsHeight = 380; // Increased for slider controls
+  const controlsHeight = 280; // Reduced since we removed preview button and merged sliders
   const buttonsHeight = 100;
   const padding = 40;
   
@@ -121,50 +119,6 @@ export default function VideoPreviewModal({
           await videoRef.current?.setPositionAsync(trimStart * 1000);
         }
       }
-    }
-  };
-
-  const handleTrimStartChange = async (value: number) => {
-    // Ensure trim start doesn't exceed trim end minus 0.1s
-    const newStart = Math.min(value, trimEnd - 0.1);
-    
-    // Ensure trim duration doesn't exceed MAX_TRIM_DURATION
-    const maxAllowedStart = trimEnd - MAX_TRIM_DURATION;
-    const finalStart = Math.max(0, Math.max(newStart, maxAllowedStart));
-    
-    setTrimStart(finalStart);
-    
-    // Update video position to new start
-    if (videoRef.current) {
-      await videoRef.current.setPositionAsync(finalStart * 1000);
-    }
-  };
-
-  const handleTrimEndChange = async (value: number) => {
-    // Ensure trim end is at least 0.1s after trim start
-    const newEnd = Math.max(value, trimStart + 0.1);
-    
-    // Ensure trim duration doesn't exceed MAX_TRIM_DURATION
-    const maxAllowedEnd = Math.min(newEnd, trimStart + MAX_TRIM_DURATION);
-    const finalEnd = Math.min(actualDuration, maxAllowedEnd);
-    
-    setTrimEnd(finalEnd);
-  };
-
-  const handlePreview = async () => {
-    console.log('Preview button pressed - playing trimmed range');
-    setIsPreviewMode(true);
-    
-    if (videoRef.current) {
-      // Stop current playback
-      await videoRef.current.pauseAsync();
-      
-      // Seek to trim start
-      await videoRef.current.setPositionAsync(trimStart * 1000);
-      
-      // Start playing
-      await videoRef.current.playAsync();
-      setIsPlaying(true);
     }
   };
 
@@ -259,31 +213,44 @@ export default function VideoPreviewModal({
             </Text>
           )}
           
-          {/* Timeline Visualization */}
-          <View style={styles.timelineContainer}>
-            <View style={styles.timeline}>
-              {/* Full duration bar */}
-              <View style={styles.timelineBar} />
-              
-              {/* Trimmed section highlight */}
-              <View 
-                style={[
-                  styles.timelineTrimmed,
-                  {
-                    left: `${trimPercentage.start}%`,
-                    width: `${trimPercentage.end - trimPercentage.start}%`,
-                  }
-                ]}
-              />
-              
-              {/* Current position indicator */}
-              <View 
-                style={[
-                  styles.timelinePosition,
-                  { left: `${getCurrentPositionPercentage()}%` }
-                ]}
-              />
+          {/* Dual Handle Trim Slider */}
+          <View style={styles.trimSliderContainer}>
+            <View style={styles.trimSliderLabels}>
+              <Text style={styles.trimSliderLabel}>Start: {formatTime(trimStart)}</Text>
+              <Text style={styles.trimSliderLabel}>End: {formatTime(trimEnd)}</Text>
             </View>
+            
+            <DualHandleSlider
+              min={0}
+              max={actualDuration}
+              startValue={trimStart}
+              endValue={trimEnd}
+              onStartChange={async (value) => {
+                // Ensure trim start doesn't exceed trim end minus 0.1s
+                const newStart = Math.min(value, trimEnd - 0.1);
+                
+                // Ensure trim duration doesn't exceed MAX_TRIM_DURATION
+                const maxAllowedStart = trimEnd - MAX_TRIM_DURATION;
+                const finalStart = Math.max(0, Math.max(newStart, maxAllowedStart));
+                
+                setTrimStart(finalStart);
+                
+                // Update video position to new start
+                if (videoRef.current) {
+                  await videoRef.current.setPositionAsync(finalStart * 1000);
+                }
+              }}
+              onEndChange={async (value) => {
+                // Ensure trim end is at least 0.1s after trim start
+                const newEnd = Math.max(value, trimStart + 0.1);
+                
+                // Ensure trim duration doesn't exceed MAX_TRIM_DURATION
+                const maxAllowedEnd = Math.min(newEnd, trimStart + MAX_TRIM_DURATION);
+                const finalEnd = Math.min(actualDuration, maxAllowedEnd);
+                
+                setTrimEnd(finalEnd);
+              }}
+            />
             
             <View style={styles.timelineLabels}>
               <Text style={styles.timelineLabel}>0:00</Text>
@@ -291,56 +258,8 @@ export default function VideoPreviewModal({
             </View>
           </View>
           
-          {/* Trim Start Slider */}
-          <View style={styles.sliderContainer}>
-            <View style={styles.sliderHeader}>
-              <MaterialIcons name="content-cut" size={20} color={colors.primary} />
-              <Text style={styles.sliderLabel}>Start: {formatTime(trimStart)}</Text>
-            </View>
-            <Slider
-              style={styles.slider}
-              minimumValue={0}
-              maximumValue={actualDuration}
-              value={trimStart}
-              onValueChange={handleTrimStartChange}
-              minimumTrackTintColor={colors.primary}
-              maximumTrackTintColor={colors.textSecondary}
-              thumbTintColor={colors.primary}
-              step={0.1}
-            />
-          </View>
-          
-          {/* Trim End Slider */}
-          <View style={styles.sliderContainer}>
-            <View style={styles.sliderHeader}>
-              <MaterialIcons name="content-cut" size={20} color={colors.secondary} />
-              <Text style={styles.sliderLabel}>End: {formatTime(trimEnd)}</Text>
-            </View>
-            <Slider
-              style={styles.slider}
-              minimumValue={0}
-              maximumValue={actualDuration}
-              value={trimEnd}
-              onValueChange={handleTrimEndChange}
-              minimumTrackTintColor={colors.secondary}
-              maximumTrackTintColor={colors.textSecondary}
-              thumbTintColor={colors.secondary}
-              step={0.1}
-            />
-          </View>
-          
-          {/* Preview Button */}
-          <TouchableOpacity 
-            style={styles.previewButton} 
-            onPress={handlePreview}
-            disabled={!isValidTrim}
-          >
-            <MaterialIcons name="play-circle-outline" size={24} color={colors.backgroundAlt} />
-            <Text style={styles.previewButtonText}>Preview Trim</Text>
-          </TouchableOpacity>
-          
           <Text style={styles.hint}>
-            Drag sliders to adjust trim points, then preview before confirming
+            Drag circles to adjust trim points, then confirm
           </Text>
         </View>
 
@@ -365,6 +284,129 @@ export default function VideoPreviewModal({
         </View>
       </View>
     </SafeAreaView>
+  );
+}
+
+// Dual Handle Slider Component
+interface DualHandleSliderProps {
+  min: number;
+  max: number;
+  startValue: number;
+  endValue: number;
+  onStartChange: (value: number) => void;
+  onEndChange: (value: number) => void;
+}
+
+function DualHandleSlider({
+  min,
+  max,
+  startValue,
+  endValue,
+  onStartChange,
+  onEndChange,
+}: DualHandleSliderProps) {
+  const sliderWidth = screenWidth - 80; // Account for padding
+  const [activeHandle, setActiveHandle] = useState<'start' | 'end' | null>(null);
+
+  const getPositionFromValue = (value: number) => {
+    if (max === min) return 0;
+    return ((value - min) / (max - min)) * sliderWidth;
+  };
+
+  const getValueFromPosition = (position: number) => {
+    const clampedPosition = Math.max(0, Math.min(sliderWidth, position));
+    return min + (clampedPosition / sliderWidth) * (max - min);
+  };
+
+  const startPosition = getPositionFromValue(startValue);
+  const endPosition = getPositionFromValue(endValue);
+
+  const createPanResponder = (handle: 'start' | 'end') => {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        setActiveHandle(handle);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const currentPosition = handle === 'start' ? startPosition : endPosition;
+        const newPosition = currentPosition + gestureState.dx;
+        const newValue = getValueFromPosition(newPosition);
+        
+        if (handle === 'start') {
+          onStartChange(newValue);
+        } else {
+          onEndChange(newValue);
+        }
+      },
+      onPanResponderRelease: () => {
+        setActiveHandle(null);
+      },
+    });
+  };
+
+  const startPanResponder = createPanResponder('start');
+  const endPanResponder = createPanResponder('end');
+
+  return (
+    <View style={styles.dualSliderContainer}>
+      {/* Track */}
+      <View style={styles.sliderTrack}>
+        {/* Inactive sections */}
+        <View style={[styles.sliderInactive, { width: startPosition }]} />
+        <View 
+          style={[
+            styles.sliderInactive, 
+            { 
+              position: 'absolute',
+              left: endPosition,
+              width: sliderWidth - endPosition 
+            }
+          ]} 
+        />
+        
+        {/* Active section */}
+        <View 
+          style={[
+            styles.sliderActive,
+            {
+              left: startPosition,
+              width: endPosition - startPosition,
+            }
+          ]}
+        />
+      </View>
+
+      {/* Start Handle */}
+      <View
+        {...startPanResponder.panHandlers}
+        style={[
+          styles.sliderHandle,
+          styles.sliderHandleStart,
+          {
+            left: startPosition - 16,
+          },
+          activeHandle === 'start' && styles.sliderHandleActive,
+        ]}
+      >
+        <View style={styles.sliderHandleInner} />
+      </View>
+
+      {/* End Handle */}
+      <View
+        {...endPanResponder.panHandlers}
+        style={[
+          styles.sliderHandle,
+          styles.sliderHandleEnd,
+          {
+            left: endPosition - 16,
+          },
+          activeHandle === 'end' && styles.sliderHandleActive,
+        ]}
+      >
+        <View style={styles.sliderHandleInner} />
+      </View>
+    </View>
   );
 }
 
@@ -428,86 +470,93 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
-  timelineContainer: {
+  trimSliderContainer: {
     width: '100%',
-    marginVertical: 16,
+    marginVertical: 24,
   },
-  timeline: {
+  trimSliderLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  trimSliderLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  dualSliderContainer: {
     width: '100%',
-    height: 40,
+    height: 60,
+    justifyContent: 'center',
     position: 'relative',
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  timelineBar: {
+  sliderTrack: {
+    width: '100%',
+    height: 8,
+    backgroundColor: 'transparent',
+    borderRadius: 4,
+    position: 'relative',
+  },
+  sliderInactive: {
     position: 'absolute',
-    top: 15,
-    left: 0,
-    right: 0,
-    height: 10,
+    height: 8,
     backgroundColor: colors.textSecondary,
-    borderRadius: 5,
     opacity: 0.3,
+    borderRadius: 4,
   },
-  timelineTrimmed: {
+  sliderActive: {
     position: 'absolute',
-    top: 15,
-    height: 10,
+    height: 8,
     backgroundColor: colors.primary,
-    borderRadius: 5,
-    opacity: 0.7,
+    borderRadius: 4,
   },
-  timelinePosition: {
+  sliderHandle: {
     position: 'absolute',
-    top: 10,
-    width: 3,
-    height: 20,
-    backgroundColor: colors.secondary,
-    borderRadius: 1.5,
-    marginLeft: -1.5,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.backgroundAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  sliderHandleStart: {
+    borderColor: colors.primary,
+  },
+  sliderHandleEnd: {
+    borderColor: colors.secondary,
+  },
+  sliderHandleActive: {
+    transform: [{ scale: 1.2 }],
+  },
+  sliderHandleInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
   },
   timelineLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
+    marginTop: 4,
   },
   timelineLabel: {
     fontSize: 12,
     color: colors.textSecondary,
-  },
-  sliderContainer: {
-    width: '100%',
-    marginBottom: 12,
-  },
-  sliderHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  sliderLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  slider: {
-    width: '100%',
-    height: 40,
-  },
-  previewButton: {
-    backgroundColor: colors.buttonBlue,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  previewButtonText: {
-    color: colors.backgroundAlt,
-    fontSize: 16,
-    fontWeight: '600',
   },
   hint: {
     fontSize: 12,
