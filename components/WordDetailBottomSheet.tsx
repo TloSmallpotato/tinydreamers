@@ -252,11 +252,11 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           enablePanDownToClose={true}
           enableDismissOnClose={true}
           backdropComponent={renderBackdrop}
-          backgroundStyle={styles.bottomSheetBackground}
-          handleIndicatorStyle={styles.handleIndicator}
+          backgroundStyle={{ backgroundColor: word.color }}
+          handleIndicatorStyle={[styles.handleIndicator, { backgroundColor: 'rgba(255, 255, 255, 0.5)' }]}
           onDismiss={onClose}
-          animateOnMount={false}
-          enableContentPanningGesture={Platform.OS !== 'ios'}
+          animateOnMount={true}
+          enableContentPanningGesture={true}
         >
           <BottomSheetScrollView 
             style={styles.scrollView}
@@ -405,12 +405,10 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
 
 const styles = StyleSheet.create({
   bottomSheetBackground: {
-    backgroundColor: colors.backgroundAlt,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
   handleIndicator: {
-    backgroundColor: colors.primary,
     width: 40,
     height: 4,
   },
@@ -421,8 +419,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   wordHeader: {
-    marginTop: -24,
-    paddingTop: 44,
+    paddingTop: 24,
     paddingBottom: 20,
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -449,6 +446,7 @@ const styles = StyleSheet.create({
   statusSection: {
     paddingHorizontal: 20,
     paddingTop: 20,
+    backgroundColor: colors.backgroundAlt,
   },
   sectionTitle: {
     fontSize: 18,
@@ -482,6 +480,7 @@ const styles = StyleSheet.create({
   momentsSection: {
     paddingHorizontal: 20,
     paddingTop: 20,
+    backgroundColor: colors.backgroundAlt,
   },
   momentsHeader: {
     flexDirection: 'row',
