@@ -80,6 +80,9 @@ const tabs: TabItem[] = [
   },
 ];
 
+// Maximum recording duration in seconds (5 seconds as per requirements)
+const MAX_RECORDING_DURATION = 5;
+
 function CustomTabBar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -114,6 +117,10 @@ function CustomTabBar() {
   const [showToastViewButton, setShowToastViewButton] = useState(false);
   const [savedWordId, setSavedWordId] = useState<string | null>(null);
 
+  // Store trim information
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
+
   useEffect(() => {
     if (!showCamera && !recordedVideoUri) {
       setPreviousRoute(pathname);
@@ -131,7 +138,7 @@ function CustomTabBar() {
   }, [cameraPermission, requestCameraPermission]);
 
   const openCamera = useCallback(async () => {
-    console.log('Opening camera for video recording');
+    console.log('Opening camera for video recording (max 5 seconds)');
     
     if (!cameraPermission) {
       console.log('Camera permission not loaded yet');
@@ -285,16 +292,24 @@ function CustomTabBar() {
   const startRecording = async () => {
     if (cameraRef.current && !isRecording) {
       try {
-        console.log('Starting video recording');
+        console.log(`Starting video recording (max ${MAX_RECORDING_DURATION} seconds)`);
         setIsRecording(true);
         setRecordingTime(0);
         
+        // Update timer every 100ms for smoother countdown
         recordingTimerRef.current = setInterval(() => {
-          setRecordingTime((prev) => prev + 1);
-        }, 1000);
+          setRecordingTime((prev) => {
+            const newTime = prev + 0.1;
+            // Auto-stop at max duration
+            if (newTime >= MAX_RECORDING_DURATION) {
+              stopRecording();
+            }
+            return newTime;
+          });
+        }, 100);
         
         const video = await cameraRef.current.recordAsync({
-          maxDuration: 300,
+          maxDuration: MAX_RECORDING_DURATION,
         });
         
         console.log('Video recorded:', video);
@@ -349,10 +364,14 @@ function CustomTabBar() {
     clearRecordedVideo();
   };
 
-  const handleConfirmVideo = async () => {
-    console.log('Video confirmed');
+  const handleConfirmVideo = async (trimmedUri: string, startTime: number, endTime: number) => {
+    console.log('Video confirmed with trim:', { startTime, endTime });
     console.log('isRecordingFromWordDetail:', isRecordingFromWordDetail);
     console.log('targetWordId:', targetWordId);
+    
+    // Store trim information
+    setTrimStart(startTime);
+    setTrimEnd(endTime);
     
     if (isRecordingFromWordDetail && targetWordId) {
       console.log('Method 2: Exiting preview and saving video in background');
@@ -364,7 +383,7 @@ function CustomTabBar() {
       
       clearRecordedVideo();
       
-      saveVideoToWord(targetWordId, true);
+      saveVideoToWord(targetWordId, trimmedUri, startTime, endTime, true);
     } else {
       console.log('Method 1: Showing word selection bottom sheet');
       await fetchWords();
@@ -377,18 +396,22 @@ function CustomTabBar() {
     clearRecordedVideo();
   };
 
-  const saveVideoToWord = async (wordId: string, isMethod2: boolean = false) => {
-    if (!selectedChild || !recordedVideoUri) {
+  const saveVideoToWord = async (
+    wordId: string, 
+    videoUri: string, 
+    startTime: number, 
+    endTime: number,
+    isMethod2: boolean = false
+  ) => {
+    if (!selectedChild) {
       Alert.alert('Error', 'Missing required data');
       return;
     }
 
-    const videoUriToSave = recordedVideoUri;
-    const videoDurationToSave = recordedVideoDuration || 0;
-
     try {
       console.log('=== Starting video save process ===');
-      console.log('Video URI:', videoUriToSave);
+      console.log('Video URI:', videoUri);
+      console.log('Trim range:', startTime, '-', endTime);
       console.log('User Word ID:', wordId);
       console.log('Child ID:', selectedChild.id);
       
@@ -411,7 +434,7 @@ function CustomTabBar() {
       
       // Step 1: Try to generate thumbnail
       console.log('Step 1: Attempting thumbnail generation...');
-      const thumbnailUri = await generateVideoThumbnail(videoUriToSave);
+      const thumbnailUri = await generateVideoThumbnail(videoUri);
       
       let uploadedThumbnailUrl: string | null = null;
       
@@ -430,7 +453,7 @@ function CustomTabBar() {
       
       // Step 2: Upload video
       console.log('Step 2: Uploading video to Supabase...');
-      const uploadedVideoUrl = await uploadVideoToSupabase(videoUriToSave, selectedChild.id, supabase);
+      const uploadedVideoUrl = await uploadVideoToSupabase(videoUri, selectedChild.id, supabase);
       
       if (!uploadedVideoUrl) {
         throw new Error('Failed to upload video');
@@ -438,8 +461,10 @@ function CustomTabBar() {
       
       console.log('✓ Video uploaded successfully:', uploadedVideoUrl);
       
-      // Step 3: Save to database
-      console.log('Step 3: Saving to database...');
+      // Step 3: Save to database with trim information
+      console.log('Step 3: Saving to database with trim info...');
+      const trimmedDuration = endTime - startTime;
+      
       const { error: insertError } = await supabase
         .from('moments')
         .insert({
@@ -447,7 +472,9 @@ function CustomTabBar() {
           child_id: selectedChild.id,
           video_url: uploadedVideoUrl,
           thumbnail_url: uploadedThumbnailUrl,
-          duration: videoDurationToSave,
+          duration: trimmedDuration,
+          trim_start: startTime,
+          trim_end: endTime,
         });
 
       if (insertError) {
@@ -478,7 +505,8 @@ function CustomTabBar() {
     console.log('Word selected from bottom sheet:', wordId);
     
     const videoUriToSave = recordedVideoUri;
-    const videoDurationToSave = recordedVideoDuration;
+    const startTime = trimStart;
+    const endTime = trimEnd;
     
     selectWordSheetRef.current?.dismiss();
     
@@ -490,7 +518,7 @@ function CustomTabBar() {
     clearRecordedVideo();
     
     if (videoUriToSave && selectedChild) {
-      await saveVideoToWord(wordId, false);
+      await saveVideoToWord(wordId, videoUriToSave, startTime, endTime, false);
     }
   };
 
@@ -505,8 +533,9 @@ function CustomTabBar() {
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    const secs = Math.floor(seconds % 60);
+    const ms = Math.floor((seconds % 1) * 10);
+    return `${mins}:${secs.toString().padStart(2, '0')}.${ms}`;
   };
 
   if (!shouldShowTabBar) {
@@ -536,7 +565,17 @@ function CustomTabBar() {
           {isRecording && (
             <View style={styles.recordingIndicator}>
               <View style={styles.recordingDot} />
-              <Text style={styles.recordingTime}>{formatTime(recordingTime)}</Text>
+              <Text style={styles.recordingTime}>
+                {formatTime(recordingTime)} / {MAX_RECORDING_DURATION}s
+              </Text>
+            </View>
+          )}
+
+          {!isRecording && isCameraReady && (
+            <View style={styles.recordingHint}>
+              <Text style={styles.recordingHintText}>
+                Max {MAX_RECORDING_DURATION} seconds
+              </Text>
             </View>
           )}
 
@@ -813,6 +852,21 @@ const styles = StyleSheet.create({
   recordingTime: {
     color: colors.backgroundAlt,
     fontSize: 16,
+    fontWeight: '600',
+  },
+  recordingHint: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 2001,
+  },
+  recordingHintText: {
+    color: colors.backgroundAlt,
+    fontSize: 14,
     fontWeight: '600',
   },
   cameraControls: {

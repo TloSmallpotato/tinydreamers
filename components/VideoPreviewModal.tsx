@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -11,7 +11,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 interface VideoPreviewModalProps {
   videoUri: string;
   duration: number;
-  onConfirm: () => void;
+  onConfirm: (trimmedUri: string, startTime: number, endTime: number) => void;
   onCancel: () => void;
 }
 
@@ -24,14 +24,16 @@ export default function VideoPreviewModal({
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [actualDuration, setActualDuration] = useState(duration);
+  const [currentPosition, setCurrentPosition] = useState(0);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(duration);
   const insets = useSafeAreaInsets();
 
   // Calculate video container height to fit within safe area
-  // Leave space for: top safe area + title/info section + buttons + padding
   const topSafeArea = insets.top || 44;
   const bottomSafeArea = insets.bottom || 34;
-  const titleInfoHeight = 140; // Space for title, duration, and hint
-  const buttonsHeight = 100; // Space for buttons
+  const titleInfoHeight = 240; // Increased for trim controls
+  const buttonsHeight = 100;
   const padding = 40;
   
   const maxVideoHeight = screenHeight - topSafeArea - titleInfoHeight - buttonsHeight - padding;
@@ -45,9 +47,10 @@ export default function VideoPreviewModal({
         try {
           const status = await videoRef.current.getStatusAsync();
           if (status.isLoaded && status.durationMillis) {
-            const durationInSeconds = Math.round(status.durationMillis / 1000);
+            const durationInSeconds = status.durationMillis / 1000;
             console.log('VideoPreviewModal: Actual video duration:', durationInSeconds, 'seconds');
             setActualDuration(durationInSeconds);
+            setTrimEnd(durationInSeconds);
           }
         } catch (error) {
           console.error('VideoPreviewModal: Error getting video duration:', error);
@@ -60,8 +63,9 @@ export default function VideoPreviewModal({
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    const secs = Math.floor(seconds % 60);
+    const ms = Math.floor((seconds % 1) * 10);
+    return `${mins}:${secs.toString().padStart(2, '0')}.${ms}`;
   };
 
   const togglePlayback = async () => {
@@ -69,23 +73,88 @@ export default function VideoPreviewModal({
       if (isPlaying) {
         await videoRef.current.pauseAsync();
       } else {
+        // If at the end of trim range, restart from trim start
+        if (currentPosition >= trimEnd) {
+          await videoRef.current.setPositionAsync(trimStart * 1000);
+        }
         await videoRef.current.playAsync();
       }
       setIsPlaying(!isPlaying);
     }
   };
 
-  const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+  const handlePlaybackStatusUpdate = async (status: AVPlaybackStatus) => {
     if (status.isLoaded) {
       setIsPlaying(status.isPlaying);
       
+      const positionSeconds = (status.positionMillis || 0) / 1000;
+      setCurrentPosition(positionSeconds);
+      
       // Update actual duration if we get it from playback status
       if (status.durationMillis && actualDuration === 0) {
-        const durationInSeconds = Math.round(status.durationMillis / 1000);
+        const durationInSeconds = status.durationMillis / 1000;
         console.log('VideoPreviewModal: Duration from playback status:', durationInSeconds, 'seconds');
         setActualDuration(durationInSeconds);
+        setTrimEnd(durationInSeconds);
+      }
+
+      // Stop playback when reaching trim end
+      if (status.isPlaying && positionSeconds >= trimEnd) {
+        await videoRef.current?.pauseAsync();
+        await videoRef.current?.setPositionAsync(trimStart * 1000);
+        setIsPlaying(false);
+      }
+
+      // Keep playback within trim range
+      if (positionSeconds < trimStart || positionSeconds > trimEnd) {
+        if (status.isPlaying) {
+          await videoRef.current?.setPositionAsync(trimStart * 1000);
+        }
       }
     }
+  };
+
+  const handleTrimStartChange = async (value: number) => {
+    const newStart = Math.min(value, trimEnd - 0.1); // Ensure at least 0.1s video
+    setTrimStart(newStart);
+    if (videoRef.current) {
+      await videoRef.current.setPositionAsync(newStart * 1000);
+    }
+  };
+
+  const handleTrimEndChange = (value: number) => {
+    const newEnd = Math.max(value, trimStart + 0.1); // Ensure at least 0.1s video
+    setTrimEnd(newEnd);
+  };
+
+  const handleConfirm = () => {
+    const trimmedDuration = trimEnd - trimStart;
+    
+    if (trimmedDuration < 0.1) {
+      Alert.alert('Invalid Trim', 'Video must be at least 0.1 seconds long');
+      return;
+    }
+
+    console.log('Confirming video with trim:', { trimStart, trimEnd, duration: trimmedDuration });
+    
+    // Pass the original URI and trim times to parent
+    // The actual trimming will be done during upload/processing
+    onConfirm(videoUri, trimStart, trimEnd);
+  };
+
+  const getTrimmedDuration = () => {
+    return trimEnd - trimStart;
+  };
+
+  // Simple trim adjustment buttons
+  const adjustTrimStart = (delta: number) => {
+    const newStart = Math.max(0, Math.min(trimStart + delta, trimEnd - 0.1));
+    handleTrimStartChange(newStart);
+  };
+
+  const adjustTrimEnd = (delta: number) => {
+    const newEnd = Math.max(trimStart + 0.1, Math.min(trimEnd + delta, actualDuration));
+    handleTrimEndChange(newEnd);
   };
 
   return (
@@ -97,7 +166,7 @@ export default function VideoPreviewModal({
             source={{ uri: videoUri }}
             style={styles.video}
             resizeMode={ResizeMode.CONTAIN}
-            isLooping
+            isLooping={false}
             shouldPlay={false}
             onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
           />
@@ -113,8 +182,84 @@ export default function VideoPreviewModal({
 
         <View style={styles.infoContainer}>
           <Text style={styles.title}>Video Recorded!</Text>
-          <Text style={styles.subtitle}>Duration: {formatTime(actualDuration)}</Text>
-          <Text style={styles.hint}>Tap the video to play/pause</Text>
+          <Text style={styles.subtitle}>
+            Duration: {formatTime(getTrimmedDuration())} / {formatTime(actualDuration)}
+          </Text>
+          
+          {/* Trim Controls */}
+          <View style={styles.trimContainer}>
+            <Text style={styles.trimLabel}>Trim Video</Text>
+            
+            <View style={styles.trimRow}>
+              <Text style={styles.trimTime}>Start: {formatTime(trimStart)}</Text>
+              <View style={styles.trimButtons}>
+                <TouchableOpacity 
+                  style={styles.trimButton} 
+                  onPress={() => adjustTrimStart(-0.5)}
+                >
+                  <MaterialIcons name="remove" size={20} color={colors.backgroundAlt} />
+                  <Text style={styles.trimButtonText}>0.5s</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.trimButton} 
+                  onPress={() => adjustTrimStart(-0.1)}
+                >
+                  <MaterialIcons name="remove" size={16} color={colors.backgroundAlt} />
+                  <Text style={styles.trimButtonText}>0.1s</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.trimButton} 
+                  onPress={() => adjustTrimStart(0.1)}
+                >
+                  <MaterialIcons name="add" size={16} color={colors.backgroundAlt} />
+                  <Text style={styles.trimButtonText}>0.1s</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.trimButton} 
+                  onPress={() => adjustTrimStart(0.5)}
+                >
+                  <MaterialIcons name="add" size={20} color={colors.backgroundAlt} />
+                  <Text style={styles.trimButtonText}>0.5s</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            <View style={styles.trimRow}>
+              <Text style={styles.trimTime}>End: {formatTime(trimEnd)}</Text>
+              <View style={styles.trimButtons}>
+                <TouchableOpacity 
+                  style={styles.trimButton} 
+                  onPress={() => adjustTrimEnd(-0.5)}
+                >
+                  <MaterialIcons name="remove" size={20} color={colors.backgroundAlt} />
+                  <Text style={styles.trimButtonText}>0.5s</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.trimButton} 
+                  onPress={() => adjustTrimEnd(-0.1)}
+                >
+                  <MaterialIcons name="remove" size={16} color={colors.backgroundAlt} />
+                  <Text style={styles.trimButtonText}>0.1s</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.trimButton} 
+                  onPress={() => adjustTrimEnd(0.1)}
+                >
+                  <MaterialIcons name="add" size={16} color={colors.backgroundAlt} />
+                  <Text style={styles.trimButtonText}>0.1s</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.trimButton} 
+                  onPress={() => adjustTrimEnd(0.5)}
+                >
+                  <MaterialIcons name="add" size={20} color={colors.backgroundAlt} />
+                  <Text style={styles.trimButtonText}>0.5s</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+          
+          <Text style={styles.hint}>Use buttons to trim, tap video to play/pause</Text>
         </View>
 
         <View style={styles.actions}>
@@ -123,7 +268,7 @@ export default function VideoPreviewModal({
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.confirmButton} onPress={onConfirm}>
+          <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
             <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
             <Text style={styles.confirmButtonText}>Confirm</Text>
           </TouchableOpacity>
@@ -169,7 +314,8 @@ const styles = StyleSheet.create({
   },
   infoContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
+    width: '100%',
   },
   title: {
     fontSize: 28,
@@ -180,12 +326,56 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: 4,
+    marginBottom: 16,
+  },
+  trimContainer: {
+    width: '100%',
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+  },
+  trimLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  trimRow: {
+    marginBottom: 12,
+  },
+  trimTime: {
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  trimButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 4,
+  },
+  trimButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trimButtonText: {
+    color: colors.backgroundAlt,
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 2,
   },
   hint: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.textSecondary,
     fontStyle: 'italic',
+    textAlign: 'center',
   },
   actions: {
     flexDirection: 'row',
