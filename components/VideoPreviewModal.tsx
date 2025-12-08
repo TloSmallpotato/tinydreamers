@@ -4,7 +4,6 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Alert, Platform }
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { VideoTrimmer } from 'react-native-video-trim';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -27,6 +26,27 @@ export default function VideoPreviewModal({
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(Math.min(duration, MAX_TRIM_DURATION));
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Dynamically import VideoTrimmer only on native platforms
+  const [VideoTrimmer, setVideoTrimmer] = useState<any>(null);
+  const [trimmerError, setTrimmerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadTrimmer = async () => {
+      try {
+        if (Platform.OS !== 'web') {
+          const trimModule = await import('react-native-video-trim');
+          setVideoTrimmer(() => trimModule.VideoTrimmer);
+          console.log('VideoTrimmer loaded successfully');
+        }
+      } catch (error) {
+        console.error('Failed to load VideoTrimmer:', error);
+        setTrimmerError('Video trimmer not available');
+      }
+    };
+
+    loadTrimmer();
+  }, []);
 
   useEffect(() => {
     console.log('VideoPreviewModal: Video URI:', videoUri);
@@ -91,18 +111,32 @@ export default function VideoPreviewModal({
 
         {/* Video Trimmer Component */}
         <View style={styles.trimmerContainer}>
-          <VideoTrimmer
-            source={videoUri}
-            height={screenHeight * 0.5}
-            width={screenWidth - 40}
-            themeColor={colors.primary}
-            maxDuration={MAX_TRIM_DURATION}
-            minDuration={0.1}
-            onChange={handleTrimChange}
-            showDuration={true}
-            enableCancelButton={false}
-            enableSaveButton={false}
-          />
+          {trimmerError ? (
+            <View style={styles.errorContainer}>
+              <MaterialIcons name="error-outline" size={48} color={colors.error} />
+              <Text style={styles.errorText}>{trimmerError}</Text>
+              <Text style={styles.errorSubtext}>
+                Please rebuild the app with: npx expo prebuild --clean
+              </Text>
+            </View>
+          ) : VideoTrimmer ? (
+            <VideoTrimmer
+              source={videoUri}
+              height={screenHeight * 0.5}
+              width={screenWidth - 40}
+              themeColor={colors.primary}
+              maxDuration={MAX_TRIM_DURATION}
+              minDuration={0.1}
+              onChange={handleTrimChange}
+              showDuration={true}
+              enableCancelButton={false}
+              enableSaveButton={false}
+            />
+          ) : (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading trimmer...</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.trimInfo}>
@@ -182,6 +216,36 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.error,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  errorSubtext: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
   },
   trimInfo: {
     width: '100%',
