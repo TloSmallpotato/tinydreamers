@@ -12,6 +12,7 @@ import {
   Keyboard,
   Alert,
   Animated,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -28,6 +29,8 @@ import BarcodeScannerModal from '@/components/BarcodeScannerModal';
 import ISBNNotFoundModal from '@/components/ISBNNotFoundModal';
 import ToastNotification from '@/components/ToastNotification';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface SavedBook {
   id: string;
@@ -83,7 +86,7 @@ export default function BooksScreen() {
   const addBookTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastClickedBookIdRef = useRef<string | null>(null);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const searchWidthAnim = useRef(new Animated.Value(56)).current;
+  const searchWidthAnim = useRef(new Animated.Value(0)).current;
 
   const showToast = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setToastMessage(message);
@@ -178,7 +181,7 @@ export default function BooksScreen() {
   const collapseSearch = useCallback(() => {
     Keyboard.dismiss();
     Animated.spring(searchWidthAnim, {
-      toValue: 56,
+      toValue: 0,
       useNativeDriver: false,
       tension: 50,
       friction: 7,
@@ -629,9 +632,12 @@ export default function BooksScreen() {
     return null;
   };
 
+  // Calculate the max width for the search bar (screen width - padding - scan button width - gap)
+  const maxSearchWidth = SCREEN_WIDTH - 40 - 180 - 12; // 40 = padding, 180 = scan button approx, 12 = gap
+
   const searchBarWidth = searchWidthAnim.interpolate({
-    inputRange: [56, 1],
-    outputRange: ['56', '100%'],
+    inputRange: [0, 1],
+    outputRange: [56, maxSearchWidth],
   });
 
   return (
@@ -995,7 +1001,10 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     minHeight: 56,
     gap: 8,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
     elevation: 4,
   },
   scanButtonDisabled: {
@@ -1019,6 +1028,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     maxHeight: 400,
     zIndex: 1001,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
   },
   dropdownScroll: {
     maxHeight: 400,
