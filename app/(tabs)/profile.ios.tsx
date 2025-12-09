@@ -11,6 +11,7 @@ import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
 import SettingsBottomSheet from '@/components/SettingsBottomSheet';
+import AllMomentsBottomSheet from '@/components/AllMomentsBottomSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { supabase } from '@/app/integrations/supabase/client';
 import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
@@ -48,6 +49,7 @@ export default function ProfileScreen() {
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
   const settingsRef = useRef<BottomSheetModal>(null);
+  const allMomentsRef = useRef<BottomSheetModal>(null);
 
   const [stats, setStats] = useState<ProfileStats>({
     totalWords: 0,
@@ -424,10 +426,10 @@ export default function ProfileScreen() {
 
   const handleViewMoreMoments = () => {
     try {
-      console.log('ProfileScreen (iOS): View more moments pressed - navigating to all-moments');
-      router.push('/(tabs)/all-moments');
+      console.log('ProfileScreen (iOS): View more moments pressed - opening all moments bottom sheet');
+      allMomentsRef.current?.present();
     } catch (err) {
-      console.error('ProfileScreen (iOS): Error navigating to all-moments:', err);
+      console.error('ProfileScreen (iOS): Error opening all moments bottom sheet:', err);
     }
   };
 
@@ -771,6 +773,8 @@ export default function ProfileScreen() {
       />
 
       <SettingsBottomSheet ref={settingsRef} />
+
+      <AllMomentsBottomSheet ref={allMomentsRef} />
     </View>
   );
 }
