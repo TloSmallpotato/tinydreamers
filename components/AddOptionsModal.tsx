@@ -18,7 +18,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface AddOptionsModalProps {
   visible: boolean;
   onClose: () => void;
-  onAddBook: () => void;
+  onScanBook: () => void;
   onAddWord: () => void;
   onCaptureMoment: () => void;
 }
@@ -26,7 +26,7 @@ interface AddOptionsModalProps {
 export default function AddOptionsModal({
   visible,
   onClose,
-  onAddBook,
+  onScanBook,
   onAddWord,
   onCaptureMoment,
 }: AddOptionsModalProps) {
@@ -126,7 +126,7 @@ export default function AddOptionsModal({
               >
                 <TouchableOpacity
                   style={styles.smallButton}
-                  onPress={onAddBook}
+                  onPress={onScanBook}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.solidButton, { backgroundColor: '#3330AF' }]}>

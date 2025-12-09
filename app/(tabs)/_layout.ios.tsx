@@ -238,11 +238,20 @@ function CustomTabBar() {
     setShowAddModal(true);
   };
 
-  const handleAddBook = () => {
-    console.log('Add book selected - navigating with autoOpen param');
+  const handleScanBook = () => {
+    console.log('[iOS] Add book selected - opening scanner');
     setShowAddModal(false);
-    triggerBookSearch();
-    router.push('/(tabs)/books');
+    // Open the barcode scanner
+    setTimeout(() => {
+      router.push('/(tabs)/books');
+      setTimeout(() => {
+        // Trigger scanner opening via a state or navigation param
+        router.push({
+          pathname: '/(tabs)/books',
+          params: { autoScan: 'true' },
+        } as any);
+      }, 100);
+    }, 300);
   };
 
   const handleAddWord = () => {
@@ -682,7 +691,7 @@ function CustomTabBar() {
       <AddOptionsModal
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
-        onAddBook={handleAddBook}
+        onScanBook={handleScanBook}
         onAddWord={handleAddWord}
         onCaptureMoment={handleCaptureMoment}
       />
@@ -746,6 +755,13 @@ export default function TabLayout() {
         />
         <NativeTabs.Screen 
           name="all-moments" 
+          options={{ 
+            href: null,
+            presentation: 'modal'
+          }} 
+        />
+        <NativeTabs.Screen 
+          name="search-book" 
           options={{ 
             href: null,
             presentation: 'modal'

@@ -12,6 +12,7 @@ import {
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { useRouter } from 'expo-router';
 
 interface BarcodeScannerModalProps {
   visible: boolean;
@@ -24,6 +25,7 @@ export default function BarcodeScannerModal({
   onClose,
   onBarcodeScanned,
 }: BarcodeScannerModalProps) {
+  const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -253,6 +255,12 @@ export default function BarcodeScannerModal({
             </TouchableOpacity>
           </View>
 
+          <View style={styles.topInstructions}>
+            <Text style={styles.topInstructionText}>
+              Scan the ISBN barcode on the back of the book
+            </Text>
+          </View>
+
           <View style={styles.scanArea}>
             <View style={styles.scanFrame}>
               <View style={[styles.corner, styles.topLeft]} />
@@ -262,13 +270,19 @@ export default function BarcodeScannerModal({
             </View>
           </View>
 
-          <View style={styles.instructions}>
-            <Text style={styles.instructionText}>
-              {isProcessing ? 'Processing...' : 'Position the barcode within the frame'}
-            </Text>
-            <Text style={styles.instructionSubtext}>
-              {isProcessing ? 'Checking database and fetching cover...' : 'Scan the ISBN barcode on the back of the book'}
-            </Text>
+          <View style={styles.bottomActions}>
+            <TouchableOpacity
+              style={styles.searchButton}
+              onPress={() => {
+                onClose();
+                setTimeout(() => {
+                  router.push('/(tabs)/search-book');
+                }, 300);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.searchButtonText}>Search a Book</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -300,6 +314,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  topInstructions: {
+    paddingHorizontal: 40,
+    paddingTop: 20,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  topInstructionText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.backgroundAlt,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   scanArea: {
     flex: 1,
@@ -342,28 +371,25 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderTopWidth: 0,
   },
-  instructions: {
+  bottomActions: {
     paddingHorizontal: 40,
     paddingBottom: 60,
     alignItems: 'center',
   },
-  instructionText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.backgroundAlt,
-    textAlign: 'center',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+  searchButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 16,
+    minWidth: 200,
+    alignItems: 'center',
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.3)',
+    elevation: 8,
   },
-  instructionSubtext: {
-    fontSize: 14,
+  searchButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.backgroundAlt,
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
   },
   loadingContainer: {
     flex: 1,

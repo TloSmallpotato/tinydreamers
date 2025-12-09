@@ -130,13 +130,25 @@ export default function BooksScreen() {
     };
   }, []);
 
-  // Handle autoOpen parameter from navigation - runs every time screen comes into focus
+  // Handle autoOpen and autoScan parameters from navigation - runs every time screen comes into focus
   useFocusEffect(
     useCallback(() => {
       const autoOpen = params.autoOpen;
-      console.log('useFocusEffect - autoOpen:', autoOpen, 'hasProcessedAutoOpen:', hasProcessedAutoOpen.current);
+      const autoScan = params.autoScan;
+      console.log('useFocusEffect - autoOpen:', autoOpen, 'autoScan:', autoScan, 'hasProcessedAutoOpen:', hasProcessedAutoOpen.current);
       
-      if (autoOpen === 'true' && !hasProcessedAutoOpen.current) {
+      if (autoScan === 'true' && !hasProcessedAutoOpen.current) {
+        console.log('autoScan parameter detected - opening barcode scanner');
+        hasProcessedAutoOpen.current = true;
+        
+        // Clear the parameter immediately
+        router.replace('/(tabs)/books');
+        
+        // Open the scanner
+        setTimeout(() => {
+          setShowScanner(true);
+        }, 300);
+      } else if (autoOpen === 'true' && !hasProcessedAutoOpen.current) {
         console.log('autoOpen parameter detected - focusing book search input');
         hasProcessedAutoOpen.current = true;
         
@@ -156,7 +168,7 @@ export default function BooksScreen() {
         console.log('Leaving books screen - resetting hasProcessedAutoOpen flag');
         hasProcessedAutoOpen.current = false;
       };
-    }, [params.autoOpen, router])
+    }, [params.autoOpen, params.autoScan, router])
   );
 
   // Reset the flag when search input loses focus (modal closed)

@@ -251,14 +251,21 @@ function CustomTabBar() {
     }
   };
 
-  const handleAddBook = () => {
-    console.log('Add book selected - navigating with autoOpen param');
+  const handleScanBook = () => {
+    console.log('Add book selected - opening scanner');
     setShowAddModal(false);
-    // Navigate to books screen with autoOpen parameter
-    router.push({
-      pathname: '/(tabs)/books',
-      params: { autoOpen: 'true' },
-    } as any);
+    // Open the barcode scanner
+    setTimeout(() => {
+      router.push('/(tabs)/books');
+      setTimeout(() => {
+        // Trigger scanner opening via a state or navigation param
+        // For now, we'll use a simple approach - navigate to books and auto-open scanner
+        router.push({
+          pathname: '/(tabs)/books',
+          params: { autoScan: 'true' },
+        } as any);
+      }, 100);
+    }, 300);
   };
 
   const handleAddWord = () => {
@@ -721,7 +728,7 @@ function CustomTabBar() {
       <AddOptionsModal
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
-        onAddBook={handleAddBook}
+        onScanBook={handleScanBook}
         onAddWord={handleAddWord}
         onCaptureMoment={handleCaptureMoment}
       />
@@ -767,6 +774,13 @@ export default function TabLayout() {
         />
         <Stack.Screen 
           name="all-moments" 
+          options={{ 
+            headerShown: false,
+            presentation: 'card',
+          }} 
+        />
+        <Stack.Screen 
+          name="search-book" 
           options={{ 
             headerShown: false,
             presentation: 'card',
