@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
@@ -24,7 +24,7 @@ export default function AllMomentsScreen() {
 
   const fetchAllMoments = useCallback(async () => {
     if (!selectedChild) {
-      console.log('AllMomentsScreen: No selected child');
+      console.log('AllMomentsScreen (iOS): No selected child');
       setLoading(false);
       return;
     }
@@ -32,7 +32,7 @@ export default function AllMomentsScreen() {
     try {
       setLoading(true);
       setError(null);
-      console.log('AllMomentsScreen: Fetching all moments for child:', selectedChild.id);
+      console.log('AllMomentsScreen (iOS): Fetching all moments for child:', selectedChild.id);
 
       const { data, error: fetchError } = await supabase
         .from('moments')
@@ -41,14 +41,14 @@ export default function AllMomentsScreen() {
         .order('created_at', { ascending: false });
 
       if (fetchError) {
-        console.error('AllMomentsScreen: Error fetching moments:', fetchError);
+        console.error('AllMomentsScreen (iOS): Error fetching moments:', fetchError);
         throw fetchError;
       }
 
-      console.log('AllMomentsScreen: Fetched', data?.length || 0, 'moments');
+      console.log('AllMomentsScreen (iOS): Fetched', data?.length || 0, 'moments');
       setMoments(data || []);
     } catch (err) {
-      console.error('AllMomentsScreen: Error:', err);
+      console.error('AllMomentsScreen (iOS): Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load moments');
     } finally {
       setLoading(false);
@@ -60,7 +60,7 @@ export default function AllMomentsScreen() {
   }, [fetchAllMoments]);
 
   const handleBack = () => {
-    console.log('AllMomentsScreen: Back button pressed');
+    console.log('AllMomentsScreen (iOS): Back button pressed');
     router.back();
   };
 
