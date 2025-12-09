@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Keyboard,
   Alert,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -73,6 +74,7 @@ export default function BooksScreen() {
   const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
   const [showISBNNotFoundModal, setShowISBNNotFoundModal] = useState(false);
   const [notFoundISBN, setNotFoundISBN] = useState('');
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const addCustomBookRef = useRef<BottomSheetModal>(null);
@@ -81,6 +83,7 @@ export default function BooksScreen() {
   const addBookTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastClickedBookIdRef = useRef<string | null>(null);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchWidthAnim = useRef(new Animated.Value(56)).current;
 
   const showToast = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setToastMessage(message);
@@ -109,7 +112,7 @@ export default function BooksScreen() {
         );
       }
     } catch (error) {
-      console.error('Error checking quota status:', error);
+      console.error('[iOS] Error checking quota status:', error);
     }
   }, [showToast]);
 
@@ -143,12 +146,8 @@ export default function BooksScreen() {
         // Clear the parameter immediately
         router.replace('/(tabs)/books');
         
-        // Use requestAnimationFrame to ensure the screen is fully rendered
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            searchInputRef.current?.focus();
-          }, 100);
-        });
+        // Expand search and focus
+        expandSearch();
       }
       
       // Reset the flag when leaving the screen
@@ -159,22 +158,56 @@ export default function BooksScreen() {
     }, [params.autoOpen, router])
   );
 
+  // Expand search animation
+  const expandSearch = useCallback(() => {
+    setIsSearchExpanded(true);
+    Animated.spring(searchWidthAnim, {
+      toValue: 1,
+      useNativeDriver: false,
+      tension: 50,
+      friction: 7,
+    }).start(() => {
+      // Focus input after animation
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+    });
+  }, [searchWidthAnim]);
+
+  // Collapse search animation
+  const collapseSearch = useCallback(() => {
+    Keyboard.dismiss();
+    Animated.spring(searchWidthAnim, {
+      toValue: 56,
+      useNativeDriver: false,
+      tension: 50,
+      friction: 7,
+    }).start(() => {
+      setIsSearchExpanded(false);
+      setSearchQuery('');
+      setShowDropdown(false);
+    });
+  }, [searchWidthAnim]);
+
   // Reset the flag when search input loses focus (modal closed)
   const handleSearchBlur = useCallback(() => {
     console.log('[iOS] Search input blurred - resetting hasProcessedAutoOpen flag');
     hasProcessedAutoOpen.current = false;
-  }, []);
+    
+    // Only collapse if search is empty
+    if (!searchQuery.trim()) {
+      collapseSearch();
+    }
+  }, [searchQuery, collapseSearch]);
 
   // Handle focus trigger from Add modal (legacy method)
   useEffect(() => {
     if (shouldFocusBookSearch) {
       console.log('[iOS] Focusing book search input from context');
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 300);
+      expandSearch();
       resetBookSearch();
     }
-  }, [shouldFocusBookSearch, resetBookSearch]);
+  }, [shouldFocusBookSearch, resetBookSearch, expandSearch]);
 
   // Generate signed URLs for private covers
   const generateSignedUrl = useCallback(async (path: string): Promise<string | null> => {
@@ -364,9 +397,7 @@ export default function BooksScreen() {
       if (existingUserBook) {
         console.log('[iOS] User already has this book in their library');
         showToast('This book is already in your library.', 'info');
-        setSearchQuery('');
-        setShowDropdown(false);
-        Keyboard.dismiss();
+        collapseSearch();
         setIsAddingBook(false);
         return;
       }
@@ -395,10 +426,8 @@ export default function BooksScreen() {
       // Refresh the books list
       await fetchSavedBooks();
 
-      // Clear search
-      setSearchQuery('');
-      setShowDropdown(false);
-      Keyboard.dismiss();
+      // Clear search and collapse
+      collapseSearch();
 
       // Show success message
       showToast('Book added to your library!', 'success');
@@ -600,6 +629,11 @@ export default function BooksScreen() {
     return null;
   };
 
+  const searchBarWidth = searchWidthAnim.interpolate({
+    inputRange: [56, 1],
+    outputRange: ['56', '100%'],
+  });
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -628,39 +662,59 @@ export default function BooksScreen() {
 
           <View style={styles.searchContainer}>
             <View style={styles.searchRow}>
-              <View style={styles.searchBarWrapper}>
-                <IconSymbol 
-                  ios_icon_name="magnifyingglass" 
-                  android_material_icon_name="search" 
-                  size={20} 
-                  color={colors.primary} 
-                />
-                <TextInput
-                  ref={searchInputRef}
-                  style={styles.searchInput}
-                  placeholder="Search to add a book"
-                  placeholderTextColor={colors.primary}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  onFocus={() => {
-                    if (searchResults.length > 0) {
-                      setShowDropdown(true);
-                    }
-                  }}
-                  onBlur={handleSearchBlur}
-                  editable={!isAddingBook}
-                />
-                {isSearching && (
-                  <ActivityIndicator size="small" color={colors.primary} />
+              <Animated.View style={[styles.searchBarWrapper, { width: searchBarWidth }]}>
+                {!isSearchExpanded ? (
+                  <TouchableOpacity
+                    style={styles.searchCircleButton}
+                    onPress={expandSearch}
+                    activeOpacity={0.7}
+                  >
+                    <IconSymbol 
+                      ios_icon_name="magnifyingglass" 
+                      android_material_icon_name="search" 
+                      size={24} 
+                      color={colors.backgroundAlt} 
+                    />
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <IconSymbol 
+                      ios_icon_name="magnifyingglass" 
+                      android_material_icon_name="search" 
+                      size={20} 
+                      color={colors.primary} 
+                    />
+                    <TextInput
+                      ref={searchInputRef}
+                      style={styles.searchInput}
+                      placeholder="Search to add a book"
+                      placeholderTextColor={colors.primary}
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      onFocus={() => {
+                        if (searchResults.length > 0) {
+                          setShowDropdown(true);
+                        }
+                      }}
+                      onBlur={handleSearchBlur}
+                      editable={!isAddingBook}
+                    />
+                    {isSearching && (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    )}
+                  </>
                 )}
-              </View>
+              </Animated.View>
 
               <TouchableOpacity
-                style={[styles.cameraButton, isAddingBook && styles.cameraButtonDisabled]}
+                style={[styles.scanButton, isAddingBook && styles.scanButtonDisabled]}
                 onPress={() => setShowScanner(true)}
                 activeOpacity={0.7}
                 disabled={isAddingBook}
               >
+                <Text style={[styles.scanButtonText, isAddingBook && styles.scanButtonTextDisabled]}>
+                  Add new Book
+                </Text>
                 <IconSymbol
                   ios_icon_name="barcode.viewfinder"
                   android_material_icon_name="qr_code_scanner"
@@ -907,35 +961,54 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   searchBarWrapper: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 16,
+    backgroundColor: colors.primary,
+    borderRadius: 28,
     paddingHorizontal: 16,
     paddingVertical: 16,
     minHeight: 56,
+    overflow: 'hidden',
+  },
+  searchCircleButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: -16,
+    marginTop: -16,
+    marginBottom: -16,
   },
   searchInput: {
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
-    color: colors.primary,
+    color: colors.backgroundAlt,
   },
-  cameraButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
+  scanButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    minHeight: 56,
+    gap: 8,
     boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)',
     elevation: 4,
-    flexShrink: 0,
   },
-  cameraButtonDisabled: {
+  scanButtonDisabled: {
     backgroundColor: colors.backgroundAlt,
     opacity: 0.5,
+  },
+  scanButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.backgroundAlt,
+  },
+  scanButtonTextDisabled: {
+    color: colors.textSecondary,
   },
   dropdown: {
     position: 'absolute',
