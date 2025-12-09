@@ -7,12 +7,15 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { supabase } from '@/app/integrations/supabase/client';
+import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 
 interface Moment {
   id: string;
   video_url: string;
   thumbnail_url: string | null;
   created_at: string;
+  trim_start?: number;
+  trim_end?: number;
 }
 
 export default function AllMomentsScreen() {
@@ -21,6 +24,8 @@ export default function AllMomentsScreen() {
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
 
   const fetchAllMoments = useCallback(async () => {
     if (!selectedChild) {
@@ -36,7 +41,7 @@ export default function AllMomentsScreen() {
 
       const { data, error: fetchError } = await supabase
         .from('moments')
-        .select('id, video_url, thumbnail_url, created_at')
+        .select('id, video_url, thumbnail_url, created_at, trim_start, trim_end')
         .eq('child_id', selectedChild.id)
         .order('created_at', { ascending: false });
 
@@ -59,30 +64,100 @@ export default function AllMomentsScreen() {
     fetchAllMoments();
   }, [fetchAllMoments]);
 
+  // Set up real-time subscription for moments updates
+  useEffect(() => {
+    if (!selectedChild) {
+      console.log('AllMomentsScreen: No selected child, skipping subscription');
+      return;
+    }
+
+    console.log('AllMomentsScreen: Setting up real-time subscription for child:', selectedChild.id);
+
+    const momentsChannel = supabase
+      .channel(`all_moments_page_${selectedChild.id}`, {
+        config: {
+          broadcast: { self: false },
+        },
+      })
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'moments',
+          filter: `child_id=eq.${selectedChild.id}`,
+        },
+        (payload) => {
+          console.log('AllMomentsScreen: moments change detected:', payload.eventType, payload);
+          fetchAllMoments();
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('AllMomentsScreen: subscription status:', status);
+        if (err) {
+          console.error('AllMomentsScreen: subscription error:', err);
+        }
+      });
+
+    return () => {
+      console.log('AllMomentsScreen: Cleaning up subscription');
+      supabase.removeChannel(momentsChannel);
+    };
+  }, [selectedChild?.id, fetchAllMoments]);
+
   const handleBack = () => {
     console.log('AllMomentsScreen: Back button pressed');
     router.back();
   };
 
-  const renderMomentItem = ({ item, index }: { item: Moment; index: number }) => (
-    <View style={styles.momentCard}>
-      {item.thumbnail_url ? (
-        <Image 
-          source={{ uri: item.thumbnail_url }}
-          style={styles.momentImage}
-        />
-      ) : (
-        <View style={styles.momentPlaceholder}>
-          <IconSymbol 
-            ios_icon_name="video.fill" 
-            android_material_icon_name="videocam" 
-            size={48} 
-            color={colors.backgroundAlt} 
+  const handleMomentPress = (moment: Moment) => {
+    console.log('AllMomentsScreen: Moment pressed:', moment.id);
+    setSelectedVideoUri(moment.video_url);
+    setShowVideoPlayer(true);
+  };
+
+  const handleCloseVideoPlayer = () => {
+    console.log('AllMomentsScreen: Closing video player');
+    setShowVideoPlayer(false);
+    setSelectedVideoUri(null);
+  };
+
+  const renderMomentItem = ({ item, index }: { item: Moment; index: number }) => {
+    const isLeftColumn = index % 2 === 0;
+    return (
+      <TouchableOpacity
+        style={[styles.momentCard, isLeftColumn ? styles.momentCardLeft : styles.momentCardRight]}
+        onPress={() => handleMomentPress(item)}
+        activeOpacity={0.8}
+      >
+        {item.thumbnail_url ? (
+          <Image 
+            source={{ uri: item.thumbnail_url }}
+            style={styles.momentImage}
           />
+        ) : (
+          <View style={styles.momentPlaceholder}>
+            <IconSymbol 
+              ios_icon_name="video.fill" 
+              android_material_icon_name="videocam" 
+              size={48} 
+              color={colors.backgroundAlt} 
+            />
+          </View>
+        )}
+        <View style={styles.playIconOverlay}>
+          <View style={styles.playIconCircle}>
+            <IconSymbol 
+              ios_icon_name="play.fill" 
+              android_material_icon_name="play-arrow" 
+              size={24} 
+              color={colors.backgroundAlt} 
+            />
+          </View>
         </View>
-      )}
-    </View>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
@@ -183,6 +258,14 @@ export default function AllMomentsScreen() {
           ListEmptyComponent={renderEmptyState}
         />
       </SafeAreaView>
+
+      {selectedVideoUri && (
+        <FullScreenVideoPlayer
+          visible={showVideoPlayer}
+          videoUri={selectedVideoUri}
+          onClose={handleCloseVideoPlayer}
+        />
+      )}
     </View>
   );
 }
@@ -201,6 +284,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    paddingTop: Platform.OS === 'android' ? 48 : 16,
     backgroundColor: colors.backgroundAlt,
     borderBottomWidth: 1,
     borderBottomColor: colors.background,
@@ -275,6 +359,13 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.cardPurple,
+    position: 'relative',
+  },
+  momentCardLeft: {
+    marginRight: 4,
+  },
+  momentCardRight: {
+    marginLeft: 4,
   },
   momentImage: {
     width: '100%',
@@ -286,6 +377,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.cardPurple,
+  },
+  playIconOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  playIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyContainer: {
     flex: 1,

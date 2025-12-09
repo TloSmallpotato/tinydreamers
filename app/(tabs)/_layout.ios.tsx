@@ -212,13 +212,12 @@ function CustomTabBar() {
     if (pathname.includes('/play')) return 'play';
     if (pathname.includes('/profile')) return 'profile';
     if (pathname.includes('/settings')) return 'profile';
-    if (pathname.includes('/all-moments')) return 'profile';
     if (pathname.includes('/search-book')) return 'books';
     return 'profile';
   };
 
   const activeTab = getActiveTab();
-  const shouldShowTabBar = !pathname.includes('/settings') && !pathname.includes('/all-moments') && !pathname.includes('/search-book');
+  const shouldShowTabBar = !pathname.includes('/settings') && !pathname.includes('/search-book');
 
   const handleAddPress = async (index: number) => {
     console.log('Add button pressed - showing options modal');
@@ -754,14 +753,6 @@ export default function TabLayout() {
             presentation: 'modal'
           }} 
         />
-        <NativeTabs.Screen 
-          name="all-moments" 
-          options={{ 
-            href: null,
-            presentation: 'modal'
-          }} 
-        />
-
       </NativeTabs>
       <CustomTabBar />
     </>
