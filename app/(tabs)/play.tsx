@@ -1,10 +1,15 @@
 
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
+import { router } from 'expo-router';
 
 export default function PlayScreen() {
+  const handleSearchBook = () => {
+    router.push('/(tabs)/search-book');
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView
@@ -23,6 +28,14 @@ export default function PlayScreen() {
             Exciting games and activities for learning
           </Text>
         </View>
+
+        <TouchableOpacity 
+          style={styles.searchButton}
+          onPress={handleSearchBook}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.searchButtonText}>Search a book</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -65,5 +78,28 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: 40,
+  },
+  searchButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 40,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  searchButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
   },
 });
