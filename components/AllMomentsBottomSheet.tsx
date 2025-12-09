@@ -1,17 +1,20 @@
 
 import React, { forwardRef, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { BottomSheetModal, BottomSheetBackdrop, BottomSheetFlatList } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { supabase } from '@/app/integrations/supabase/client';
+import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 
 interface Moment {
   id: string;
   video_url: string;
   thumbnail_url: string | null;
   created_at: string;
+  trim_start?: number;
+  trim_end?: number;
 }
 
 const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
@@ -19,6 +22,8 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
 
   const fetchAllMoments = useCallback(async () => {
     if (!selectedChild) {
@@ -34,7 +39,7 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
 
       const { data, error: fetchError } = await supabase
         .from('moments')
-        .select('id, video_url, thumbnail_url, created_at')
+        .select('id, video_url, thumbnail_url, created_at, trim_start, trim_end')
         .eq('child_id', selectedChild.id)
         .order('created_at', { ascending: false });
 
@@ -57,6 +62,60 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
     fetchAllMoments();
   }, [fetchAllMoments]);
 
+  // Set up real-time subscription for moments updates
+  useEffect(() => {
+    if (!selectedChild) {
+      console.log('AllMomentsBottomSheet: No selected child, skipping subscription');
+      return;
+    }
+
+    console.log('AllMomentsBottomSheet: Setting up real-time subscription for child:', selectedChild.id);
+
+    const momentsChannel = supabase
+      .channel(`all_moments_${selectedChild.id}`, {
+        config: {
+          broadcast: { self: false },
+        },
+      })
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'moments',
+          filter: `child_id=eq.${selectedChild.id}`,
+        },
+        (payload) => {
+          console.log('AllMomentsBottomSheet: moments change detected:', payload.eventType, payload);
+          // Refresh moments when a change is detected
+          fetchAllMoments();
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('AllMomentsBottomSheet: subscription status:', status);
+        if (err) {
+          console.error('AllMomentsBottomSheet: subscription error:', err);
+        }
+      });
+
+    return () => {
+      console.log('AllMomentsBottomSheet: Cleaning up subscription');
+      supabase.removeChannel(momentsChannel);
+    };
+  }, [selectedChild?.id, fetchAllMoments]);
+
+  const handleMomentPress = (moment: Moment) => {
+    console.log('AllMomentsBottomSheet: Moment pressed:', moment.id);
+    setSelectedVideoUri(moment.video_url);
+    setShowVideoPlayer(true);
+  };
+
+  const handleCloseVideoPlayer = () => {
+    console.log('AllMomentsBottomSheet: Closing video player');
+    setShowVideoPlayer(false);
+    setSelectedVideoUri(null);
+  };
+
   const renderBackdrop = useCallback(
     (props: any) => (
       <BottomSheetBackdrop
@@ -72,7 +131,11 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
   const renderMomentItem = ({ item, index }: { item: Moment; index: number }) => {
     const isLeftColumn = index % 2 === 0;
     return (
-      <View style={[styles.momentCard, isLeftColumn ? styles.momentCardLeft : styles.momentCardRight]}>
+      <TouchableOpacity
+        style={[styles.momentCard, isLeftColumn ? styles.momentCardLeft : styles.momentCardRight]}
+        onPress={() => handleMomentPress(item)}
+        activeOpacity={0.8}
+      >
         {item.thumbnail_url ? (
           <Image 
             source={{ uri: item.thumbnail_url }}
@@ -88,7 +151,17 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
             />
           </View>
         )}
-      </View>
+        <View style={styles.playIconOverlay}>
+          <View style={styles.playIconCircle}>
+            <IconSymbol 
+              ios_icon_name="play.fill" 
+              android_material_icon_name="play-arrow" 
+              size={24} 
+              color={colors.backgroundAlt} 
+            />
+          </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -147,35 +220,45 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
   };
 
   return (
-    <BottomSheetModal
-      ref={ref}
-      snapPoints={['90%']}
-      backdropComponent={renderBackdrop}
-      enablePanDownToClose
-      handleIndicatorStyle={styles.indicator}
-      backgroundStyle={styles.bottomSheetBackground}
-    >
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>All Moments</Text>
-        <TouchableOpacity
-          onPress={() => {
-            if (ref && typeof ref !== 'function' && ref.current) {
-              ref.current.dismiss();
-            }
-          }}
-          style={styles.closeButton}
-        >
-          <IconSymbol
-            ios_icon_name="xmark"
-            android_material_icon_name="close"
-            size={24}
-            color={colors.primary}
-          />
-        </TouchableOpacity>
-      </View>
+    <>
+      <BottomSheetModal
+        ref={ref}
+        snapPoints={['90%']}
+        backdropComponent={renderBackdrop}
+        enablePanDownToClose
+        handleIndicatorStyle={styles.indicator}
+        backgroundStyle={styles.bottomSheetBackground}
+      >
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>All Moments</Text>
+          <TouchableOpacity
+            onPress={() => {
+              if (ref && typeof ref !== 'function' && ref.current) {
+                ref.current.dismiss();
+              }
+            }}
+            style={styles.closeButton}
+          >
+            <IconSymbol
+              ios_icon_name="xmark"
+              android_material_icon_name="close"
+              size={24}
+              color={colors.primary}
+            />
+          </TouchableOpacity>
+        </View>
 
-      {renderContent()}
-    </BottomSheetModal>
+        {renderContent()}
+      </BottomSheetModal>
+
+      {selectedVideoUri && (
+        <FullScreenVideoPlayer
+          visible={showVideoPlayer}
+          videoUri={selectedVideoUri}
+          onClose={handleCloseVideoPlayer}
+        />
+      )}
+    </>
   );
 });
 
@@ -269,6 +352,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.cardPurple,
     marginBottom: 16,
+    position: 'relative',
   },
   momentCardLeft: {
     marginRight: 8,
@@ -286,6 +370,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.cardPurple,
+  },
+  playIconOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  playIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyContainer: {
     flex: 1,

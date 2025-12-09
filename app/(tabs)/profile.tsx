@@ -12,6 +12,7 @@ import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
 import SettingsBottomSheet from '@/components/SettingsBottomSheet';
 import AllMomentsBottomSheet from '@/components/AllMomentsBottomSheet';
+import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { supabase } from '@/app/integrations/supabase/client';
 import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
@@ -30,6 +31,8 @@ interface Moment {
   video_url: string;
   thumbnail_url: string | null;
   created_at: string;
+  trim_start?: number;
+  trim_end?: number;
 }
 
 const getStartOfWeek = (): Date => {
@@ -64,6 +67,8 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
+  const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
 
@@ -135,7 +140,7 @@ export default function ProfileScreen() {
           .gte('created_at', startOfWeekISO),
         supabase
           .from('moments')
-          .select('id, video_url, thumbnail_url, created_at')
+          .select('id, video_url, thumbnail_url, created_at, trim_start, trim_end')
           .eq('child_id', selectedChild.id)
           .order('created_at', { ascending: false })
           .limit(10),
@@ -433,6 +438,18 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleMomentPress = (moment: Moment) => {
+    console.log('ProfileScreen: Moment pressed:', moment.id);
+    setSelectedVideoUri(moment.video_url);
+    setShowVideoPlayer(true);
+  };
+
+  const handleCloseVideoPlayer = () => {
+    console.log('ProfileScreen: Closing video player');
+    setShowVideoPlayer(false);
+    setSelectedVideoUri(null);
+  };
+
   const handleChangeAvatar = async () => {
     if (!selectedChild) {
       console.log('ProfileScreen: No selected child for avatar change');
@@ -687,7 +704,12 @@ export default function ProfileScreen() {
               <>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.momentsScroll}>
                   {moments.map((moment, index) => (
-                    <View key={index} style={styles.momentCard}>
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.momentCard}
+                      onPress={() => handleMomentPress(moment)}
+                      activeOpacity={0.8}
+                    >
                       {moment.thumbnail_url ? (
                         <Image 
                           source={{ uri: moment.thumbnail_url }}
@@ -703,7 +725,17 @@ export default function ProfileScreen() {
                           />
                         </View>
                       )}
-                    </View>
+                      <View style={styles.playIconOverlay}>
+                        <View style={styles.playIconCircle}>
+                          <IconSymbol 
+                            ios_icon_name="play.fill" 
+                            android_material_icon_name="play-arrow" 
+                            size={20} 
+                            color={colors.backgroundAlt} 
+                          />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
                   ))}
                 </ScrollView>
                 <TouchableOpacity style={styles.viewMoreButton} onPress={handleViewMoreMoments}>
@@ -775,6 +807,14 @@ export default function ProfileScreen() {
       <SettingsBottomSheet ref={settingsRef} />
 
       <AllMomentsBottomSheet ref={allMomentsRef} />
+
+      {selectedVideoUri && (
+        <FullScreenVideoPlayer
+          visible={showVideoPlayer}
+          videoUri={selectedVideoUri}
+          onClose={handleCloseVideoPlayer}
+        />
+      )}
     </View>
   );
 }
@@ -963,6 +1003,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
     overflow: 'hidden',
     backgroundColor: colors.cardPurple,
+    position: 'relative',
   },
   momentImage: {
     width: '100%',
@@ -974,6 +1015,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.cardPurple,
+  },
+  playIconOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  playIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyMomentsContainer: {
     alignItems: 'center',
