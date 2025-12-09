@@ -220,11 +220,12 @@ function CustomTabBar() {
     if (pathname.includes('/profile')) return 'profile';
     if (pathname.includes('/settings')) return 'profile';
     if (pathname.includes('/all-moments')) return 'profile';
+    if (pathname.includes('/search-book')) return 'books';
     return 'profile';
   };
 
   const activeTab = getActiveTab();
-  const shouldShowTabBar = !pathname.includes('/settings') && !pathname.includes('/all-moments');
+  const shouldShowTabBar = !pathname.includes('/settings') && !pathname.includes('/all-moments') && !pathname.includes('/search-book');
 
   const handleTabPress = async (tab: TabItem, index: number) => {
     console.log('Tab pressed:', tab.name);
@@ -783,7 +784,8 @@ export default function TabLayout() {
           name="search-book" 
           options={{ 
             headerShown: false,
-            presentation: 'card',
+            presentation: 'fullScreenModal',
+            animation: 'slide_from_bottom',
           }} 
         />
       </Stack>
