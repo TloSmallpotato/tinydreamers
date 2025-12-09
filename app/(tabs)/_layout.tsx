@@ -219,11 +219,12 @@ function CustomTabBar() {
     if (pathname.includes('/play')) return 'play';
     if (pathname.includes('/profile')) return 'profile';
     if (pathname.includes('/settings')) return 'profile';
+    if (pathname.includes('/all-moments')) return 'profile';
     return 'profile';
   };
 
   const activeTab = getActiveTab();
-  const shouldShowTabBar = !pathname.includes('/settings');
+  const shouldShowTabBar = !pathname.includes('/settings') && !pathname.includes('/all-moments');
 
   const handleTabPress = async (tab: TabItem, index: number) => {
     console.log('Tab pressed:', tab.name);
@@ -759,6 +760,13 @@ export default function TabLayout() {
         <Stack.Screen name="profile" options={{ headerShown: false }} />
         <Stack.Screen 
           name="settings" 
+          options={{ 
+            headerShown: false,
+            presentation: 'card',
+          }} 
+        />
+        <Stack.Screen 
+          name="all-moments" 
           options={{ 
             headerShown: false,
             presentation: 'card',
