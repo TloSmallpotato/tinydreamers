@@ -168,11 +168,11 @@ export default function BarcodeScannerModal({
     // Close modal first
     onClose();
     
-    // Use replace instead of push for a proper redirect, similar to profile page navigation
+    // Use push instead of replace and navigate relative to current stack
     setTimeout(() => {
       try {
-        console.log('🔍 Navigating to /(tabs)/search-book');
-        router.replace('/(tabs)/search-book');
+        console.log('🔍 Navigating to search-book (relative to current stack)');
+        router.push('search-book');
         console.log('✅ Navigation called successfully');
       } catch (error) {
         console.error('❌ Navigation error:', error);
