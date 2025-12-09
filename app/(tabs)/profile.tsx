@@ -425,7 +425,7 @@ export default function ProfileScreen() {
   const handleViewMoreMoments = () => {
     try {
       console.log('ProfileScreen: View more moments pressed - navigating to all-moments');
-      router.push('/all-moments');
+      router.push('/(tabs)/all-moments');
     } catch (err) {
       console.error('ProfileScreen: Error navigating to all-moments:', err);
     }
