@@ -161,6 +161,21 @@ export default function BarcodeScannerModal({
     }
   };
 
+  const handleSearchBook = () => {
+    console.log('🔍 Search a Book button pressed');
+    onClose();
+    
+    // Use setTimeout to ensure modal is fully closed before navigation
+    setTimeout(() => {
+      console.log('🔍 Navigating to search-book screen');
+      try {
+        router.push('/(tabs)/search-book' as any);
+      } catch (error) {
+        console.error('❌ Navigation error:', error);
+      }
+    }, 300);
+  };
+
   if (!visible) {
     return null;
   }
@@ -273,12 +288,7 @@ export default function BarcodeScannerModal({
           <View style={styles.bottomActions}>
             <TouchableOpacity
               style={styles.searchButton}
-              onPress={() => {
-                onClose();
-                setTimeout(() => {
-                  router.push('/(tabs)/search-book');
-                }, 300);
-              }}
+              onPress={handleSearchBook}
               activeOpacity={0.8}
             >
               <Text style={styles.searchButtonText}>Search a Book</Text>

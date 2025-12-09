@@ -784,7 +784,7 @@ export default function TabLayout() {
           name="search-book" 
           options={{ 
             headerShown: false,
-            presentation: 'fullScreenModal',
+            presentation: 'card',
             animation: 'slide_from_bottom',
           }} 
         />

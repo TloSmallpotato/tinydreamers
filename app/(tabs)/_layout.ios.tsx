@@ -764,8 +764,7 @@ export default function TabLayout() {
         <NativeTabs.Screen 
           name="search-book" 
           options={{ 
-            href: null,
-            presentation: 'fullScreenModal'
+            href: null
           }} 
         />
       </NativeTabs>
