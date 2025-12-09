@@ -761,12 +761,7 @@ export default function TabLayout() {
             presentation: 'modal'
           }} 
         />
-        <NativeTabs.Screen 
-          name="search-book" 
-          options={{ 
-            href: null
-          }} 
-        />
+
       </NativeTabs>
       <CustomTabBar />
     </>

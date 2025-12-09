@@ -171,8 +171,8 @@ export default function BarcodeScannerModal({
     // Navigate to search-book using absolute path
     setTimeout(() => {
       try {
-        console.log('🔍 Navigating to /(tabs)/search-book');
-        router.push('/(tabs)/search-book');
+        console.log('🔍 Navigating to /search-book');
+        router.push('/search-book');
         console.log('✅ Navigation called successfully');
       } catch (error) {
         console.error('❌ Navigation error:', error);

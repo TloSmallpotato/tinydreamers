@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 
 export default function PlayScreen() {
   const handleSearchBook = () => {
-    router.push('/(tabs)/search-book');
+    router.push('/search-book');
   };
 
   return (

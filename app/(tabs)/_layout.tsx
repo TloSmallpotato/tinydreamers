@@ -791,14 +791,7 @@ export default function TabLayout() {
             presentation: 'card',
           }} 
         />
-        <Stack.Screen 
-          name="search-book" 
-          options={{ 
-            headerShown: false,
-            presentation: 'card',
-            animation: 'slide_from_bottom',
-          }} 
-        />
+
       </Stack>
       <CustomTabBar />
     </>
