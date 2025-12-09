@@ -163,21 +163,21 @@ export default function BarcodeScannerModal({
 
   const handleSearchBook = () => {
     console.log('🔍 Search a Book button pressed');
-    console.log('🔍 Attempting navigation to search-book screen');
+    console.log('🔍 Closing modal and navigating to search-book screen');
     
     // Close modal first
     onClose();
     
-    // Navigate after a short delay to ensure modal is closed
+    // Use replace instead of push for a proper redirect, similar to profile page navigation
     setTimeout(() => {
       try {
         console.log('🔍 Navigating to /(tabs)/search-book');
-        router.push('/(tabs)/search-book');
+        router.replace('/(tabs)/search-book');
         console.log('✅ Navigation called successfully');
       } catch (error) {
         console.error('❌ Navigation error:', error);
       }
-    }, 100);
+    }, 300);
   };
 
   if (!visible) {
