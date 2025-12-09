@@ -5,7 +5,6 @@ import {
   Text, 
   StyleSheet, 
   ScrollView, 
-  TextInput, 
   Platform, 
   TouchableOpacity,
   ActivityIndicator,
@@ -55,10 +54,6 @@ export default function BooksScreen() {
   const { shouldFocusBookSearch, resetBookSearch } = useAddNavigation();
   const params = useLocalSearchParams();
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<BookSearchResult[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
   const [savedBooks, setSavedBooks] = useState<SavedBook[]>([]);
   const [isLoadingBooks, setIsLoadingBooks] = useState(true);
   const [selectedBook, setSelectedBook] = useState<SavedBook | null>(null);
@@ -73,10 +68,10 @@ export default function BooksScreen() {
   const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
   const [showISBNNotFoundModal, setShowISBNNotFoundModal] = useState(false);
   const [notFoundISBN, setNotFoundISBN] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const addCustomBookRef = useRef<BottomSheetModal>(null);
-  const searchInputRef = useRef<TextInput>(null);
   const hasProcessedAutoOpen = useRef(false);
   const addBookTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastClickedBookIdRef = useRef<string | null>(null);
@@ -130,12 +125,11 @@ export default function BooksScreen() {
     };
   }, []);
 
-  // Handle autoOpen and autoScan parameters from navigation - runs every time screen comes into focus
+  // Handle autoScan parameter from navigation - runs every time screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      const autoOpen = params.autoOpen;
       const autoScan = params.autoScan;
-      console.log('useFocusEffect - autoOpen:', autoOpen, 'autoScan:', autoScan, 'hasProcessedAutoOpen:', hasProcessedAutoOpen.current);
+      console.log('useFocusEffect - autoScan:', autoScan, 'hasProcessedAutoOpen:', hasProcessedAutoOpen.current);
       
       if (autoScan === 'true' && !hasProcessedAutoOpen.current) {
         console.log('autoScan parameter detected - opening barcode scanner');
@@ -148,19 +142,6 @@ export default function BooksScreen() {
         setTimeout(() => {
           setShowScanner(true);
         }, 300);
-      } else if (autoOpen === 'true' && !hasProcessedAutoOpen.current) {
-        console.log('autoOpen parameter detected - focusing book search input');
-        hasProcessedAutoOpen.current = true;
-        
-        // Clear the parameter immediately
-        router.replace('/(tabs)/books');
-        
-        // Use requestAnimationFrame to ensure the screen is fully rendered
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            searchInputRef.current?.focus();
-          }, 100);
-        });
       }
       
       // Reset the flag when leaving the screen
@@ -168,25 +149,8 @@ export default function BooksScreen() {
         console.log('Leaving books screen - resetting hasProcessedAutoOpen flag');
         hasProcessedAutoOpen.current = false;
       };
-    }, [params.autoOpen, params.autoScan, router])
+    }, [params.autoScan, router])
   );
-
-  // Reset the flag when search input loses focus (modal closed)
-  const handleSearchBlur = useCallback(() => {
-    console.log('Search input blurred - resetting hasProcessedAutoOpen flag');
-    hasProcessedAutoOpen.current = false;
-  }, []);
-
-  // Handle focus trigger from Add modal (legacy method)
-  useEffect(() => {
-    if (shouldFocusBookSearch) {
-      console.log('Focusing book search input from context');
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 300);
-      resetBookSearch();
-    }
-  }, [shouldFocusBookSearch, resetBookSearch]);
 
   // Generate signed URLs for private covers
   const generateSignedUrl = useCallback(async (path: string): Promise<string | null> => {
@@ -271,25 +235,6 @@ export default function BooksScreen() {
   useEffect(() => {
     fetchSavedBooks();
   }, [fetchSavedBooks]);
-
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (searchQuery.trim().length >= 2) {
-        setIsSearching(true);
-        const results = await searchGoogleBooks(searchQuery);
-        console.log('Search results:', results.length, 'books found');
-        setSearchResults(results);
-        setShowDropdown(results.length > 0);
-        setIsSearching(false);
-      } else {
-        setSearchResults([]);
-        setShowDropdown(false);
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
 
   const handleSelectBook = async (book: BookSearchResult) => {
     // Prevent duplicate additions
@@ -376,9 +321,6 @@ export default function BooksScreen() {
       if (existingUserBook) {
         console.log('User already has this book in their library');
         showToast('This book is already in your library.', 'info');
-        setSearchQuery('');
-        setShowDropdown(false);
-        Keyboard.dismiss();
         setIsAddingBook(false);
         return;
       }
@@ -406,11 +348,6 @@ export default function BooksScreen() {
 
       // Refresh the books list
       await fetchSavedBooks();
-
-      // Clear search
-      setSearchQuery('');
-      setShowDropdown(false);
-      Keyboard.dismiss();
 
       // Show success message
       showToast('Book added to your library!', 'success');
@@ -522,25 +459,6 @@ export default function BooksScreen() {
     }, 300);
   };
 
-  const handleAddCustomBook = useCallback(() => {
-    if (!selectedChild) {
-      showToast('Please select a child before adding books.', 'warning');
-      return;
-    }
-
-    if (!currentUserId) {
-      showToast('Please wait while we load your profile.', 'warning');
-      return;
-    }
-
-    // Close search dropdown
-    setShowDropdown(false);
-    Keyboard.dismiss();
-
-    // Open custom book bottom sheet
-    addCustomBookRef.current?.present();
-  }, [selectedChild, currentUserId, showToast]);
-
   const handleBookPress = useCallback((book: SavedBook) => {
     console.log('Book pressed:', book.book.title, 'Modal open:', isModalOpen, 'Last clicked:', lastClickedBookIdRef.current);
     
@@ -638,122 +556,21 @@ export default function BooksScreen() {
             </View>
           </View>
 
-          <View style={styles.searchContainer}>
-            <View style={styles.searchRow}>
-              <View style={styles.searchBarWrapper}>
-                <IconSymbol 
-                  ios_icon_name="magnifyingglass" 
-                  android_material_icon_name="search" 
-                  size={20} 
-                  color={colors.primary} 
-                />
-                <TextInput
-                  ref={searchInputRef}
-                  style={styles.searchInput}
-                  placeholder="Search to add a book"
-                  placeholderTextColor={colors.primary}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  onFocus={() => {
-                    if (searchResults.length > 0) {
-                      setShowDropdown(true);
-                    }
-                  }}
-                  onBlur={handleSearchBlur}
-                  editable={!isAddingBook}
-                />
-                {isSearching && (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                )}
-              </View>
-
-              <TouchableOpacity
-                style={[styles.cameraButton, isAddingBook && styles.cameraButtonDisabled]}
-                onPress={() => setShowScanner(true)}
-                activeOpacity={0.7}
-                disabled={isAddingBook}
-              >
-                <IconSymbol
-                  ios_icon_name="barcode.viewfinder"
-                  android_material_icon_name="qr_code_scanner"
-                  size={24}
-                  color={isAddingBook ? colors.textSecondary : colors.backgroundAlt}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {showDropdown && searchResults.length > 0 && (
-              <View style={styles.dropdown}>
-                <ScrollView 
-                  style={styles.dropdownScroll}
-                  nestedScrollEnabled
-                  keyboardShouldPersistTaps="handled"
-                >
-                  {searchResults.map((book, index) => (
-                    <TouchableOpacity
-                      key={`${book.googleBooksId}-${index}`}
-                      style={styles.dropdownItem}
-                      onPress={() => handleSelectBook(book)}
-                      disabled={isAddingBook}
-                    >
-                      <View style={styles.bookCoverContainer}>
-                        {book.thumbnailUrl || book.coverUrl ? (
-                          <Image
-                            source={{ uri: book.thumbnailUrl || book.coverUrl }}
-                            style={styles.bookCoverSmall}
-                            contentFit="cover"
-                            cachePolicy="memory-disk"
-                            priority="high"
-                            transition={200}
-                            onError={() => console.log('Dropdown image error:', book.title)}
-                          />
-                        ) : (
-                          <View style={[styles.bookCoverSmall, styles.placeholderCover]}>
-                            <IconSymbol
-                              ios_icon_name="book.fill"
-                              android_material_icon_name="book"
-                              size={24}
-                              color={colors.textSecondary}
-                            />
-                          </View>
-                        )}
-                      </View>
-                      <View style={styles.bookInfo}>
-                        <Text style={styles.bookTitle} numberOfLines={2}>
-                          {book.title}
-                        </Text>
-                        <Text style={styles.bookAuthor} numberOfLines={1}>
-                          {book.authors}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                  
-                  {/* Add Custom Book Option */}
-                  <TouchableOpacity
-                    style={[styles.dropdownItem, styles.addCustomBookItem]}
-                    onPress={handleAddCustomBook}
-                  >
-                    <View style={styles.addCustomBookIcon}>
-                      <IconSymbol
-                        ios_icon_name="plus.circle.fill"
-                        android_material_icon_name="add-circle"
-                        size={32}
-                        color={colors.buttonBlue}
-                      />
-                    </View>
-                    <View style={styles.bookInfo}>
-                      <Text style={styles.addCustomBookText}>
-                        Add custom book
-                      </Text>
-                      <Text style={styles.addCustomBookSubtext}>
-                        {searchQuery ? `"${searchQuery}"` : 'Create your own entry'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                </ScrollView>
-              </View>
-            )}
+          <View style={styles.addButtonContainer}>
+            <TouchableOpacity
+              style={[styles.addButton, isAddingBook && styles.addButtonDisabled]}
+              onPress={() => setShowScanner(true)}
+              activeOpacity={0.7}
+              disabled={isAddingBook}
+            >
+              <Text style={styles.addButtonText}>Add new Book</Text>
+              <IconSymbol
+                ios_icon_name="barcode.viewfinder"
+                android_material_icon_name="qr_code_scanner"
+                size={24}
+                color={isAddingBook ? colors.textSecondary : colors.backgroundAlt}
+              />
+            </TouchableOpacity>
           </View>
 
           {isLoadingBooks ? (
@@ -770,7 +587,7 @@ export default function BooksScreen() {
               />
               <Text style={styles.emptyText}>No books yet</Text>
               <Text style={styles.emptySubtext}>
-                Search and add books to start building your library
+                Tap the button above to scan and add books to your library
               </Text>
             </View>
           ) : (
@@ -829,7 +646,7 @@ export default function BooksScreen() {
 
       <AddCustomBookBottomSheet
         ref={addCustomBookRef}
-        prefillTitle={searchQuery}
+        prefillTitle=""
         prefillISBN={notFoundISBN}
         onClose={() => {
           console.log('Custom book bottom sheet closed');
@@ -907,117 +724,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  searchContainer: {
-    position: 'relative',
-    zIndex: 1000,
+  addButtonContainer: {
     marginBottom: 20,
   },
-  searchRow: {
+  addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    width: '100%',
-  },
-  searchBarWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    minHeight: 56,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: colors.primary,
-  },
-  cameraButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
     justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 16,
+    gap: 12,
     boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)',
     elevation: 4,
-    flexShrink: 0,
   },
-  cameraButtonDisabled: {
+  addButtonDisabled: {
     backgroundColor: colors.backgroundAlt,
     opacity: 0.5,
   },
-  dropdown: {
-    position: 'absolute',
-    top: 68,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 16,
-    maxHeight: 400,
-    zIndex: 1001,
-  },
-  dropdownScroll: {
-    maxHeight: 400,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.background,
-    alignItems: 'center',
-  },
-  addCustomBookItem: {
-    backgroundColor: colors.background,
-    borderBottomWidth: 0,
-  },
-  addCustomBookIcon: {
-    marginRight: 12,
-    width: 50,
-    height: 75,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addCustomBookText: {
+  addButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.buttonBlue,
-    marginBottom: 4,
-  },
-  addCustomBookSubtext: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  bookCoverContainer: {
-    marginRight: 12,
-    backgroundColor: colors.background,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  bookCoverSmall: {
-    width: 50,
-    height: 75,
-    borderRadius: 16,
-  },
-  placeholderCover: {
-    backgroundColor: colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bookInfo: {
-    flex: 1,
-  },
-  bookTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  bookAuthor: {
-    fontSize: 14,
-    color: colors.textSecondary,
+    color: colors.backgroundAlt,
   },
   loadingContainer: {
     flex: 1,

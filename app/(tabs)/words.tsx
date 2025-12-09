@@ -330,7 +330,13 @@ export default function WordsScreen() {
 
           <View style={styles.addButtonContainer}>
             <TouchableOpacity style={styles.addButton} onPress={handleOpenAddWord}>
-              <Text style={styles.addButtonText}>Add new word +</Text>
+              <Text style={styles.addButtonText}>Add new Word</Text>
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add-circle"
+                size={24}
+                color={colors.backgroundAlt}
+              />
             </TouchableOpacity>
           </View>
 
@@ -474,14 +480,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   addButtonContainer: {
-    alignItems: 'flex-end',
     marginBottom: 20,
   },
   addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.buttonBlue,
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
+    paddingVertical: 16,
+    borderRadius: 16,
+    gap: 12,
     boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.15)',
     elevation: 4,
   },
