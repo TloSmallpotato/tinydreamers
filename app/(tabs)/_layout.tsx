@@ -15,6 +15,7 @@ import SelectWordBottomSheet from '@/components/SelectWordBottomSheet';
 import VideoPreviewModal from '@/components/VideoPreviewModal';
 import ToastNotification from '@/components/ToastNotification';
 import AddOptionsModal from '@/components/AddOptionsModal';
+import BarcodeScannerModal from '@/components/BarcodeScannerModal';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { supabase } from '@/app/integrations/supabase/client';
 import { generateVideoThumbnail, uploadThumbnailToSupabase, uploadVideoToSupabase } from '@/utils/videoThumbnail';
@@ -99,6 +100,7 @@ function CustomTabBar() {
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [previousRoute, setPreviousRoute] = useState<string>('/(tabs)/profile');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
   const scaleAnims = useRef(
     tabs.map(() => new Animated.Value(1))
@@ -253,20 +255,23 @@ function CustomTabBar() {
   };
 
   const handleScanBook = () => {
-    console.log('Add book selected - opening scanner');
+    console.log('Add book selected - opening scanner directly');
     setShowAddModal(false);
-    // Open the barcode scanner
+    // Open the barcode scanner directly
     setTimeout(() => {
-      router.push('/(tabs)/books');
-      setTimeout(() => {
-        // Trigger scanner opening via a state or navigation param
-        // For now, we'll use a simple approach - navigate to books and auto-open scanner
-        router.push({
-          pathname: '/(tabs)/books',
-          params: { autoScan: 'true' },
-        } as any);
-      }, 100);
+      setShowScanner(true);
     }, 300);
+  };
+
+  const handleBarcodeScanned = (isbn: string) => {
+    console.log('ISBN scanned from tab bar scanner:', isbn);
+    // Close the scanner
+    setShowScanner(false);
+    // Navigate to books page and let it handle the ISBN
+    router.push({
+      pathname: '/(tabs)/books',
+      params: { scannedISBN: isbn },
+    } as any);
   };
 
   const handleAddWord = () => {
@@ -732,6 +737,12 @@ function CustomTabBar() {
         onScanBook={handleScanBook}
         onAddWord={handleAddWord}
         onCaptureMoment={handleCaptureMoment}
+      />
+
+      <BarcodeScannerModal
+        visible={showScanner}
+        onClose={() => setShowScanner(false)}
+        onBarcodeScanned={handleBarcodeScanned}
       />
 
       <SelectWordBottomSheet
