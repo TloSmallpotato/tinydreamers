@@ -37,7 +37,6 @@ interface WordDetailBottomSheetProps {
 
 const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheetProps>(
   ({ word, onClose, onRefresh }, ref) => {
-    const snapPoints = useMemo(() => [screenHeight * 0.85], []);
     const [moments, setMoments] = useState<Moment[]>([]);
     const [loading, setLoading] = useState(false);
     const [isSpoken, setIsSpoken] = useState(false);
@@ -247,8 +246,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       <>
         <BottomSheetModal
           ref={ref}
-          index={0}
-          snapPoints={snapPoints}
+          enableDynamicSizing={true}
           enablePanDownToClose={true}
           enableDismissOnClose={true}
           backdropComponent={renderBackdrop}
@@ -256,7 +254,8 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           handleIndicatorStyle={[styles.handleIndicator, { backgroundColor: word.color }]}
           onDismiss={onClose}
           animateOnMount={true}
-          enableContentPanningGesture={true}
+          enableContentPanningGesture={false}
+          maxDynamicContentSize={screenHeight * 0.9}
         >
           <BottomSheetScrollView 
             style={styles.scrollView}
@@ -418,7 +417,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: 400,
+    paddingBottom: 40,
   },
   wordHeader: {
     paddingTop: 24,
@@ -448,8 +447,6 @@ const styles = StyleSheet.create({
   whiteContentSection: {
     backgroundColor: colors.backgroundAlt,
     paddingTop: 20,
-    flex: 1,
-    height: '100%',
   },
   statusSection: {
     paddingHorizontal: 20,
@@ -502,13 +499,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   momentsContainer: {
-    minHeight: 300,
+    minHeight: 200,
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
-    minHeight: 300,
   },
   emptyText: {
     fontSize: 16,
