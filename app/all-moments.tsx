@@ -285,9 +285,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     paddingTop: Platform.OS === 'android' ? 48 : 16,
-    backgroundColor: colors.backgroundAlt,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.background,
+    backgroundColor: colors.background,
   },
   backButton: {
     width: 40,

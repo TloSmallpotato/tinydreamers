@@ -143,7 +143,7 @@ export default function ProfileScreen() {
           .select('id, video_url, thumbnail_url, created_at, trim_start, trim_end')
           .eq('child_id', selectedChild.id)
           .order('created_at', { ascending: false })
-          .limit(10),
+          .limit(5),
       ]);
 
       const totalWordsCount = totalWordsResult.status === 'fulfilled' && !totalWordsResult.value.error
