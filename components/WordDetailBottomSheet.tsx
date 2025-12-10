@@ -253,7 +253,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           enableDismissOnClose={true}
           backdropComponent={renderBackdrop}
           backgroundStyle={{ backgroundColor: colors.backgroundAlt }}
-          handleIndicatorStyle={[styles.handleIndicator, { backgroundColor: 'rgba(0, 0, 0, 0.2)' }]}
+          handleIndicatorStyle={[styles.handleIndicator, { backgroundColor: word.color }]}
           onDismiss={onClose}
           animateOnMount={true}
           enableContentPanningGesture={true}
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: 40,
+    paddingBottom: 200,
   },
   wordHeader: {
     paddingTop: 24,
