@@ -449,6 +449,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundAlt,
     paddingTop: 20,
     flex: 1,
+    height: '100%',
   },
   statusSection: {
     paddingHorizontal: 20,
