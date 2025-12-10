@@ -252,7 +252,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           enablePanDownToClose={true}
           enableDismissOnClose={true}
           backdropComponent={renderBackdrop}
-          backgroundStyle={{ backgroundColor: colors.backgroundAlt }}
+          backgroundStyle={[styles.bottomSheetBackground, { backgroundColor: word.color }]}
           handleIndicatorStyle={[styles.handleIndicator, { backgroundColor: word.color }]}
           onDismiss={onClose}
           animateOnMount={true}
@@ -269,86 +269,96 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
               <Text style={styles.wordTitle}>{word.word}</Text>
             </View>
 
-            <View style={styles.statusSection}>
-              <Text style={styles.sectionTitle}>Status</Text>
-              <View style={styles.statusGrid}>
-                <TouchableOpacity
-                  style={[styles.statusButton, isSpoken && styles.statusButtonActive]}
-                  onPress={toggleSpoken}
-                >
-                  <IconSymbol
-                    ios_icon_name="speaker.wave.2"
-                    android_material_icon_name="volume-up"
-                    size={24}
-                    color={isSpoken ? colors.backgroundAlt : colors.primary}
-                  />
-                  <Text style={[styles.statusText, isSpoken && styles.statusTextActive]}>
-                    Spoken
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.statusButton, isRecognised && styles.statusButtonActive]}
-                  onPress={toggleRecognised}
-                >
-                  <IconSymbol
-                    ios_icon_name="eye"
-                    android_material_icon_name="visibility"
-                    size={24}
-                    color={isRecognised ? colors.backgroundAlt : colors.primary}
-                  />
-                  <Text style={[styles.statusText, isRecognised && styles.statusTextActive]}>
-                    Recognised
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.momentsSection}>
-              <View style={styles.momentsHeader}>
-                <Text style={styles.sectionTitle}>Moments ({moments.length})</Text>
-                <TouchableOpacity style={styles.addMomentButton} onPress={handleOpenCamera}>
-                  <IconSymbol
-                    ios_icon_name="plus"
-                    android_material_icon_name="add"
-                    size={20}
-                    color={colors.backgroundAlt}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.momentsContainer}>
-                {moments.length === 0 ? (
-                  <View style={styles.emptyState}>
+            <View style={styles.whiteContentSection}>
+              <View style={styles.statusSection}>
+                <Text style={styles.sectionTitle}>Status</Text>
+                <View style={styles.statusGrid}>
+                  <TouchableOpacity
+                    style={[styles.statusButton, isSpoken && styles.statusButtonActive]}
+                    onPress={toggleSpoken}
+                  >
                     <IconSymbol
-                      ios_icon_name="video.slash"
-                      android_material_icon_name="videocam-off"
-                      size={48}
-                      color={colors.textSecondary}
+                      ios_icon_name="speaker.wave.2"
+                      android_material_icon_name="volume-up"
+                      size={24}
+                      color={isSpoken ? colors.backgroundAlt : colors.primary}
                     />
-                    <Text style={styles.emptyText}>No moments yet</Text>
-                    <Text style={styles.emptySubtext}>
-                      Tap the + button to record a video
+                    <Text style={[styles.statusText, isSpoken && styles.statusTextActive]}>
+                      Spoken
                     </Text>
-                  </View>
-                ) : (
-                  <View style={styles.momentsGrid}>
-                    {moments.map((moment, index) => (
-                      <View key={index} style={[styles.momentCard, { width: columnWidth }]}>
-                        <TouchableOpacity
-                          style={[styles.momentThumbnail, { height: thumbnailHeight }]}
-                          onPress={() => handlePlayVideo(moment)}
-                          activeOpacity={0.8}
-                        >
-                          {moment.thumbnail_url ? (
-                            <Image
-                              source={{ uri: moment.thumbnail_url }}
-                              style={styles.thumbnailImage}
-                              contentFit="cover"
-                              transition={200}
-                            />
-                          ) : (
-                            <View style={styles.thumbnailPlaceholder}>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.statusButton, isRecognised && styles.statusButtonActive]}
+                    onPress={toggleRecognised}
+                  >
+                    <IconSymbol
+                      ios_icon_name="eye"
+                      android_material_icon_name="visibility"
+                      size={24}
+                      color={isRecognised ? colors.backgroundAlt : colors.primary}
+                    />
+                    <Text style={[styles.statusText, isRecognised && styles.statusTextActive]}>
+                      Recognised
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.momentsSection}>
+                <View style={styles.momentsHeader}>
+                  <Text style={styles.sectionTitle}>Moments ({moments.length})</Text>
+                  <TouchableOpacity style={styles.addMomentButton} onPress={handleOpenCamera}>
+                    <IconSymbol
+                      ios_icon_name="plus"
+                      android_material_icon_name="add"
+                      size={20}
+                      color={colors.backgroundAlt}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.momentsContainer}>
+                  {moments.length === 0 ? (
+                    <View style={styles.emptyState}>
+                      <IconSymbol
+                        ios_icon_name="video.slash"
+                        android_material_icon_name="videocam-off"
+                        size={48}
+                        color={colors.textSecondary}
+                      />
+                      <Text style={styles.emptyText}>No moments yet</Text>
+                      <Text style={styles.emptySubtext}>
+                        Tap the + button to record a video
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.momentsGrid}>
+                      {moments.map((moment, index) => (
+                        <View key={index} style={[styles.momentCard, { width: columnWidth }]}>
+                          <TouchableOpacity
+                            style={[styles.momentThumbnail, { height: thumbnailHeight }]}
+                            onPress={() => handlePlayVideo(moment)}
+                            activeOpacity={0.8}
+                          >
+                            {moment.thumbnail_url ? (
+                              <Image
+                                source={{ uri: moment.thumbnail_url }}
+                                style={styles.thumbnailImage}
+                                contentFit="cover"
+                                transition={200}
+                              />
+                            ) : (
+                              <View style={styles.thumbnailPlaceholder}>
+                                <IconSymbol
+                                  ios_icon_name="play.circle.fill"
+                                  android_material_icon_name="play-circle-filled"
+                                  size={48}
+                                  color={colors.backgroundAlt}
+                                />
+                              </View>
+                            )}
+                            <View style={styles.playOverlay}>
                               <IconSymbol
                                 ios_icon_name="play.circle.fill"
                                 android_material_icon_name="play-circle-filled"
@@ -356,36 +366,28 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
                                 color={colors.backgroundAlt}
                               />
                             </View>
-                          )}
-                          <View style={styles.playOverlay}>
-                            <IconSymbol
-                              ios_icon_name="play.circle.fill"
-                              android_material_icon_name="play-circle-filled"
-                              size={48}
-                              color={colors.backgroundAlt}
-                            />
-                          </View>
-                        </TouchableOpacity>
-                        <View style={styles.momentInfo}>
-                          <Text style={styles.momentDate}>
-                            {new Date(moment.created_at).toLocaleDateString()}
-                          </Text>
-                          <TouchableOpacity
-                            style={styles.deleteButton}
-                            onPress={() => handleDeleteMoment(moment)}
-                          >
-                            <IconSymbol
-                              ios_icon_name="trash"
-                              android_material_icon_name="delete"
-                              size={16}
-                              color={colors.secondary}
-                            />
                           </TouchableOpacity>
+                          <View style={styles.momentInfo}>
+                            <Text style={styles.momentDate}>
+                              {new Date(moment.created_at).toLocaleDateString()}
+                            </Text>
+                            <TouchableOpacity
+                              style={styles.deleteButton}
+                              onPress={() => handleDeleteMoment(moment)}
+                            >
+                              <IconSymbol
+                                ios_icon_name="trash"
+                                android_material_icon_name="delete"
+                                size={16}
+                                color={colors.secondary}
+                              />
+                            </TouchableOpacity>
+                          </View>
                         </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
+                      ))}
+                    </View>
+                  )}
+                </View>
               </View>
             </View>
           </BottomSheetScrollView>
@@ -420,7 +422,7 @@ const styles = StyleSheet.create({
   },
   wordHeader: {
     paddingTop: 24,
-    paddingBottom: 20,
+    paddingBottom: 32,
     paddingHorizontal: 20,
     alignItems: 'center',
     borderTopLeftRadius: 24,
@@ -443,10 +445,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
+  whiteContentSection: {
+    backgroundColor: colors.backgroundAlt,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    flex: 1,
+  },
   statusSection: {
     paddingHorizontal: 20,
-    paddingTop: 20,
-    backgroundColor: colors.backgroundAlt,
   },
   sectionTitle: {
     fontSize: 18,
@@ -480,7 +487,6 @@ const styles = StyleSheet.create({
   momentsSection: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    backgroundColor: colors.backgroundAlt,
   },
   momentsHeader: {
     flexDirection: 'row',
