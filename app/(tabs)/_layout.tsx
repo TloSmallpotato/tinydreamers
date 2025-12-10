@@ -85,9 +85,6 @@ const tabs: TabItem[] = [
   },
 ];
 
-// Maximum recording duration in seconds (5 seconds as per requirements)
-const MAX_RECORDING_DURATION = 5;
-
 function CustomTabBar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -147,7 +144,7 @@ function CustomTabBar() {
   }, [cameraPermission, requestCameraPermission]);
 
   const openCamera = useCallback(async () => {
-    console.log('Opening camera for video recording (max 5 seconds)');
+    console.log('Opening camera for video recording');
     
     if (!cameraPermission) {
       console.log('Camera permission not loaded yet');
@@ -321,25 +318,16 @@ function CustomTabBar() {
   const startRecording = async () => {
     if (cameraRef.current && !isRecording) {
       try {
-        console.log(`Starting video recording (max ${MAX_RECORDING_DURATION} seconds)`);
+        console.log('Starting video recording');
         setIsRecording(true);
         setRecordingTime(0);
         
-        // Update timer every 100ms for smoother countdown
+        // Update timer every 100ms for smoother display
         recordingTimerRef.current = setInterval(() => {
-          setRecordingTime((prev) => {
-            const newTime = prev + 0.1;
-            // Auto-stop at max duration
-            if (newTime >= MAX_RECORDING_DURATION) {
-              stopRecording();
-            }
-            return newTime;
-          });
+          setRecordingTime((prev) => prev + 0.1);
         }, 100);
         
-        const video = await cameraRef.current.recordAsync({
-          maxDuration: MAX_RECORDING_DURATION,
-        });
+        const video = await cameraRef.current.recordAsync();
         
         console.log('Video recorded:', video);
         
@@ -568,10 +556,6 @@ function CustomTabBar() {
     return `${mins}:${secs.toString().padStart(2, '0')}.${ms}`;
   };
 
-  const getRemainingTime = () => {
-    return Math.max(0, MAX_RECORDING_DURATION - recordingTime);
-  };
-
   if (!shouldShowTabBar) {
     return null;
   }
@@ -600,15 +584,7 @@ function CustomTabBar() {
             <View style={styles.recordingIndicator}>
               <View style={styles.recordingDot} />
               <Text style={styles.recordingTime}>
-                {formatTime(recordingTime)} / {MAX_RECORDING_DURATION}s
-              </Text>
-            </View>
-          )}
-
-          {!isRecording && isCameraReady && (
-            <View style={styles.recordingHint}>
-              <Text style={styles.recordingHintText}>
-                Max {MAX_RECORDING_DURATION} seconds
+                {formatTime(recordingTime)}
               </Text>
             </View>
           )}
@@ -895,21 +871,6 @@ const styles = StyleSheet.create({
   recordingTime: {
     color: colors.backgroundAlt,
     fontSize: 16,
-    fontWeight: '600',
-  },
-  recordingHint: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    zIndex: 10001,
-  },
-  recordingHintText: {
-    color: colors.backgroundAlt,
-    fontSize: 14,
     fontWeight: '600',
   },
   cameraControls: {
