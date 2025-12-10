@@ -251,7 +251,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           enableDismissOnClose={true}
           backdropComponent={renderBackdrop}
           backgroundStyle={[styles.bottomSheetBackground, { backgroundColor: word.color }]}
-          handleIndicatorStyle={[styles.handleIndicator, { backgroundColor: word.color }]}
+          handleIndicatorStyle={styles.handleIndicator}
           onDismiss={onClose}
           animateOnMount={true}
           enableContentPanningGesture={false}
@@ -412,6 +412,7 @@ const styles = StyleSheet.create({
   handleIndicator: {
     width: 40,
     height: 4,
+    backgroundColor: colors.backgroundAlt,
   },
   scrollView: {
     flex: 1,
