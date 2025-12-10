@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: 40,
+    paddingBottom: 0,
   },
   wordHeader: {
     paddingTop: 24,
@@ -447,6 +447,7 @@ const styles = StyleSheet.create({
   whiteContentSection: {
     backgroundColor: colors.backgroundAlt,
     paddingTop: 20,
+    paddingBottom: 40,
   },
   statusSection: {
     paddingHorizontal: 20,
