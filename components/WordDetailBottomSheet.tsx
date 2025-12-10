@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: 200,
+    paddingBottom: 400,
   },
   wordHeader: {
     paddingTop: 24,
@@ -447,8 +447,6 @@ const styles = StyleSheet.create({
   },
   whiteContentSection: {
     backgroundColor: colors.backgroundAlt,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
     paddingTop: 20,
     flex: 1,
   },
