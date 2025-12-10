@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Alert, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -53,10 +53,26 @@ export default function WordsScreen() {
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const addWordSheetRef = useRef<BottomSheetModal>(null);
   const wordDetailSheetRef = useRef<BottomSheetModal>(null);
   const hasProcessedAutoOpen = useRef(false);
+
+  // Trigger fade-in animation when words are loaded
+  useEffect(() => {
+    if (!loading && words.length > 0) {
+      // Reset animation
+      fadeAnim.setValue(0);
+      
+      // Start fade-in animation
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [loading, words.length, fadeAnim]);
 
   // Handle autoOpen parameter from navigation - runs every time screen comes into focus
   useFocusEffect(
@@ -359,69 +375,71 @@ export default function WordsScreen() {
               </Text>
             </View>
           ) : (
-            sortedLetters.map((letter, letterIndex) => (
-              <React.Fragment key={letterIndex}>
-                <View style={styles.letterSection}>
-                  <View style={styles.letterBadge}>
-                    <Text style={styles.letterText}>{letter}</Text>
+            <Animated.View style={{ opacity: fadeAnim }}>
+              {sortedLetters.map((letter, letterIndex) => (
+                <React.Fragment key={letterIndex}>
+                  <View style={styles.letterSection}>
+                    <View style={styles.letterBadge}>
+                      <Text style={styles.letterText}>{letter}</Text>
+                    </View>
                   </View>
-                </View>
 
-                <View style={styles.wordsList}>
-                  {groupedWords[letter].map((word, wordIndex) => (
-                    <TouchableOpacity
-                      key={wordIndex}
-                      style={[styles.wordCard, { backgroundColor: word.color }]}
-                      onPress={() => handleWordPress(word)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.wordIcon} pointerEvents="none">
-                        <Text style={styles.wordEmoji}>{word.emoji}</Text>
-                      </View>
-                      <Text style={styles.wordText} pointerEvents="none">{word.word}</Text>
-                      <View style={styles.wordActions} pointerEvents="none">
-                        {word.is_spoken && (
-                          <View style={styles.statusIndicator}>
-                            <IconSymbol 
-                              ios_icon_name="speaker.wave.2.fill" 
-                              android_material_icon_name="volume-up" 
-                              size={16} 
-                              color={colors.primary} 
-                            />
-                          </View>
-                        )}
-                        {word.is_recognised && (
-                          <View style={styles.statusIndicator}>
-                            <IconSymbol 
-                              ios_icon_name="eye.fill" 
-                              android_material_icon_name="visibility" 
-                              size={16} 
-                              color={colors.primary} 
-                            />
-                          </View>
-                        )}
-                        {word.is_recorded && (
-                          <View style={styles.statusIndicator}>
-                            <IconSymbol 
-                              ios_icon_name="video.fill" 
-                              android_material_icon_name="videocam" 
-                              size={16} 
-                              color={colors.primary} 
-                            />
-                          </View>
-                        )}
-                        <IconSymbol 
-                          ios_icon_name="chevron.right" 
-                          android_material_icon_name="chevron-right" 
-                          size={20} 
-                          color={colors.primary} 
-                        />
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </React.Fragment>
-            ))
+                  <View style={styles.wordsList}>
+                    {groupedWords[letter].map((word, wordIndex) => (
+                      <TouchableOpacity
+                        key={wordIndex}
+                        style={[styles.wordCard, { backgroundColor: word.color }]}
+                        onPress={() => handleWordPress(word)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.wordIcon} pointerEvents="none">
+                          <Text style={styles.wordEmoji}>{word.emoji}</Text>
+                        </View>
+                        <Text style={styles.wordText} pointerEvents="none">{word.word}</Text>
+                        <View style={styles.wordActions} pointerEvents="none">
+                          {word.is_spoken && (
+                            <View style={styles.statusIndicator}>
+                              <IconSymbol 
+                                ios_icon_name="speaker.wave.2.fill" 
+                                android_material_icon_name="volume-up" 
+                                size={16} 
+                                color={colors.primary} 
+                              />
+                            </View>
+                          )}
+                          {word.is_recognised && (
+                            <View style={styles.statusIndicator}>
+                              <IconSymbol 
+                                ios_icon_name="eye.fill" 
+                                android_material_icon_name="visibility" 
+                                size={16} 
+                                color={colors.primary} 
+                              />
+                            </View>
+                          )}
+                          {word.is_recorded && (
+                            <View style={styles.statusIndicator}>
+                              <IconSymbol 
+                                ios_icon_name="video.fill" 
+                                android_material_icon_name="videocam" 
+                                size={16} 
+                                color={colors.primary} 
+                              />
+                            </View>
+                          )}
+                          <IconSymbol 
+                            ios_icon_name="chevron.right" 
+                            android_material_icon_name="chevron-right" 
+                            size={20} 
+                            color={colors.primary} 
+                          />
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </React.Fragment>
+              ))}
+            </Animated.View>
           )}
         </ScrollView>
       </SafeAreaView>
