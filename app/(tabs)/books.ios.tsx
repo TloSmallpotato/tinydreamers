@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Keyboard,
   Alert,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -49,6 +50,14 @@ interface SavedBook {
   };
 }
 
+const LOADING_MESSAGES = [
+  "Flipping through tiny pages…",
+  "Finding the perfect spot on your bookshelf…",
+  "Checking the book for giggles and surprises…",
+  "Dusting off the cover… almost there!",
+  "Peeking inside the story…"
+];
+
 export default function BooksScreen() {
   const { selectedChild } = useChild();
   const { shouldFocusBookSearch, resetBookSearch } = useAddNavigation();
@@ -69,6 +78,7 @@ export default function BooksScreen() {
   const [showISBNNotFoundModal, setShowISBNNotFoundModal] = useState(false);
   const [notFoundISBN, setNotFoundISBN] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const addCustomBookRef = useRef<BottomSheetModal>(null);
@@ -76,12 +86,34 @@ export default function BooksScreen() {
   const addBookTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastClickedBookIdRef = useRef<string | null>(null);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loadingMessageIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const showToast = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setToastMessage(message);
     setToastType(type);
     setToastVisible(true);
   }, []);
+
+  // Cycle through loading messages
+  useEffect(() => {
+    if (isSearching) {
+      setLoadingMessageIndex(0);
+      
+      loadingMessageIntervalRef.current = setInterval(() => {
+        setLoadingMessageIndex((prevIndex) => (prevIndex + 1) % LOADING_MESSAGES.length);
+      }, 3000); // Change message every 3 seconds
+      
+      return () => {
+        if (loadingMessageIntervalRef.current) {
+          clearInterval(loadingMessageIntervalRef.current);
+        }
+      };
+    } else {
+      if (loadingMessageIntervalRef.current) {
+        clearInterval(loadingMessageIntervalRef.current);
+      }
+    }
+  }, [isSearching]);
 
   // Get current user ID
   useEffect(() => {
@@ -121,6 +153,9 @@ export default function BooksScreen() {
       }
       if (clickTimeoutRef.current) {
         clearTimeout(clickTimeoutRef.current);
+      }
+      if (loadingMessageIntervalRef.current) {
+        clearInterval(loadingMessageIntervalRef.current);
       }
     };
   }, []);
@@ -558,18 +593,32 @@ export default function BooksScreen() {
 
           <View style={styles.addButtonContainer}>
             <TouchableOpacity
-              style={[styles.addButton, isAddingBook && styles.addButtonDisabled]}
+              style={[
+                styles.addButton, 
+                (isAddingBook || isSearching) && styles.addButtonLoading
+              ]}
               onPress={() => setShowScanner(true)}
               activeOpacity={0.7}
-              disabled={isAddingBook}
+              disabled={isAddingBook || isSearching}
             >
-              <Text style={styles.addButtonText}>Add new Book</Text>
-              <IconSymbol
-                ios_icon_name="barcode.viewfinder"
-                android_material_icon_name="qr_code_scanner"
-                size={24}
-                color={isAddingBook ? colors.textSecondary : colors.backgroundAlt}
-              />
+              {isSearching ? (
+                <>
+                  <ActivityIndicator size="small" color={colors.backgroundAlt} />
+                  <Text style={styles.addButtonText}>
+                    {LOADING_MESSAGES[loadingMessageIndex]}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.addButtonText}>Add new Book</Text>
+                  <IconSymbol
+                    ios_icon_name="barcode.viewfinder"
+                    android_material_icon_name="qr_code_scanner"
+                    size={24}
+                    color={colors.backgroundAlt}
+                  />
+                </>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -739,9 +788,9 @@ const styles = StyleSheet.create({
     boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)',
     elevation: 4,
   },
-  addButtonDisabled: {
-    backgroundColor: colors.backgroundAlt,
-    opacity: 0.5,
+  addButtonLoading: {
+    backgroundColor: colors.primary,
+    opacity: 0.9,
   },
   addButtonText: {
     fontSize: 16,
