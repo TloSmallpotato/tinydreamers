@@ -8,6 +8,7 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChild } from '@/contexts/ChildContext';
+import { HapticFeedback } from '@/utils/haptics';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -33,19 +34,23 @@ export default function SettingsScreen() {
   const handleSave = async () => {
     if (!selectedChild) return;
 
+    HapticFeedback.medium();
     try {
       await updateChild(selectedChild.id, {
         name: childName,
         birth_date: birthDate.toISOString().split('T')[0],
       });
+      HapticFeedback.success();
       Alert.alert('Success', 'Child information updated successfully');
     } catch (error) {
       console.error('Error updating child:', error);
+      HapticFeedback.error();
       Alert.alert('Error', 'Failed to update child information');
     }
   };
 
   const handleExportData = async () => {
+    HapticFeedback.medium();
     Alert.alert(
       'Export Data',
       'This feature will export all your data including books, words, and moments. Coming soon!',
@@ -54,6 +59,7 @@ export default function SettingsScreen() {
   };
 
   const handlePrivacyPolicy = () => {
+    HapticFeedback.medium();
     Alert.alert(
       'Privacy Policy',
       'Opening Privacy Policy...',
@@ -70,6 +76,7 @@ export default function SettingsScreen() {
   };
 
   const handleTermsAndConditions = () => {
+    HapticFeedback.medium();
     Alert.alert(
       'Terms & Conditions',
       'Opening Terms & Conditions...',
@@ -86,6 +93,7 @@ export default function SettingsScreen() {
   };
 
   const handleSignOut = async () => {
+    HapticFeedback.medium();
     Alert.alert(
       'Sign Out',
       'Are you sure you want to sign out?',
@@ -95,6 +103,7 @@ export default function SettingsScreen() {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
+            HapticFeedback.medium();
             await signOut();
             router.replace('/(auth)/login');
           },
@@ -115,7 +124,13 @@ export default function SettingsScreen() {
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity 
+            onPress={() => {
+              HapticFeedback.light();
+              router.back();
+            }} 
+            style={styles.backButton}
+          >
             <IconSymbol
               ios_icon_name="chevron.left"
               android_material_icon_name="arrow-back"
@@ -152,7 +167,10 @@ export default function SettingsScreen() {
                   <Text style={styles.label}>Birth Date</Text>
                   <TouchableOpacity
                     style={styles.dateButton}
-                    onPress={() => setShowDatePicker(true)}
+                    onPress={() => {
+                      HapticFeedback.light();
+                      setShowDatePicker(true);
+                    }}
                   >
                     <Text style={styles.dateButtonText}>{formatDate(birthDate)}</Text>
                     <IconSymbol
@@ -171,6 +189,7 @@ export default function SettingsScreen() {
                       onChange={(event, selectedDate) => {
                         setShowDatePicker(Platform.OS === 'ios');
                         if (selectedDate) {
+                          HapticFeedback.selection();
                           setBirthDate(selectedDate);
                         }
                       }}
