@@ -11,6 +11,7 @@ import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 
 interface UserWord {
   id: string;
@@ -295,7 +296,11 @@ export default function WordsScreen() {
   };
 
   const handleWordPress = useCallback((word: Word) => {
-    console.log('[iOS] Word pressed:', word.word);
+    console.log('🔵 [iOS] Word pressed:', word.word);
+    
+    // Fire haptic FIRST, synchronously
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
     setSelectedWord(word);
     // Use requestAnimationFrame to ensure the state is set before presenting
     requestAnimationFrame(() => {
@@ -304,6 +309,11 @@ export default function WordsScreen() {
   }, []);
 
   const handleOpenAddWord = () => {
+    console.log('🔵 [iOS] Add word button pressed');
+    
+    // Fire haptic FIRST, synchronously
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
     console.log('[iOS] Opening add word bottom sheet from + button');
     addWordSheetRef.current?.present();
   };

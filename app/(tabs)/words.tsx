@@ -11,7 +11,7 @@ import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { HapticFeedback } from '@/utils/haptics';
+import * as Haptics from 'expo-haptics';
 
 interface UserWord {
   id: string;
@@ -164,7 +164,7 @@ export default function WordsScreen() {
     } catch (error) {
       console.error('Error in fetchWords:', error);
       Alert.alert('Error', 'Failed to load words');
-      HapticFeedback.error();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
     }
@@ -178,11 +178,11 @@ export default function WordsScreen() {
 
   // Pull to refresh handler
   const onRefresh = useCallback(async () => {
-    HapticFeedback.light();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRefreshing(true);
     await fetchWords();
     setRefreshing(false);
-    HapticFeedback.success();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [fetchWords]);
 
   // Handle opening a specific word detail when navigating from toast
@@ -218,7 +218,7 @@ export default function WordsScreen() {
   const handleAddWord = async (word: string, emoji: string, color: string) => {
     if (!selectedChild) {
       Alert.alert('Error', 'Please select a child first');
-      HapticFeedback.error();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
 
@@ -279,7 +279,7 @@ export default function WordsScreen() {
 
       if (existingUserWord) {
         Alert.alert('Word Already Added', 'This word is already in your list');
-        HapticFeedback.warning();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         addWordSheetRef.current?.dismiss();
         return;
       }
@@ -299,19 +299,22 @@ export default function WordsScreen() {
       }
 
       console.log('Word added successfully');
-      HapticFeedback.success();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       addWordSheetRef.current?.dismiss();
       await fetchWords();
     } catch (error) {
       console.error('Error in handleAddWord:', error);
       Alert.alert('Error', 'Failed to add word');
-      HapticFeedback.error();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
   const handleWordPress = useCallback((word: Word) => {
-    console.log('Word pressed:', word.word);
-    HapticFeedback.medium();
+    console.log('🔵 Word pressed:', word.word);
+    
+    // Fire haptic FIRST, synchronously
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
     setSelectedWord(word);
     // Use requestAnimationFrame to ensure the state is set before presenting
     requestAnimationFrame(() => {
@@ -320,8 +323,12 @@ export default function WordsScreen() {
   }, []);
 
   const handleOpenAddWord = () => {
+    console.log('🔵 Add word button pressed');
+    
+    // Fire haptic FIRST, synchronously
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
     console.log('Opening add word bottom sheet from + button');
-    HapticFeedback.medium();
     addWordSheetRef.current?.present();
   };
 
