@@ -136,7 +136,7 @@ export default function BooksScreen() {
         );
       }
     } catch (error) {
-      console.error('[iOS] Error checking quota status:', error);
+      console.error('Error checking quota status:', error);
     }
   }, [showToast]);
 
@@ -164,10 +164,10 @@ export default function BooksScreen() {
   useFocusEffect(
     useCallback(() => {
       const autoScan = params.autoScan;
-      console.log('[iOS] useFocusEffect - autoScan:', autoScan, 'hasProcessedAutoOpen:', hasProcessedAutoOpen.current);
+      console.log('useFocusEffect - autoScan:', autoScan, 'hasProcessedAutoOpen:', hasProcessedAutoOpen.current);
       
       if (autoScan === 'true' && !hasProcessedAutoOpen.current) {
-        console.log('[iOS] autoScan parameter detected - opening barcode scanner');
+        console.log('autoScan parameter detected - opening barcode scanner');
         hasProcessedAutoOpen.current = true;
         
         // Clear the parameter immediately
@@ -181,7 +181,7 @@ export default function BooksScreen() {
       
       // Reset the flag when leaving the screen
       return () => {
-        console.log('[iOS] Leaving books screen - resetting hasProcessedAutoOpen flag');
+        console.log('Leaving books screen - resetting hasProcessedAutoOpen flag');
         hasProcessedAutoOpen.current = false;
       };
     }, [params.autoScan, router])
@@ -195,13 +195,13 @@ export default function BooksScreen() {
         .createSignedUrl(path, 3600); // 1 hour expiry
 
       if (error) {
-        console.error('[iOS] Error generating signed URL:', error);
+        console.error('Error generating signed URL:', error);
         return null;
       }
 
       return data.signedUrl;
     } catch (error) {
-      console.error('[iOS] Error in generateSignedUrl:', error);
+      console.error('Error in generateSignedUrl:', error);
       return null;
     }
   }, []);
@@ -243,7 +243,7 @@ export default function BooksScreen() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('[iOS] Error fetching books:', error);
+        console.error('Error fetching books:', error);
         return;
       }
 
@@ -261,7 +261,7 @@ export default function BooksScreen() {
       }
       setSignedUrls(urlMap);
     } catch (error) {
-      console.error('[iOS] Error in fetchSavedBooks:', error);
+      console.error('Error in fetchSavedBooks:', error);
     } finally {
       setIsLoadingBooks(false);
     }
@@ -274,12 +274,12 @@ export default function BooksScreen() {
   const handleSelectBook = async (book: BookSearchResult) => {
     // Prevent duplicate additions
     if (isAddingBook) {
-      console.log('[iOS] Already adding a book - ignoring duplicate request');
+      console.log('Already adding a book - ignoring duplicate request');
       return;
     }
 
     if (!selectedChild) {
-      console.log('[iOS] No child selected');
+      console.log('No child selected');
       showToast('Please select a child before adding books.', 'warning');
       return;
     }
@@ -287,12 +287,12 @@ export default function BooksScreen() {
     try {
       // Set flag to prevent duplicate additions
       setIsAddingBook(true);
-      console.log('[iOS] === ADDING BOOK PROCESS STARTED ===');
-      console.log('[iOS] Book title:', book.title);
-      console.log('[iOS] Google Books ID:', book.googleBooksId);
+      console.log('=== ADDING BOOK PROCESS STARTED ===');
+      console.log('Book title:', book.title);
+      console.log('Google Books ID:', book.googleBooksId);
 
       // STEP 1: Check if book exists in books_library database
-      console.log('[iOS] STEP 1: Checking if book exists in database...');
+      console.log('STEP 1: Checking if book exists in database...');
       let { data: existingBook, error: fetchError } = await supabase
         .from('books_library')
         .select('id, cover_url, thumbnail_url')
@@ -303,10 +303,10 @@ export default function BooksScreen() {
 
       if (fetchError && fetchError.code === 'PGRST116') {
         // STEP 2: Book not found in database - create new entry
-        console.log('[iOS] STEP 2: Book NOT found in database. Creating new entry...');
-        console.log('[iOS] Cover URL:', book.coverUrl);
-        console.log('[iOS] Thumbnail URL:', book.thumbnailUrl);
-        console.log('[iOS] Source:', book.source);
+        console.log('STEP 2: Book NOT found in database. Creating new entry...');
+        console.log('Cover URL:', book.coverUrl);
+        console.log('Thumbnail URL:', book.thumbnailUrl);
+        console.log('Source:', book.source);
         
         const { data: newBook, error: insertError } = await supabase
           .from('books_library')
@@ -325,27 +325,27 @@ export default function BooksScreen() {
           .single();
 
         if (insertError) {
-          console.error('[iOS] Error creating book in database:', insertError);
+          console.error('Error creating book in database:', insertError);
           showToast('Failed to add book. Please try again.', 'error');
           setIsAddingBook(false);
           return;
         }
 
         bookId = newBook.id;
-        console.log('[iOS] Book created successfully in database with ID:', bookId);
+        console.log('Book created successfully in database with ID:', bookId);
       } else if (existingBook) {
         // Book already exists in database - reuse it
         bookId = existingBook.id;
-        console.log('[iOS] STEP 2: Book FOUND in database with ID:', bookId);
+        console.log('STEP 2: Book FOUND in database with ID:', bookId);
       } else {
-        console.error('[iOS] Error fetching book from database:', fetchError);
+        console.error('Error fetching book from database:', fetchError);
         showToast('Failed to add book. Please try again.', 'error');
         setIsAddingBook(false);
         return;
       }
 
       // STEP 3: Check if user already has this book in their library
-      console.log('[iOS] STEP 3: Checking if user already has this book...');
+      console.log('STEP 3: Checking if user already has this book...');
       const { data: existingUserBook } = await supabase
         .from('user_books')
         .select('id')
@@ -354,14 +354,14 @@ export default function BooksScreen() {
         .single();
 
       if (existingUserBook) {
-        console.log('[iOS] User already has this book in their library');
+        console.log('User already has this book in their library');
         showToast('This book is already in your library.', 'info');
         setIsAddingBook(false);
         return;
       }
 
       // STEP 4: Create user_book relationship
-      console.log('[iOS] STEP 4: Adding book to user library...');
+      console.log('STEP 4: Adding book to user library...');
       const { error: relationError } = await supabase
         .from('user_books')
         .insert({
@@ -372,14 +372,14 @@ export default function BooksScreen() {
         });
 
       if (relationError) {
-        console.error('[iOS] Error adding book to user library:', relationError);
+        console.error('Error adding book to user library:', relationError);
         showToast('Failed to add book to library. Please try again.', 'error');
         setIsAddingBook(false);
         return;
       }
 
-      console.log('[iOS] Book added to user library successfully');
-      console.log('[iOS] === ADDING BOOK PROCESS COMPLETED ===');
+      console.log('Book added to user library successfully');
+      console.log('=== ADDING BOOK PROCESS COMPLETED ===');
 
       // Refresh the books list
       await fetchSavedBooks();
@@ -387,23 +387,23 @@ export default function BooksScreen() {
       // Show success message
       showToast('Book added to your library!', 'success');
     } catch (error) {
-      console.error('[iOS] Error in handleSelectBook:', error);
+      console.error('Error in handleSelectBook:', error);
       showToast('An unexpected error occurred. Please try again.', 'error');
     } finally {
       // Reset the flag after a short delay to prevent rapid re-additions
       addBookTimeoutRef.current = setTimeout(() => {
-        console.log('[iOS] Resetting isAddingBook flag');
+        console.log('Resetting isAddingBook flag');
         setIsAddingBook(false);
       }, 2000);
     }
   };
 
   const handleBarcodeScanned = async (isbn: string) => {
-    console.log('[iOS] ISBN scanned:', isbn);
+    console.log('ISBN scanned:', isbn);
     
     // Prevent duplicate processing
     if (isAddingBook) {
-      console.log('[iOS] Already adding a book - ignoring barcode scan');
+      console.log('Already adding a book - ignoring barcode scan');
       return;
     }
     
@@ -417,13 +417,13 @@ export default function BooksScreen() {
     setIsSearching(true);
 
     try {
-      console.log('[iOS] Searching for book by ISBN...');
+      console.log('Searching for book by ISBN...');
       // Search for book by ISBN - this will use fallback methods if quota exceeded
       const book = await searchBookByISBN(isbn);
 
       if (!book) {
         // Book not found - show options modal
-        console.log('[iOS] Book not found - showing options modal');
+        console.log('Book not found - showing options modal');
         setNotFoundISBN(isbn);
         setShowISBNNotFoundModal(true);
         setIsSearching(false);
@@ -431,11 +431,11 @@ export default function BooksScreen() {
         return;
       }
 
-      console.log('[iOS] Book found by ISBN:', book.title);
+      console.log('Book found by ISBN:', book.title);
       // Add the book
       await handleSelectBook(book);
     } catch (error) {
-      console.error('[iOS] Error handling barcode scan:', error);
+      console.error('Error handling barcode scan:', error);
       showToast('An error occurred while searching for the book. Please try again.', 'error');
       setIsAddingBook(false);
     } finally {
@@ -444,7 +444,7 @@ export default function BooksScreen() {
   };
 
   const handleManualISBNSubmit = async (isbn: string) => {
-    console.log('[iOS] Manual ISBN submitted:', isbn);
+    console.log('Manual ISBN submitted:', isbn);
     
     if (!selectedChild) {
       showToast('Please select a child before adding books.', 'warning');
@@ -455,12 +455,12 @@ export default function BooksScreen() {
     setIsSearching(true);
 
     try {
-      console.log('[iOS] Searching for book by manual ISBN...');
+      console.log('Searching for book by manual ISBN...');
       const book = await searchBookByISBN(isbn);
 
       if (!book) {
         // Still not found - update the modal to show manual input mode with this ISBN
-        console.log('[iOS] Book still not found - staying in modal');
+        console.log('Book still not found - staying in modal');
         setNotFoundISBN(isbn);
         setIsSearching(false);
         setIsAddingBook(false);
@@ -468,13 +468,13 @@ export default function BooksScreen() {
         return;
       }
 
-      console.log('[iOS] Book found by manual ISBN:', book.title);
+      console.log('Book found by manual ISBN:', book.title);
       // Close the modal
       setShowISBNNotFoundModal(false);
       // Add the book
       await handleSelectBook(book);
     } catch (error) {
-      console.error('[iOS] Error handling manual ISBN:', error);
+      console.error('Error handling manual ISBN:', error);
       showToast('An error occurred while searching for the book. Please try again.', 'error');
       setIsAddingBook(false);
     } finally {
@@ -483,7 +483,7 @@ export default function BooksScreen() {
   };
 
   const handleAddCustomBookFromModal = (isbn?: string) => {
-    console.log('[iOS] Add custom book from modal, ISBN:', isbn);
+    console.log('Add custom book from modal, ISBN:', isbn);
     
     // Close the ISBN not found modal
     setShowISBNNotFoundModal(false);
@@ -495,17 +495,17 @@ export default function BooksScreen() {
   };
 
   const handleBookPress = useCallback((book: SavedBook) => {
-    console.log('[iOS] Book pressed:', book.book.title, 'Modal open:', isModalOpen, 'Last clicked:', lastClickedBookIdRef.current);
+    console.log('Book pressed:', book.book.title, 'Modal open:', isModalOpen, 'Last clicked:', lastClickedBookIdRef.current);
     
     // If modal is already open, ignore the press
     if (isModalOpen) {
-      console.log('[iOS] Modal already open - ignoring press');
+      console.log('Modal already open - ignoring press');
       return;
     }
 
     // If clicking the same book within 500ms, ignore (debounce)
     if (lastClickedBookIdRef.current === book.id) {
-      console.log('[iOS] Same book clicked within debounce period - ignoring');
+      console.log('Same book clicked within debounce period - ignoring');
       return;
     }
 
@@ -535,14 +535,14 @@ export default function BooksScreen() {
   }, [isModalOpen]);
 
   const handleCloseBookDetail = () => {
-    console.log('[iOS] Closing book detail modal');
+    console.log('Closing book detail modal');
     setSelectedBook(null);
     setIsModalOpen(false);
     lastClickedBookIdRef.current = null;
   };
 
   const handleImageError = (bookId: string) => {
-    console.log('[iOS] Image failed to load for book:', bookId);
+    console.log('Image failed to load for book:', bookId);
     setImageErrors(prev => new Set(prev).add(bookId));
   };
 
@@ -698,7 +698,7 @@ export default function BooksScreen() {
         prefillTitle=""
         prefillISBN={notFoundISBN}
         onClose={() => {
-          console.log('[iOS] Custom book bottom sheet closed');
+          console.log('Custom book bottom sheet closed');
           setNotFoundISBN('');
         }}
         onBookAdded={fetchSavedBooks}
