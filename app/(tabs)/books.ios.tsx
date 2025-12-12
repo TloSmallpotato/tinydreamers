@@ -27,6 +27,7 @@ import BarcodeScannerModal from '@/components/BarcodeScannerModal';
 import ISBNNotFoundModal from '@/components/ISBNNotFoundModal';
 import ToastNotification from '@/components/ToastNotification';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 
 interface SavedBook {
   id: string;
@@ -164,10 +165,10 @@ export default function BooksScreen() {
   useFocusEffect(
     useCallback(() => {
       const autoScan = params.autoScan;
-      console.log('useFocusEffect - autoScan:', autoScan, 'hasProcessedAutoOpen:', hasProcessedAutoOpen.current);
+      console.log('🔵 [iOS] useFocusEffect - autoScan:', autoScan, 'hasProcessedAutoOpen:', hasProcessedAutoOpen.current);
       
       if (autoScan === 'true' && !hasProcessedAutoOpen.current) {
-        console.log('autoScan parameter detected - opening barcode scanner');
+        console.log('🔵 [iOS] autoScan parameter detected - opening barcode scanner');
         hasProcessedAutoOpen.current = true;
         
         // Clear the parameter immediately
@@ -181,7 +182,7 @@ export default function BooksScreen() {
       
       // Reset the flag when leaving the screen
       return () => {
-        console.log('Leaving books screen - resetting hasProcessedAutoOpen flag');
+        console.log('[iOS] Leaving books screen - resetting hasProcessedAutoOpen flag');
         hasProcessedAutoOpen.current = false;
       };
     }, [params.autoScan, router])
@@ -281,6 +282,7 @@ export default function BooksScreen() {
     if (!selectedChild) {
       console.log('No child selected');
       showToast('Please select a child before adding books.', 'warning');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
 
@@ -327,6 +329,7 @@ export default function BooksScreen() {
         if (insertError) {
           console.error('Error creating book in database:', insertError);
           showToast('Failed to add book. Please try again.', 'error');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           setIsAddingBook(false);
           return;
         }
@@ -340,6 +343,7 @@ export default function BooksScreen() {
       } else {
         console.error('Error fetching book from database:', fetchError);
         showToast('Failed to add book. Please try again.', 'error');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setIsAddingBook(false);
         return;
       }
@@ -356,6 +360,7 @@ export default function BooksScreen() {
       if (existingUserBook) {
         console.log('User already has this book in their library');
         showToast('This book is already in your library.', 'info');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         setIsAddingBook(false);
         return;
       }
@@ -374,6 +379,7 @@ export default function BooksScreen() {
       if (relationError) {
         console.error('Error adding book to user library:', relationError);
         showToast('Failed to add book to library. Please try again.', 'error');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setIsAddingBook(false);
         return;
       }
@@ -386,9 +392,11 @@ export default function BooksScreen() {
 
       // Show success message
       showToast('Book added to your library!', 'success');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error('Error in handleSelectBook:', error);
       showToast('An unexpected error occurred. Please try again.', 'error');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       // Reset the flag after a short delay to prevent rapid re-additions
       addBookTimeoutRef.current = setTimeout(() => {
@@ -399,7 +407,8 @@ export default function BooksScreen() {
   };
 
   const handleBarcodeScanned = async (isbn: string) => {
-    console.log('ISBN scanned:', isbn);
+    console.log('🔵 [iOS] ISBN scanned:', isbn);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     // Prevent duplicate processing
     if (isAddingBook) {
@@ -409,6 +418,7 @@ export default function BooksScreen() {
     
     if (!selectedChild) {
       showToast('Please select a child before adding books.', 'warning');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
 
@@ -428,6 +438,7 @@ export default function BooksScreen() {
         setShowISBNNotFoundModal(true);
         setIsSearching(false);
         setIsAddingBook(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         return;
       }
 
@@ -437,6 +448,7 @@ export default function BooksScreen() {
     } catch (error) {
       console.error('Error handling barcode scan:', error);
       showToast('An error occurred while searching for the book. Please try again.', 'error');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setIsAddingBook(false);
     } finally {
       setIsSearching(false);
@@ -444,10 +456,12 @@ export default function BooksScreen() {
   };
 
   const handleManualISBNSubmit = async (isbn: string) => {
-    console.log('Manual ISBN submitted:', isbn);
+    console.log('🔵 [iOS] Manual ISBN submitted:', isbn);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     if (!selectedChild) {
       showToast('Please select a child before adding books.', 'warning');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
 
@@ -465,6 +479,7 @@ export default function BooksScreen() {
         setIsSearching(false);
         setIsAddingBook(false);
         showToast('Book not found. You can add it as a custom book.', 'warning');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         return;
       }
 
@@ -476,6 +491,7 @@ export default function BooksScreen() {
     } catch (error) {
       console.error('Error handling manual ISBN:', error);
       showToast('An error occurred while searching for the book. Please try again.', 'error');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setIsAddingBook(false);
     } finally {
       setIsSearching(false);
@@ -483,7 +499,8 @@ export default function BooksScreen() {
   };
 
   const handleAddCustomBookFromModal = (isbn?: string) => {
-    console.log('Add custom book from modal, ISBN:', isbn);
+    console.log('🔵 [iOS] Add custom book from modal, ISBN:', isbn);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     // Close the ISBN not found modal
     setShowISBNNotFoundModal(false);
@@ -495,7 +512,8 @@ export default function BooksScreen() {
   };
 
   const handleBookPress = useCallback((book: SavedBook) => {
-    console.log('Book pressed:', book.book.title, 'Modal open:', isModalOpen, 'Last clicked:', lastClickedBookIdRef.current);
+    console.log('🔵 [iOS] Book pressed:', book.book.title, 'Modal open:', isModalOpen, 'Last clicked:', lastClickedBookIdRef.current);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     // If modal is already open, ignore the press
     if (isModalOpen) {
@@ -597,7 +615,11 @@ export default function BooksScreen() {
                 styles.addButton, 
                 (isAddingBook || isSearching) && styles.addButtonLoading
               ]}
-              onPress={() => setShowScanner(true)}
+              onPress={() => {
+                console.log('🔵 [iOS] Add book button pressed');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setShowScanner(true);
+              }}
               activeOpacity={0.7}
               disabled={isAddingBook || isSearching}
             >
@@ -710,6 +732,8 @@ export default function BooksScreen() {
         visible={showISBNNotFoundModal}
         scannedISBN={notFoundISBN}
         onClose={() => {
+          console.log('🔵 [iOS] ISBN not found modal closed');
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           setShowISBNNotFoundModal(false);
           setNotFoundISBN('');
         }}
@@ -720,7 +744,11 @@ export default function BooksScreen() {
 
       <BarcodeScannerModal
         visible={showScanner}
-        onClose={() => setShowScanner(false)}
+        onClose={() => {
+          console.log('🔵 [iOS] Barcode scanner closed');
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setShowScanner(false);
+        }}
         onBarcodeScanned={handleBarcodeScanned}
       />
 
