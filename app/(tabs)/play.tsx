@@ -1,15 +1,35 @@
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Platform, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
+import { HapticFeedback } from '@/utils/haptics';
 
 export default function PlayScreen() {
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    HapticFeedback.light();
+    setRefreshing(true);
+    // Simulate a refresh delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setRefreshing(false);
+    HapticFeedback.success();
+  }, []);
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         <View style={styles.header}>
           <Text style={commonStyles.title}>Play</Text>

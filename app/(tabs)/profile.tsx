@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Image, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
@@ -11,11 +11,11 @@ import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
 import SettingsBottomSheet from '@/components/SettingsBottomSheet';
-
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { supabase } from '@/app/integrations/supabase/client';
 import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
+import { HapticFeedback } from '@/utils/haptics';
 
 interface ProfileStats {
   totalWords: number;
@@ -53,7 +53,6 @@ export default function ProfileScreen() {
   const addChildRef = useRef<BottomSheetModal>(null);
   const settingsRef = useRef<BottomSheetModal>(null);
 
-
   const [stats, setStats] = useState<ProfileStats>({
     totalWords: 0,
     totalBooks: 0,
@@ -69,6 +68,7 @@ export default function ProfileScreen() {
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
 
@@ -229,6 +229,15 @@ export default function ProfileScreen() {
     }
   }, [selectedChild, childLoading, fetchProfileData]);
 
+  // Pull to refresh handler
+  const onRefresh = useCallback(async () => {
+    HapticFeedback.light();
+    setRefreshing(true);
+    await fetchProfileData(true);
+    setRefreshing(false);
+    HapticFeedback.success();
+  }, [fetchProfileData]);
+
   // Debounced fetch function to prevent excessive API calls
   const debouncedFetchProfileData = useCallback(() => {
     // Clear any existing timeout
@@ -373,6 +382,7 @@ export default function ProfileScreen() {
   const handleOpenChildSelector = () => {
     try {
       console.log('ProfileScreen: Opening child selector bottom sheet');
+      HapticFeedback.medium();
       childSelectorRef.current?.present();
     } catch (err) {
       console.error('ProfileScreen: Error opening child selector:', err);
@@ -382,6 +392,7 @@ export default function ProfileScreen() {
   const handleSelectChild = (childId: string) => {
     try {
       console.log('ProfileScreen: Selecting child:', childId);
+      HapticFeedback.selection();
       selectChild(childId);
       childSelectorRef.current?.dismiss();
     } catch (err) {
@@ -392,6 +403,7 @@ export default function ProfileScreen() {
   const handleOpenAddChild = () => {
     try {
       console.log('ProfileScreen: Opening add child bottom sheet');
+      HapticFeedback.medium();
       childSelectorRef.current?.dismiss();
       setTimeout(() => {
         addChildRef.current?.present();
@@ -405,15 +417,18 @@ export default function ProfileScreen() {
     try {
       console.log('ProfileScreen: Adding child:', name, birthDate);
       await addChild(name, birthDate);
+      HapticFeedback.success();
       addChildRef.current?.dismiss();
     } catch (err) {
       console.error('ProfileScreen: Error adding child:', err);
+      HapticFeedback.error();
     }
   };
 
   const handleOpenSettings = () => {
     try {
       console.log('ProfileScreen: Settings button pressed - opening settings bottom sheet');
+      HapticFeedback.medium();
       settingsRef.current?.present();
     } catch (err) {
       console.error('ProfileScreen: Error opening settings:', err);
@@ -423,6 +438,7 @@ export default function ProfileScreen() {
   const handleRecordMoment = () => {
     try {
       console.log('ProfileScreen: Record button pressed - triggering camera');
+      HapticFeedback.medium();
       triggerCamera();
     } catch (err) {
       console.error('ProfileScreen: Error triggering camera:', err);
@@ -432,6 +448,7 @@ export default function ProfileScreen() {
   const handleViewMoreMoments = () => {
     try {
       console.log('ProfileScreen: View more moments pressed - navigating to all moments page');
+      HapticFeedback.medium();
       router.push('/all-moments');
     } catch (err) {
       console.error('ProfileScreen: Error navigating to all moments page:', err);
@@ -440,6 +457,7 @@ export default function ProfileScreen() {
 
   const handleMomentPress = (moment: Moment) => {
     console.log('ProfileScreen: Moment pressed:', moment.id);
+    HapticFeedback.medium();
     setSelectedVideoUri(moment.video_url);
     setShowVideoPlayer(true);
   };
@@ -454,6 +472,7 @@ export default function ProfileScreen() {
     if (!selectedChild) {
       console.log('ProfileScreen: No selected child for avatar change');
       Alert.alert('No Child Selected', 'Please select a child first');
+      HapticFeedback.warning();
       return;
     }
 
@@ -464,6 +483,7 @@ export default function ProfileScreen() {
 
     try {
       console.log('ProfileScreen: Starting avatar change process');
+      HapticFeedback.medium();
       
       // Step 1: Pick image
       const imageUri = await pickProfileImage();
@@ -488,6 +508,7 @@ export default function ProfileScreen() {
       if (!uploadResult.success || !uploadResult.url) {
         console.error('ProfileScreen: Upload failed:', uploadResult.error);
         Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image');
+        HapticFeedback.error();
         // Revert to old avatar URL on failure
         setLocalAvatarUrl(oldAvatarUrl || null);
         setUploadingAvatar(false);
@@ -508,6 +529,7 @@ export default function ProfileScreen() {
       if (updateError) {
         console.error('ProfileScreen: Database update failed:', updateError);
         Alert.alert('Update Failed', 'Failed to save profile photo');
+        HapticFeedback.error();
         // Revert to old avatar URL on failure
         setLocalAvatarUrl(oldAvatarUrl || null);
         setUploadingAvatar(false);
@@ -541,12 +563,14 @@ export default function ProfileScreen() {
       setUploadingAvatar(false);
       
       console.log('ProfileScreen: Avatar change complete!');
+      HapticFeedback.success();
       Alert.alert('Success', 'Profile photo updated successfully!');
     } catch (err) {
       console.error('ProfileScreen: Error changing avatar:', err);
       setUploadingAvatar(false);
       // Revert to context avatar URL on error
       setLocalAvatarUrl(selectedChild?.avatar_url || null);
+      HapticFeedback.error();
       Alert.alert('Error', 'Failed to update profile photo. Please try again.');
     }
   };
@@ -577,7 +601,13 @@ export default function ProfileScreen() {
             />
             <Text style={styles.errorText}>Failed to load profile</Text>
             <Text style={styles.errorSubtext}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => fetchProfileData(true)}>
+            <TouchableOpacity 
+              style={styles.retryButton} 
+              onPress={() => {
+                HapticFeedback.medium();
+                fetchProfileData(true);
+              }}
+            >
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -593,6 +623,14 @@ export default function ProfileScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
         >
           <View style={styles.header}>
             <View style={styles.headerSpacer} />
@@ -783,7 +821,10 @@ export default function ProfileScreen() {
                   <Text style={styles.analyticsPercent}>51%</Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.findOutButton}>
+              <TouchableOpacity 
+                style={styles.findOutButton}
+                onPress={() => HapticFeedback.medium()}
+              >
                 <Text style={styles.findOutButtonText}>Find out more</Text>
               </TouchableOpacity>
             </View>

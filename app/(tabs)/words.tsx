@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Alert, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Alert, Animated, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -11,6 +11,7 @@ import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { HapticFeedback } from '@/utils/haptics';
 
 interface UserWord {
   id: string;
@@ -53,6 +54,7 @@ export default function WordsScreen() {
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const addWordSheetRef = useRef<BottomSheetModal>(null);
@@ -162,6 +164,7 @@ export default function WordsScreen() {
     } catch (error) {
       console.error('Error in fetchWords:', error);
       Alert.alert('Error', 'Failed to load words');
+      HapticFeedback.error();
     } finally {
       setLoading(false);
     }
@@ -172,6 +175,15 @@ export default function WordsScreen() {
       fetchWords();
     }, [fetchWords])
   );
+
+  // Pull to refresh handler
+  const onRefresh = useCallback(async () => {
+    HapticFeedback.light();
+    setRefreshing(true);
+    await fetchWords();
+    setRefreshing(false);
+    HapticFeedback.success();
+  }, [fetchWords]);
 
   // Handle opening a specific word detail when navigating from toast
   useEffect(() => {
@@ -206,6 +218,7 @@ export default function WordsScreen() {
   const handleAddWord = async (word: string, emoji: string, color: string) => {
     if (!selectedChild) {
       Alert.alert('Error', 'Please select a child first');
+      HapticFeedback.error();
       return;
     }
 
@@ -266,6 +279,7 @@ export default function WordsScreen() {
 
       if (existingUserWord) {
         Alert.alert('Word Already Added', 'This word is already in your list');
+        HapticFeedback.warning();
         addWordSheetRef.current?.dismiss();
         return;
       }
@@ -285,16 +299,19 @@ export default function WordsScreen() {
       }
 
       console.log('Word added successfully');
+      HapticFeedback.success();
       addWordSheetRef.current?.dismiss();
       await fetchWords();
     } catch (error) {
       console.error('Error in handleAddWord:', error);
       Alert.alert('Error', 'Failed to add word');
+      HapticFeedback.error();
     }
   };
 
   const handleWordPress = useCallback((word: Word) => {
     console.log('Word pressed:', word.word);
+    HapticFeedback.medium();
     setSelectedWord(word);
     // Use requestAnimationFrame to ensure the state is set before presenting
     requestAnimationFrame(() => {
@@ -304,6 +321,7 @@ export default function WordsScreen() {
 
   const handleOpenAddWord = () => {
     console.log('Opening add word bottom sheet from + button');
+    HapticFeedback.medium();
     addWordSheetRef.current?.present();
   };
 
@@ -328,6 +346,14 @@ export default function WordsScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
         >
           <View style={styles.header}>
             <View style={styles.headerRow}>

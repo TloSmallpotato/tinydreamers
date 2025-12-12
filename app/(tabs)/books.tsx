@@ -11,6 +11,7 @@ import {
   Keyboard,
   Alert,
   Animated,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -27,6 +28,7 @@ import BarcodeScannerModal from '@/components/BarcodeScannerModal';
 import ISBNNotFoundModal from '@/components/ISBNNotFoundModal';
 import ToastNotification from '@/components/ToastNotification';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { HapticFeedback } from '@/utils/haptics';
 
 interface SavedBook {
   id: string;
@@ -79,6 +81,7 @@ export default function BooksScreen() {
   const [notFoundISBN, setNotFoundISBN] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const addCustomBookRef = useRef<BottomSheetModal>(null);
@@ -271,6 +274,15 @@ export default function BooksScreen() {
     fetchSavedBooks();
   }, [fetchSavedBooks]);
 
+  // Pull to refresh handler
+  const onRefresh = useCallback(async () => {
+    HapticFeedback.light();
+    setRefreshing(true);
+    await fetchSavedBooks();
+    setRefreshing(false);
+    HapticFeedback.success();
+  }, [fetchSavedBooks]);
+
   const handleSelectBook = async (book: BookSearchResult) => {
     // Prevent duplicate additions
     if (isAddingBook) {
@@ -281,6 +293,7 @@ export default function BooksScreen() {
     if (!selectedChild) {
       console.log('No child selected');
       showToast('Please select a child before adding books.', 'warning');
+      HapticFeedback.warning();
       return;
     }
 
@@ -327,6 +340,7 @@ export default function BooksScreen() {
         if (insertError) {
           console.error('Error creating book in database:', insertError);
           showToast('Failed to add book. Please try again.', 'error');
+          HapticFeedback.error();
           setIsAddingBook(false);
           return;
         }
@@ -340,6 +354,7 @@ export default function BooksScreen() {
       } else {
         console.error('Error fetching book from database:', fetchError);
         showToast('Failed to add book. Please try again.', 'error');
+        HapticFeedback.error();
         setIsAddingBook(false);
         return;
       }
@@ -356,6 +371,7 @@ export default function BooksScreen() {
       if (existingUserBook) {
         console.log('User already has this book in their library');
         showToast('This book is already in your library.', 'info');
+        HapticFeedback.warning();
         setIsAddingBook(false);
         return;
       }
@@ -374,6 +390,7 @@ export default function BooksScreen() {
       if (relationError) {
         console.error('Error adding book to user library:', relationError);
         showToast('Failed to add book to library. Please try again.', 'error');
+        HapticFeedback.error();
         setIsAddingBook(false);
         return;
       }
@@ -386,9 +403,11 @@ export default function BooksScreen() {
 
       // Show success message
       showToast('Book added to your library!', 'success');
+      HapticFeedback.success();
     } catch (error) {
       console.error('Error in handleSelectBook:', error);
       showToast('An unexpected error occurred. Please try again.', 'error');
+      HapticFeedback.error();
     } finally {
       // Reset the flag after a short delay to prevent rapid re-additions
       addBookTimeoutRef.current = setTimeout(() => {
@@ -400,6 +419,7 @@ export default function BooksScreen() {
 
   const handleBarcodeScanned = async (isbn: string) => {
     console.log('ISBN scanned:', isbn);
+    HapticFeedback.medium();
     
     // Prevent duplicate processing
     if (isAddingBook) {
@@ -409,6 +429,7 @@ export default function BooksScreen() {
     
     if (!selectedChild) {
       showToast('Please select a child before adding books.', 'warning');
+      HapticFeedback.warning();
       return;
     }
 
@@ -428,6 +449,7 @@ export default function BooksScreen() {
         setShowISBNNotFoundModal(true);
         setIsSearching(false);
         setIsAddingBook(false);
+        HapticFeedback.warning();
         return;
       }
 
@@ -437,6 +459,7 @@ export default function BooksScreen() {
     } catch (error) {
       console.error('Error handling barcode scan:', error);
       showToast('An error occurred while searching for the book. Please try again.', 'error');
+      HapticFeedback.error();
       setIsAddingBook(false);
     } finally {
       setIsSearching(false);
@@ -445,9 +468,11 @@ export default function BooksScreen() {
 
   const handleManualISBNSubmit = async (isbn: string) => {
     console.log('Manual ISBN submitted:', isbn);
+    HapticFeedback.medium();
     
     if (!selectedChild) {
       showToast('Please select a child before adding books.', 'warning');
+      HapticFeedback.warning();
       return;
     }
 
@@ -465,6 +490,7 @@ export default function BooksScreen() {
         setIsSearching(false);
         setIsAddingBook(false);
         showToast('Book not found. You can add it as a custom book.', 'warning');
+        HapticFeedback.warning();
         return;
       }
 
@@ -476,6 +502,7 @@ export default function BooksScreen() {
     } catch (error) {
       console.error('Error handling manual ISBN:', error);
       showToast('An error occurred while searching for the book. Please try again.', 'error');
+      HapticFeedback.error();
       setIsAddingBook(false);
     } finally {
       setIsSearching(false);
@@ -484,6 +511,7 @@ export default function BooksScreen() {
 
   const handleAddCustomBookFromModal = (isbn?: string) => {
     console.log('Add custom book from modal, ISBN:', isbn);
+    HapticFeedback.medium();
     
     // Close the ISBN not found modal
     setShowISBNNotFoundModal(false);
@@ -496,6 +524,7 @@ export default function BooksScreen() {
 
   const handleBookPress = useCallback((book: SavedBook) => {
     console.log('Book pressed:', book.book.title, 'Modal open:', isModalOpen, 'Last clicked:', lastClickedBookIdRef.current);
+    HapticFeedback.medium();
     
     // If modal is already open, ignore the press
     if (isModalOpen) {
@@ -573,6 +602,14 @@ export default function BooksScreen() {
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
         >
           <View style={styles.header}>
             <View style={styles.headerRow}>
@@ -597,7 +634,10 @@ export default function BooksScreen() {
                 styles.addButton, 
                 (isAddingBook || isSearching) && styles.addButtonLoading
               ]}
-              onPress={() => setShowScanner(true)}
+              onPress={() => {
+                HapticFeedback.medium();
+                setShowScanner(true);
+              }}
               activeOpacity={0.7}
               disabled={isAddingBook || isSearching}
             >
@@ -710,6 +750,7 @@ export default function BooksScreen() {
         visible={showISBNNotFoundModal}
         scannedISBN={notFoundISBN}
         onClose={() => {
+          HapticFeedback.light();
           setShowISBNNotFoundModal(false);
           setNotFoundISBN('');
         }}
@@ -720,7 +761,10 @@ export default function BooksScreen() {
 
       <BarcodeScannerModal
         visible={showScanner}
-        onClose={() => setShowScanner(false)}
+        onClose={() => {
+          HapticFeedback.light();
+          setShowScanner(false);
+        }}
         onBarcodeScanned={handleBarcodeScanned}
       />
 
