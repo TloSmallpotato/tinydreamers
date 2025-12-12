@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import * as Haptics from 'expo-haptics';
 
 interface Child {
   id: string;
@@ -36,6 +37,17 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
       []
     );
 
+    const handleSelectChild = (childId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      console.log('Child selected:', childId);
+      onSelectChild(childId);
+    };
+
+    const handleAddChild = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      onAddChild();
+    };
+
     return (
       <BottomSheetModal
         ref={ref}
@@ -63,10 +75,7 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
                   styles.childItem,
                   selectedChildId === child.id && styles.childItemSelected,
                 ]}
-                onPress={() => {
-                  console.log('Child selected:', child.name);
-                  onSelectChild(child.id);
-                }}
+                onPress={() => handleSelectChild(child.id)}
               >
                 <View style={styles.childAvatar}>
                   <Text style={styles.childAvatarText}>
@@ -86,7 +95,7 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
             ))}
           </View>
 
-          <TouchableOpacity style={styles.addButton} onPress={onAddChild}>
+          <TouchableOpacity style={styles.addButton} onPress={handleAddChild}>
             <IconSymbol
               ios_icon_name="plus.circle.fill"
               android_material_icon_name="add-circle"

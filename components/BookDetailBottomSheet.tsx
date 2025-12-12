@@ -6,6 +6,7 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Image } from 'expo-image';
+import * as Haptics from 'expo-haptics';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -82,12 +83,14 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     }, [cachedUserBook, onRefresh]);
 
     const handleRatingPress = useCallback(async (newRating: RatingType) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const finalRating = rating === newRating ? null : newRating;
       setRating(finalRating);
       await updateBookData('rating', finalRating);
     }, [rating, updateBookData]);
 
     const toggleRecommend = useCallback(async () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const newValue = !wouldRecommend;
       setWouldRecommend(newValue);
       await updateBookData('would_recommend', newValue);
@@ -120,6 +123,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     }, [cachedUserBook, ref, onRefresh]);
 
     const handleDeleteBook = useCallback(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setShowMenu(false);
       
       Alert.alert(
@@ -140,6 +144,11 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         ]
       );
     }, [cachedUserBook, deleteBook]);
+
+    const handleMenuPress = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setShowMenu(!showMenu);
+    };
 
     const renderBackdrop = useCallback(
       (props: any) => (
@@ -208,7 +217,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
             <Text style={styles.headerTitle}>Book Details</Text>
             <TouchableOpacity
               style={styles.menuButton}
-              onPress={() => setShowMenu(!showMenu)}
+              onPress={handleMenuPress}
             >
               <IconSymbol
                 ios_icon_name="ellipsis.circle"

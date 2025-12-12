@@ -12,6 +12,7 @@ import {
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -101,6 +102,21 @@ export default function AddOptionsModal({
     return null;
   }
 
+  const handleScanBook = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onScanBook();
+  };
+
+  const handleAddWord = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onAddWord();
+  };
+
+  const handleCaptureMoment = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onCaptureMoment();
+  };
+
   return (
     <TouchableWithoutFeedback onPress={onClose}>
       <Animated.View
@@ -126,7 +142,7 @@ export default function AddOptionsModal({
               >
                 <TouchableOpacity
                   style={styles.smallButton}
-                  onPress={onScanBook}
+                  onPress={handleScanBook}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.solidButton, { backgroundColor: '#3330AF' }]}>
@@ -146,7 +162,7 @@ export default function AddOptionsModal({
               >
                 <TouchableOpacity
                   style={styles.smallButton}
-                  onPress={onAddWord}
+                  onPress={handleAddWord}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.solidButton, { backgroundColor: '#F9B6E9' }]}>
@@ -168,7 +184,7 @@ export default function AddOptionsModal({
             >
               <TouchableOpacity
                 style={styles.largeButton}
-                onPress={onCaptureMoment}
+                onPress={handleCaptureMoment}
                 activeOpacity={0.8}
               >
                 <View style={[styles.solidButtonLarge, { backgroundColor: '#F54B02' }]}>
