@@ -604,7 +604,7 @@ export default function BooksScreen() {
               {isSearching ? (
                 <>
                   <ActivityIndicator size="small" color={colors.backgroundAlt} />
-                  <Text style={styles.addButtonText}>
+                  <Text style={styles.loadingText}>
                     {LOADING_MESSAGES[loadingMessageIndex]}
                   </Text>
                 </>
@@ -794,6 +794,11 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     fontSize: 16,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
+  },
+  loadingText: {
+    fontSize: 12,
     fontWeight: '700',
     color: colors.backgroundAlt,
   },
