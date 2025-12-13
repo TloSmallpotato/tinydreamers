@@ -48,8 +48,8 @@ export const ScallopedBadge: React.FC<ScallopedBadgeProps> = ({ color, size, loc
   const opacity = locked ? 0.5 : 1;
 
   return (
-    <View style={[styles.container, { width: size, height: size }]}>
-      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <View style={[styles.container, { width: size, height: size }]} pointerEvents="none">
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} pointerEvents="none">
         <Path
           d={createScallopedPath()}
           fill={badgeColor}

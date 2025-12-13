@@ -28,9 +28,14 @@ export default function MilestonesScreen() {
 
   const handleBadgePress = (milestone: Milestone) => {
     console.log('MilestonesScreen (iOS): Badge pressed:', milestone.name);
+    // Fire haptics immediately and synchronously
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Set state and present bottom sheet
     setSelectedMilestone(milestone);
-    bottomSheetRef.current?.present();
+    // Use setTimeout to ensure state is set before presenting
+    setTimeout(() => {
+      bottomSheetRef.current?.present();
+    }, 0);
   };
 
   const handleCloseBottomSheet = () => {
@@ -69,6 +74,7 @@ export default function MilestonesScreen() {
                 style={styles.badgeItem}
                 onPress={() => handleBadgePress(milestone)}
                 activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <ScallopedBadge
                   color={milestone.color}
