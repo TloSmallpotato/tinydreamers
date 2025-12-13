@@ -14,7 +14,7 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import CantFindBookModal from '@/components/CantFindBookModal';
+import ISBNNotFoundModal from '@/components/ISBNNotFoundModal';
 
 interface BarcodeScannerModalProps {
   visible: boolean;
@@ -32,6 +32,7 @@ export default function BarcodeScannerModal({
   const [scanned, setScanned] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCantFindModal, setShowCantFindModal] = useState(false);
+  const [isSearchingManualISBN, setIsSearchingManualISBN] = useState(false);
   const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastScannedISBNRef = useRef<string>('');
   const lastScannedTimeRef = useRef<number>(0);
@@ -168,28 +169,26 @@ export default function BarcodeScannerModal({
     console.log('🔍 Can\'t find a book? button pressed');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    // Show the CantFindBookModal
+    // Show the ISBNNotFoundModal (reusing it for consistency)
     setShowCantFindModal(true);
   };
 
-  const handleEnterISBN = () => {
-    console.log('📝 Enter ISBN manually selected');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const handleManualISBNSubmit = async (isbn: string) => {
+    console.log('📝 Manual ISBN submitted:', isbn);
+    setIsSearchingManualISBN(true);
     
-    // Close both modals
-    setShowCantFindModal(false);
-    onClose();
-    
-    // Navigate to search-book using absolute path
-    setTimeout(() => {
-      try {
-        console.log('🔍 Navigating to /search-book');
-        router.push('/search-book');
-        console.log('✅ Navigation called successfully');
-      } catch (error) {
-        console.error('❌ Navigation error:', error);
-      }
-    }, 300);
+    try {
+      // Call the callback with the manually entered ISBN
+      await onBarcodeScanned(isbn);
+      
+      // Close both modals
+      setShowCantFindModal(false);
+      onClose();
+    } catch (error) {
+      console.error('❌ Error processing manual ISBN:', error);
+    } finally {
+      setIsSearchingManualISBN(false);
+    }
   };
 
   const handleSearchBookName = () => {
@@ -333,15 +332,21 @@ export default function BarcodeScannerModal({
         </View>
       </View>
 
-      <CantFindBookModal
+      <ISBNNotFoundModal
         visible={showCantFindModal}
+        scannedISBN=""
         onClose={() => {
-          console.log('🔵 CantFindBookModal closed');
+          console.log('🔵 ISBNNotFoundModal closed');
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           setShowCantFindModal(false);
         }}
-        onEnterISBN={handleEnterISBN}
+        onManualISBNSubmit={handleManualISBNSubmit}
         onSearchBookName={handleSearchBookName}
+        isSearching={isSearchingManualISBN}
+        title="Can't find the book?"
+        subtitle="Choose how you'd like to add your book"
+        iconName="questionmark.circle.fill"
+        iconColor={colors.primary}
       />
     </Modal>
   );
