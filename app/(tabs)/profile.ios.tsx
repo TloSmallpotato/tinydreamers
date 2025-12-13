@@ -438,6 +438,15 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleFindOutMore = () => {
+    try {
+      console.log('ProfileScreen (iOS): Find out more pressed - navigating to milestones page');
+      router.push('/milestones');
+    } catch (err) {
+      console.error('ProfileScreen (iOS): Error navigating to milestones page:', err);
+    }
+  };
+
   const handleMomentPress = (moment: Moment) => {
     console.log('ProfileScreen (iOS): Moment pressed:', moment.id);
     setSelectedVideoUri(moment.video_url);
@@ -783,7 +792,7 @@ export default function ProfileScreen() {
                   <Text style={styles.analyticsPercent}>51%</Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.findOutButton}>
+              <TouchableOpacity style={styles.findOutButton} onPress={handleFindOutMore}>
                 <Text style={styles.findOutButtonText}>Find out more</Text>
               </TouchableOpacity>
             </View>

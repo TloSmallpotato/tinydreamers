@@ -455,6 +455,16 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleFindOutMore = () => {
+    try {
+      console.log('ProfileScreen: Find out more pressed - navigating to milestones page');
+      HapticFeedback.medium();
+      router.push('/milestones');
+    } catch (err) {
+      console.error('ProfileScreen: Error navigating to milestones page:', err);
+    }
+  };
+
   const handleMomentPress = (moment: Moment) => {
     console.log('ProfileScreen: Moment pressed:', moment.id);
     HapticFeedback.medium();
@@ -823,7 +833,7 @@ export default function ProfileScreen() {
               </View>
               <TouchableOpacity 
                 style={styles.findOutButton}
-                onPress={() => HapticFeedback.medium()}
+                onPress={handleFindOutMore}
               >
                 <Text style={styles.findOutButtonText}>Find out more</Text>
               </TouchableOpacity>
