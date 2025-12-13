@@ -1,17 +1,87 @@
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { ScallopedBadge } from '@/components/ScallopedBadge';
+import BadgeDetailBottomSheet from '@/components/BadgeDetailBottomSheet';
+import { AchievementUnlockModal } from '@/components/AchievementUnlockModal';
+import { milestonesData } from '@/data/milestonesData';
+import type { Milestone } from '@/components/BadgeDetailBottomSheet';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import * as Haptics from 'expo-haptics';
 
 export default function MilestonesScreen() {
   const router = useRouter();
+  const [selectedMilestone, setSelectedMilestone] = useState<Milestone | null>(null);
+  const [achievementMilestone, setAchievementMilestone] = useState<Milestone | null>(null);
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
 
   const handleBack = () => {
     console.log('MilestonesScreen (iOS): Back button pressed');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
+  };
+
+  const handleBadgePress = (milestone: Milestone) => {
+    console.log('MilestonesScreen (iOS): Badge pressed:', milestone.name);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedMilestone(milestone);
+    bottomSheetRef.current?.present();
+  };
+
+  const handleCloseBottomSheet = () => {
+    console.log('MilestonesScreen (iOS): Closing bottom sheet');
+    setSelectedMilestone(null);
+  };
+
+  const handleCloseAchievementModal = () => {
+    console.log('MilestonesScreen (iOS): Closing achievement modal');
+    setShowAchievementModal(false);
+    setAchievementMilestone(null);
+  };
+
+  // Example function to trigger achievement unlock (for testing)
+  // You can call this when a milestone is actually achieved
+  const triggerAchievement = (milestone: Milestone) => {
+    console.log('MilestonesScreen (iOS): Triggering achievement:', milestone.name);
+    const achievedMilestone = { ...milestone, achieved: true, dateAchieved: new Date().toLocaleDateString() };
+    setAchievementMilestone(achievedMilestone);
+    setShowAchievementModal(true);
+  };
+
+  const renderBadgeGrid = () => {
+    const rows: Milestone[][] = [];
+    for (let i = 0; i < milestonesData.length; i += 3) {
+      rows.push(milestonesData.slice(i, i + 3));
+    }
+
+    return (
+      <View style={styles.badgeGrid}>
+        {rows.map((row, rowIndex) => (
+          <View key={rowIndex} style={styles.badgeRow}>
+            {row.map((milestone, colIndex) => (
+              <TouchableOpacity
+                key={milestone.id}
+                style={styles.badgeItem}
+                onPress={() => handleBadgePress(milestone)}
+                activeOpacity={0.7}
+              >
+                <ScallopedBadge
+                  color={milestone.color}
+                  size={100}
+                  locked={!milestone.achieved}
+                />
+                <Text style={styles.badgeLabel}>{milestone.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
+      </View>
+    );
   };
 
   return (
@@ -35,77 +105,23 @@ export default function MilestonesScreen() {
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.milestonesSection}>
-            <Text style={styles.sectionTitle}>Learning Progress</Text>
-            <Text style={styles.sectionDescription}>
-              Track your child&apos;s developmental milestones and learning achievements.
-            </Text>
-
-            <View style={styles.milestoneCard}>
-              <View style={[styles.milestoneCircle, { backgroundColor: colors.backgroundAlt }]}>
-                <Text style={styles.milestonePercent}>51%</Text>
-              </View>
-              <View style={styles.milestoneInfo}>
-                <Text style={styles.milestoneTitle}>Reading Skills</Text>
-                <Text style={styles.milestoneDescription}>
-                  Your child is making great progress in reading comprehension.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.milestoneCard}>
-              <View style={[styles.milestoneCircle, { backgroundColor: colors.secondary }]}>
-                <Text style={styles.milestonePercent}>51%</Text>
-              </View>
-              <View style={styles.milestoneInfo}>
-                <Text style={styles.milestoneTitle}>Vocabulary Growth</Text>
-                <Text style={styles.milestoneDescription}>
-                  Expanding vocabulary with new words every week.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.milestoneCard}>
-              <View style={[styles.milestoneCircle, { backgroundColor: colors.cardGreen }]}>
-                <Text style={styles.milestonePercent}>51%</Text>
-              </View>
-              <View style={styles.milestoneInfo}>
-                <Text style={styles.milestoneTitle}>Learning Consistency</Text>
-                <Text style={styles.milestoneDescription}>
-                  Regular learning sessions help build strong habits.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.milestoneCard}>
-              <View style={[styles.milestoneCircle, { backgroundColor: colors.buttonBlue }]}>
-                <Text style={styles.milestonePercent}>51%</Text>
-              </View>
-              <View style={styles.milestoneInfo}>
-                <Text style={styles.milestoneTitle}>Engagement Level</Text>
-                <Text style={styles.milestoneDescription}>
-                  Active participation in learning activities.
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.infoSection}>
-            <View style={styles.infoCard}>
-              <IconSymbol 
-                ios_icon_name="lightbulb.fill" 
-                android_material_icon_name="lightbulb" 
-                size={32} 
-                color={colors.accent} 
-              />
-              <Text style={styles.infoTitle}>What are Milestones?</Text>
-              <Text style={styles.infoText}>
-                Milestones help you track your child&apos;s learning journey and celebrate their achievements along the way.
-              </Text>
-            </View>
-          </View>
+          {renderBadgeGrid()}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Badge Detail Bottom Sheet */}
+      <BadgeDetailBottomSheet
+        ref={bottomSheetRef}
+        milestone={selectedMilestone}
+        onClose={handleCloseBottomSheet}
+      />
+
+      {/* Achievement Unlock Modal */}
+      <AchievementUnlockModal
+        visible={showAchievementModal}
+        milestone={achievementMilestone}
+        onClose={handleCloseAchievementModal}
+      />
     </View>
   );
 }
@@ -144,81 +160,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingTop: 20,
     paddingBottom: 40,
   },
-  milestonesSection: {
-    marginBottom: 24,
+  badgeGrid: {
+    width: '100%',
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.primary,
-    marginBottom: 8,
-  },
-  sectionDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  milestoneCard: {
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+  badgeRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
-    elevation: 2,
+    justifyContent: 'space-between',
+    marginBottom: 24,
   },
-  milestoneCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  milestonePercent: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  milestoneInfo: {
+  badgeItem: {
     flex: 1,
-  },
-  milestoneTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.primary,
-    marginBottom: 4,
-  },
-  milestoneDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  infoSection: {
-    marginTop: 8,
-  },
-  infoCard: {
-    backgroundColor: colors.cardPurple,
-    borderRadius: 16,
-    padding: 24,
     alignItems: 'center',
+    paddingHorizontal: 8,
   },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+  badgeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
     color: colors.primary,
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
+    marginTop: 8,
+    lineHeight: 16,
   },
 });
