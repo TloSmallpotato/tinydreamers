@@ -490,7 +490,7 @@ export default function BooksScreen() {
         setNotFoundISBN(isbn);
         setIsSearching(false);
         setIsAddingBook(false);
-        showToast('Book not found. You can add it as a custom book.', 'warning');
+        showToast('Book not found. Try searching by book name.', 'warning');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         return;
       }
@@ -510,16 +510,22 @@ export default function BooksScreen() {
     }
   };
 
-  const handleAddCustomBookFromModal = (isbn?: string) => {
-    console.log('🔵 Add custom book from modal, ISBN:', isbn);
+  const handleSearchBookName = () => {
+    console.log('🔍 Search book name selected from modal');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     // Close the ISBN not found modal
     setShowISBNNotFoundModal(false);
     
-    // Open the custom book bottom sheet with ISBN prefilled
+    // Navigate to search-book page
     setTimeout(() => {
-      addCustomBookRef.current?.present();
+      try {
+        console.log('🔍 Navigating to /search-book');
+        router.push('/search-book');
+        console.log('✅ Navigation called successfully');
+      } catch (error) {
+        console.error('❌ Navigation error:', error);
+      }
     }, 300);
   };
 
@@ -758,7 +764,7 @@ export default function BooksScreen() {
           setNotFoundISBN('');
         }}
         onManualISBNSubmit={handleManualISBNSubmit}
-        onAddCustomBook={handleAddCustomBookFromModal}
+        onSearchBookName={handleSearchBookName}
         isSearching={isSearching}
       />
 

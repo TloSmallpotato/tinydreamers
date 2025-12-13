@@ -172,8 +172,8 @@ export default function BarcodeScannerModal({
     setShowCantFindModal(true);
   };
 
-  const handleTypeISBN = () => {
-    console.log('🔍 Type ISBN manually selected');
+  const handleEnterISBN = () => {
+    console.log('📝 Enter ISBN manually selected');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     // Close both modals
@@ -192,16 +192,24 @@ export default function BarcodeScannerModal({
     }, 300);
   };
 
-  const handleUploadOwn = () => {
-    console.log('📚 Upload your own selected');
+  const handleSearchBookName = () => {
+    console.log('🔍 Search book name selected');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     // Close both modals
     setShowCantFindModal(false);
     onClose();
     
-    // The parent component (books.tsx) will handle opening the AddCustomBookBottomSheet
-    // We'll need to add a callback for this
+    // Navigate to search-book page
+    setTimeout(() => {
+      try {
+        console.log('🔍 Navigating to /search-book');
+        router.push('/search-book');
+        console.log('✅ Navigation called successfully');
+      } catch (error) {
+        console.error('❌ Navigation error:', error);
+      }
+    }, 300);
   };
 
   if (!visible) {
@@ -332,8 +340,8 @@ export default function BarcodeScannerModal({
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           setShowCantFindModal(false);
         }}
-        onTypeISBN={handleTypeISBN}
-        onUploadOwn={handleUploadOwn}
+        onEnterISBN={handleEnterISBN}
+        onSearchBookName={handleSearchBookName}
       />
     </Modal>
   );

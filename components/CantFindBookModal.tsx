@@ -14,24 +14,32 @@ import * as Haptics from 'expo-haptics';
 interface CantFindBookModalProps {
   visible: boolean;
   onClose: () => void;
-  onTypeISBN: () => void;
-  onUploadOwn: () => void;
+  onEnterISBN: () => void;
+  onSearchBookName: () => void;
+  title?: string;
+  subtitle?: string;
+  iconName?: string;
+  iconColor?: string;
 }
 
 export default function CantFindBookModal({
   visible,
   onClose,
-  onTypeISBN,
-  onUploadOwn,
+  onEnterISBN,
+  onSearchBookName,
+  title = "Can't find the book?",
+  subtitle = "Choose how you'd like to add your book",
+  iconName = "questionmark.circle.fill",
+  iconColor = colors.primary,
 }: CantFindBookModalProps) {
-  const handleTypeISBN = () => {
+  const handleEnterISBN = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onTypeISBN();
+    onEnterISBN();
   };
 
-  const handleUploadOwn = () => {
+  const handleSearchBookName = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onUploadOwn();
+    onSearchBookName();
   };
 
   const handleClose = () => {
@@ -55,23 +63,23 @@ export default function CantFindBookModal({
           {/* Header */}
           <View style={styles.header}>
             <IconSymbol
-              ios_icon_name="questionmark.circle.fill"
-              android_material_icon_name="help"
+              ios_icon_name={iconName}
+              android_material_icon_name={iconName === "questionmark.circle.fill" ? "help" : "warning"}
               size={48}
-              color={colors.primary}
+              color={iconColor}
             />
-            <Text style={styles.title}>Can&apos;t find the book?</Text>
+            <Text style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>
-              Choose how you&apos;d like to add your book
+              {subtitle}
             </Text>
           </View>
 
           {/* Options */}
           <View style={styles.optionsContainer}>
-            {/* Option 1: Type ISBN Manually */}
+            {/* Option 1: Enter ISBN Manually */}
             <TouchableOpacity
               style={styles.optionCard}
-              onPress={handleTypeISBN}
+              onPress={handleEnterISBN}
               activeOpacity={0.7}
             >
               <View style={styles.optionIcon}>
@@ -83,9 +91,9 @@ export default function CantFindBookModal({
                 />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>Scan ISBN</Text>
+                <Text style={styles.optionTitle}>Enter ISBN manually</Text>
                 <Text style={styles.optionDescription}>
-                  Enter the ISBN number from the back of the book
+                  Type the ISBN number from the back of the book
                 </Text>
               </View>
               <IconSymbol
@@ -96,24 +104,24 @@ export default function CantFindBookModal({
               />
             </TouchableOpacity>
 
-            {/* Option 2: Manually Add Book */}
+            {/* Option 2: Search Book Name */}
             <TouchableOpacity
               style={styles.optionCard}
-              onPress={handleUploadOwn}
+              onPress={handleSearchBookName}
               activeOpacity={0.7}
             >
               <View style={styles.optionIcon}>
                 <IconSymbol
-                  ios_icon_name="plus.circle.fill"
-                  android_material_icon_name="add_circle"
+                  ios_icon_name="magnifyingglass"
+                  android_material_icon_name="search"
                   size={32}
                   color={colors.secondary}
                 />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>Manually add book</Text>
+                <Text style={styles.optionTitle}>Search book name</Text>
                 <Text style={styles.optionDescription}>
-                  Create a custom book entry with your own details
+                  Find your book by searching its title or author
                 </Text>
               </View>
               <IconSymbol

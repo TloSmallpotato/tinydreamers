@@ -15,13 +15,15 @@ import {
 } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import CantFindBookModal from '@/components/CantFindBookModal';
+import * as Haptics from 'expo-haptics';
 
 interface ISBNNotFoundModalProps {
   visible: boolean;
   scannedISBN: string;
   onClose: () => void;
   onManualISBNSubmit: (isbn: string) => void;
-  onAddCustomBook: (isbn?: string) => void;
+  onSearchBookName: () => void;
   isSearching?: boolean;
 }
 
@@ -30,7 +32,7 @@ export default function ISBNNotFoundModal({
   scannedISBN,
   onClose,
   onManualISBNSubmit,
-  onAddCustomBook,
+  onSearchBookName,
   isSearching = false,
 }: ISBNNotFoundModalProps) {
   const [manualISBN, setManualISBN] = useState('');
@@ -52,8 +54,27 @@ export default function ISBNNotFoundModal({
 
   const handleManualISBNSubmit = () => {
     if (manualISBN.length === 10 || manualISBN.length === 13) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       onManualISBNSubmit(manualISBN);
     }
+  };
+
+  const handleEnterISBN = () => {
+    console.log('📝 Enter ISBN manually selected');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsManualInputMode(true);
+  };
+
+  const handleSearchBookName = () => {
+    console.log('🔍 Search book name selected');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onSearchBookName();
+  };
+
+  const handleBackToOptions = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsManualInputMode(false);
+    setManualISBN('');
   };
 
   const isValidISBN = manualISBN.length === 10 || manualISBN.length === 13;
@@ -62,41 +83,39 @@ export default function ISBNNotFoundModal({
     return null;
   }
 
-  return (
-    <Modal
-      visible={visible}
-      animationType="none"
-      transparent={true}
-      onRequestClose={onClose}
-    >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.overlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.keyboardAvoid}
-          >
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContainer}>
-                {/* Header */}
-                <View style={styles.header}>
-                  <IconSymbol
-                    ios_icon_name="exclamationmark.triangle.fill"
-                    android_material_icon_name="warning"
-                    size={48}
-                    color={colors.secondary}
-                  />
-                  <Text style={styles.title}>Book Not Found</Text>
-                  <Text style={styles.subtitle}>
-                    {isManualInputMode
-                      ? 'The ISBN you entered was not found in our database.'
-                      : `We couldn't find a book with ISBN: ${scannedISBN}`}
-                  </Text>
-                </View>
+  // Show manual input mode
+  if (isManualInputMode) {
+    return (
+      <Modal
+        visible={visible}
+        animationType="none"
+        transparent={true}
+        onRequestClose={onClose}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.overlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.keyboardAvoid}
+            >
+              <TouchableWithoutFeedback>
+                <View style={styles.modalContainer}>
+                  {/* Header */}
+                  <View style={styles.header}>
+                    <IconSymbol
+                      ios_icon_name="keyboard"
+                      android_material_icon_name="keyboard"
+                      size={48}
+                      color={colors.buttonBlue}
+                    />
+                    <Text style={styles.title}>Enter ISBN Manually</Text>
+                    <Text style={styles.subtitle}>
+                      Type the ISBN number from the back of the book
+                    </Text>
+                  </View>
 
-                {/* Manual ISBN Input Mode */}
-                {isManualInputMode ? (
+                  {/* Manual ISBN Input */}
                   <View style={styles.manualInputContainer}>
-                    <Text style={styles.inputLabel}>Enter ISBN manually:</Text>
                     <TextInput
                       style={styles.isbnInput}
                       placeholder="Type ISBN (10 or 13 digits)"
@@ -142,12 +161,12 @@ export default function ISBNNotFoundModal({
 
                       <TouchableOpacity
                         style={[styles.actionButton, styles.backButton]}
-                        onPress={() => setIsManualInputMode(false)}
+                        onPress={handleBackToOptions}
                         disabled={isSearching}
                       >
                         <IconSymbol
                           ios_icon_name="arrow.left"
-                          android_material_icon_name="arrow-back"
+                          android_material_icon_name="arrow_back"
                           size={20}
                           color={colors.primary}
                         />
@@ -156,104 +175,28 @@ export default function ISBNNotFoundModal({
                         </Text>
                       </TouchableOpacity>
                     </View>
-
-                    {/* Add Custom Book Option (with ISBN prefilled) */}
-                    <View style={styles.divider}>
-                      <View style={styles.dividerLine} />
-                      <Text style={styles.dividerText}>OR</Text>
-                      <View style={styles.dividerLine} />
-                    </View>
-
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.customBookButton]}
-                      onPress={() => onAddCustomBook(manualISBN || undefined)}
-                      disabled={isSearching}
-                    >
-                      <IconSymbol
-                        ios_icon_name="plus.circle.fill"
-                        android_material_icon_name="add-circle"
-                        size={20}
-                        color={colors.buttonBlue}
-                      />
-                      <Text style={[styles.actionButtonText, styles.customBookButtonText]}>
-                        Add Custom Book
-                        {manualISBN ? ' (with ISBN)' : ''}
-                      </Text>
-                    </TouchableOpacity>
                   </View>
-                ) : (
-                  /* Initial Options */
-                  <View style={styles.optionsContainer}>
-                    <Text style={styles.optionsTitle}>What would you like to do?</Text>
+                </View>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    );
+  }
 
-                    {/* Option 1: Type ISBN Manually */}
-                    <TouchableOpacity
-                      style={styles.optionCard}
-                      onPress={() => setIsManualInputMode(true)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.optionIcon}>
-                        <IconSymbol
-                          ios_icon_name="keyboard"
-                          android_material_icon_name="keyboard"
-                          size={32}
-                          color={colors.buttonBlue}
-                        />
-                      </View>
-                      <View style={styles.optionContent}>
-                        <Text style={styles.optionTitle}>Type your own ISBN</Text>
-                        <Text style={styles.optionDescription}>
-                          Manually enter the ISBN number to search again
-                        </Text>
-                      </View>
-                      <IconSymbol
-                        ios_icon_name="chevron.right"
-                        android_material_icon_name="chevron-right"
-                        size={24}
-                        color={colors.textSecondary}
-                      />
-                    </TouchableOpacity>
-
-                    {/* Option 2: Add Custom Book */}
-                    <TouchableOpacity
-                      style={styles.optionCard}
-                      onPress={() => onAddCustomBook(scannedISBN)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.optionIcon}>
-                        <IconSymbol
-                          ios_icon_name="plus.circle.fill"
-                          android_material_icon_name="add-circle"
-                          size={32}
-                          color={colors.secondary}
-                        />
-                      </View>
-                      <View style={styles.optionContent}>
-                        <Text style={styles.optionTitle}>Add custom book</Text>
-                        <Text style={styles.optionDescription}>
-                          Create your own book entry with title and cover
-                        </Text>
-                      </View>
-                      <IconSymbol
-                        ios_icon_name="chevron.right"
-                        android_material_icon_name="chevron-right"
-                        size={24}
-                        color={colors.textSecondary}
-                      />
-                    </TouchableOpacity>
-
-                    {/* Cancel Button */}
-                    <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-                      <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            </TouchableWithoutFeedback>
-          </KeyboardAvoidingView>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+  // Show unified modal with "Book Not Found" context
+  return (
+    <CantFindBookModal
+      visible={visible}
+      onClose={onClose}
+      onEnterISBN={handleEnterISBN}
+      onSearchBookName={handleSearchBookName}
+      title="Book Not Found"
+      subtitle={`We couldn't find a book with ISBN: ${scannedISBN}`}
+      iconName="exclamationmark.triangle.fill"
+      iconColor={colors.secondary}
+    />
   );
 }
 
@@ -296,64 +239,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  optionsContainer: {
-    gap: 16,
-  },
-  optionsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.primary,
-    marginBottom: 8,
-  },
-  optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderRadius: 16,
-    padding: 16,
-    gap: 16,
-  },
-  optionIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.backgroundAlt,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  optionContent: {
-    flex: 1,
-  },
-  optionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.primary,
-    marginBottom: 4,
-  },
-  optionDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 18,
-  },
-  cancelButton: {
-    backgroundColor: colors.background,
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
   manualInputContainer: {
     gap: 16,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.primary,
   },
   isbnInput: {
     backgroundColor: colors.background,
@@ -389,9 +276,6 @@ const styles = StyleSheet.create({
   backButton: {
     backgroundColor: colors.background,
   },
-  customBookButton: {
-    backgroundColor: colors.background,
-  },
   buttonDisabled: {
     opacity: 0.5,
   },
@@ -402,25 +286,5 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     color: colors.primary,
-  },
-  customBookButtonText: {
-    color: colors.buttonBlue,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginVertical: 8,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.textSecondary,
-    opacity: 0.3,
-  },
-  dividerText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
   },
 });
