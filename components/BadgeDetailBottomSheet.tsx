@@ -1,6 +1,6 @@
 
 import React, { forwardRef, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ImageSourcePropType } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { ScallopedBadge } from './ScallopedBadge';
@@ -15,6 +15,8 @@ export interface Milestone {
   achieved: boolean;
   progress?: string;
   dateAchieved?: string;
+  lockedImage?: ImageSourcePropType;
+  unlockedImage?: ImageSourcePropType;
 }
 
 interface BadgeDetailBottomSheetProps {
@@ -70,6 +72,8 @@ const BadgeDetailBottomSheet = forwardRef<BottomSheetModal, BadgeDetailBottomShe
               color={milestone.color}
               size={180}
               locked={!milestone.achieved}
+              lockedImage={milestone.lockedImage}
+              unlockedImage={milestone.unlockedImage}
             />
           </View>
 

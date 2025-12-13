@@ -1,16 +1,41 @@
 
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, ImageSourcePropType } from 'react-native';
+import { Image } from 'expo-image';
 import Svg, { Path } from 'react-native-svg';
 
 interface ScallopedBadgeProps {
   color: string;
   size: number;
   locked?: boolean;
+  lockedImage?: ImageSourcePropType;
+  unlockedImage?: ImageSourcePropType;
 }
 
-export const ScallopedBadge: React.FC<ScallopedBadgeProps> = ({ color, size, locked = false }) => {
-  // Create a scalloped edge path (flower/badge shape with 12 petals)
+export const ScallopedBadge: React.FC<ScallopedBadgeProps> = ({ 
+  color, 
+  size, 
+  locked = false,
+  lockedImage,
+  unlockedImage 
+}) => {
+  // If custom images are provided, use them instead of the SVG badge
+  if (lockedImage && unlockedImage) {
+    const imageSource = locked ? lockedImage : unlockedImage;
+    
+    return (
+      <View style={[styles.container, { width: size, height: size }]} pointerEvents="none">
+        <Image
+          source={imageSource}
+          style={{ width: size, height: size }}
+          contentFit="contain"
+          pointerEvents="none"
+        />
+      </View>
+    );
+  }
+
+  // Fallback to SVG badge if no custom images
   const createScallopedPath = () => {
     const center = size / 2;
     const outerRadius = size / 2;

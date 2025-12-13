@@ -66,6 +66,8 @@ export const AchievementUnlockModal: React.FC<AchievementUnlockModalProps> = ({
                 color={milestone.color}
                 size={200}
                 locked={false}
+                lockedImage={milestone.lockedImage}
+                unlockedImage={milestone.unlockedImage}
               />
             </View>
 
