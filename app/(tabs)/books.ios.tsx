@@ -511,6 +511,20 @@ export default function BooksScreen() {
     }, 300);
   };
 
+  const handleTypeISBNFromScanner = () => {
+    console.log('🔵 [iOS] Type ISBN from scanner');
+    // Show the ISBN not found modal in manual input mode
+    setShowISBNNotFoundModal(true);
+  };
+
+  const handleUploadOwnFromScanner = () => {
+    console.log('🔵 [iOS] Upload own from scanner');
+    // Open the custom book bottom sheet
+    setTimeout(() => {
+      addCustomBookRef.current?.present();
+    }, 300);
+  };
+
   const handleBookPress = useCallback((book: SavedBook) => {
     console.log('🔵 [iOS] Book pressed:', book.book.title, 'Modal open:', isModalOpen, 'Last clicked:', lastClickedBookIdRef.current);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -750,6 +764,8 @@ export default function BooksScreen() {
           setShowScanner(false);
         }}
         onBarcodeScanned={handleBarcodeScanned}
+        onTypeISBN={handleTypeISBNFromScanner}
+        onUploadOwn={handleUploadOwnFromScanner}
       />
 
       <ToastNotification
