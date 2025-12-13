@@ -13,29 +13,22 @@ import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-ca
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useRouter } from 'expo-router';
-import CantFindBookModal from '@/components/CantFindBookModal';
-import * as Haptics from 'expo-haptics';
 
 interface BarcodeScannerModalProps {
   visible: boolean;
   onClose: () => void;
   onBarcodeScanned: (isbn: string) => void;
-  onTypeISBN?: () => void;
-  onUploadOwn?: () => void;
 }
 
 export default function BarcodeScannerModal({
   visible,
   onClose,
   onBarcodeScanned,
-  onTypeISBN,
-  onUploadOwn,
 }: BarcodeScannerModalProps) {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showCantFindModal, setShowCantFindModal] = useState(false);
   const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastScannedISBNRef = useRef<string>('');
   const lastScannedTimeRef = useRef<number>(0);
@@ -45,7 +38,6 @@ export default function BarcodeScannerModal({
       console.log('📷 Scanner modal opened - resetting state');
       setScanned(false);
       setIsProcessing(false);
-      setShowCantFindModal(false);
       lastScannedISBNRef.current = '';
       lastScannedTimeRef.current = 0;
       
@@ -169,40 +161,23 @@ export default function BarcodeScannerModal({
     }
   };
 
-  const handleCantFindBook = () => {
-    console.log('🔍 Can\'t find the book button pressed');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setShowCantFindModal(true);
-  };
-
-  const handleTypeISBN = () => {
-    console.log('⌨️ Type ISBN manually selected');
-    setShowCantFindModal(false);
+  const handleSearchBook = () => {
+    console.log('🔍 Search a Book button pressed');
+    console.log('🔍 Closing modal and navigating to search-book screen');
     
-    // Close scanner modal
+    // Close modal first
     onClose();
     
-    // Call the callback if provided
-    if (onTypeISBN) {
-      setTimeout(() => {
-        onTypeISBN();
-      }, 300);
-    }
-  };
-
-  const handleUploadOwn = () => {
-    console.log('📤 Upload your own selected');
-    setShowCantFindModal(false);
-    
-    // Close scanner modal
-    onClose();
-    
-    // Call the callback if provided
-    if (onUploadOwn) {
-      setTimeout(() => {
-        onUploadOwn();
-      }, 300);
-    }
+    // Navigate to search-book using absolute path
+    setTimeout(() => {
+      try {
+        console.log('🔍 Navigating to /search-book');
+        router.push('/search-book');
+        console.log('✅ Navigation called successfully');
+      } catch (error) {
+        console.error('❌ Navigation error:', error);
+      }
+    }, 300);
   };
 
   if (!visible) {
@@ -271,73 +246,61 @@ export default function BarcodeScannerModal({
   }
 
   return (
-    <>
-      <Modal
-        visible={visible}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={onClose}
-      >
-        <View style={styles.container}>
-          <CameraView
-            style={styles.camera}
-            facing="back"
-            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-            barcodeScannerSettings={{
-              barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'],
-            }}
-          />
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={onClose}
+    >
+      <View style={styles.container}>
+        <CameraView
+          style={styles.camera}
+          facing="back"
+          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+          barcodeScannerSettings={{
+            barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'],
+          }}
+        />
 
-          <View style={styles.overlay}>
-            <View style={styles.header}>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <IconSymbol
-                  ios_icon_name="xmark"
-                  android_material_icon_name="close"
-                  size={24}
-                  color={colors.backgroundAlt}
-                />
-              </TouchableOpacity>
-            </View>
+        <View style={styles.overlay}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <IconSymbol
+                ios_icon_name="xmark"
+                android_material_icon_name="close"
+                size={24}
+                color={colors.backgroundAlt}
+              />
+            </TouchableOpacity>
+          </View>
 
-            <View style={styles.topInstructions}>
-              <Text style={styles.topInstructionText}>
-                Scan the ISBN barcode on the back of the book
-              </Text>
-            </View>
+          <View style={styles.topInstructions}>
+            <Text style={styles.topInstructionText}>
+              Scan the ISBN barcode on the back of the book
+            </Text>
+          </View>
 
-            <View style={styles.scanArea}>
-              <View style={styles.scanFrame}>
-                <View style={[styles.corner, styles.topLeft]} />
-                <View style={[styles.corner, styles.topRight]} />
-                <View style={[styles.corner, styles.bottomLeft]} />
-                <View style={[styles.corner, styles.bottomRight]} />
-              </View>
-            </View>
-
-            <View style={styles.bottomActions}>
-              <TouchableOpacity
-                style={styles.searchButton}
-                onPress={handleCantFindBook}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.searchButtonText}>Can&apos;t find the book?</Text>
-              </TouchableOpacity>
+          <View style={styles.scanArea}>
+            <View style={styles.scanFrame}>
+              <View style={[styles.corner, styles.topLeft]} />
+              <View style={[styles.corner, styles.topRight]} />
+              <View style={[styles.corner, styles.bottomLeft]} />
+              <View style={[styles.corner, styles.bottomRight]} />
             </View>
           </View>
-        </View>
-      </Modal>
 
-      <CantFindBookModal
-        visible={showCantFindModal}
-        onClose={() => {
-          console.log('🔵 Can\'t find book modal closed');
-          setShowCantFindModal(false);
-        }}
-        onTypeISBN={handleTypeISBN}
-        onUploadOwn={handleUploadOwn}
-      />
-    </>
+          <View style={styles.bottomActions}>
+            <TouchableOpacity
+              style={styles.searchButton}
+              onPress={handleSearchBook}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.searchButtonText}>Search a Book</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
