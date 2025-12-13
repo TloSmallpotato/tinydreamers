@@ -83,20 +83,20 @@ export default function CantFindBookModal({
                 />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>Type ISBN manually</Text>
+                <Text style={styles.optionTitle}>Scan ISBN</Text>
                 <Text style={styles.optionDescription}>
                   Enter the ISBN number from the back of the book
                 </Text>
               </View>
               <IconSymbol
                 ios_icon_name="chevron.right"
-                android_material_icon_name="chevron-right"
+                android_material_icon_name="chevron_right"
                 size={24}
                 color={colors.textSecondary}
               />
             </TouchableOpacity>
 
-            {/* Option 2: Upload Your Own */}
+            {/* Option 2: Manually Add Book */}
             <TouchableOpacity
               style={styles.optionCard}
               onPress={handleUploadOwn}
@@ -105,20 +105,20 @@ export default function CantFindBookModal({
               <View style={styles.optionIcon}>
                 <IconSymbol
                   ios_icon_name="plus.circle.fill"
-                  android_material_icon_name="add-circle"
+                  android_material_icon_name="add_circle"
                   size={32}
                   color={colors.secondary}
                 />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>Upload your own</Text>
+                <Text style={styles.optionTitle}>Manually add book</Text>
                 <Text style={styles.optionDescription}>
                   Create a custom book entry with your own details
                 </Text>
               </View>
               <IconSymbol
                 ios_icon_name="chevron.right"
-                android_material_icon_name="chevron-right"
+                android_material_icon_name="chevron_right"
                 size={24}
                 color={colors.textSecondary}
               />

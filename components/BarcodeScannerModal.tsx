@@ -13,6 +13,8 @@ import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-ca
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import CantFindBookModal from '@/components/CantFindBookModal';
 
 interface BarcodeScannerModalProps {
   visible: boolean;
@@ -29,6 +31,7 @@ export default function BarcodeScannerModal({
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showCantFindModal, setShowCantFindModal] = useState(false);
   const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastScannedISBNRef = useRef<string>('');
   const lastScannedTimeRef = useRef<number>(0);
@@ -161,11 +164,20 @@ export default function BarcodeScannerModal({
     }
   };
 
-  const handleSearchBook = () => {
-    console.log('🔍 Search a Book button pressed');
-    console.log('🔍 Closing modal and navigating to search-book screen');
+  const handleCantFindBook = () => {
+    console.log('🔍 Can\'t find a book? button pressed');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    // Close modal first
+    // Show the CantFindBookModal
+    setShowCantFindModal(true);
+  };
+
+  const handleTypeISBN = () => {
+    console.log('🔍 Type ISBN manually selected');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // Close both modals
+    setShowCantFindModal(false);
     onClose();
     
     // Navigate to search-book using absolute path
@@ -178,6 +190,18 @@ export default function BarcodeScannerModal({
         console.error('❌ Navigation error:', error);
       }
     }, 300);
+  };
+
+  const handleUploadOwn = () => {
+    console.log('📚 Upload your own selected');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // Close both modals
+    setShowCantFindModal(false);
+    onClose();
+    
+    // The parent component (books.tsx) will handle opening the AddCustomBookBottomSheet
+    // We'll need to add a callback for this
   };
 
   if (!visible) {
@@ -292,14 +316,25 @@ export default function BarcodeScannerModal({
           <View style={styles.bottomActions}>
             <TouchableOpacity
               style={styles.searchButton}
-              onPress={handleSearchBook}
+              onPress={handleCantFindBook}
               activeOpacity={0.8}
             >
-              <Text style={styles.searchButtonText}>Search a Book</Text>
+              <Text style={styles.searchButtonText}>Can&apos;t find a book?</Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
+
+      <CantFindBookModal
+        visible={showCantFindModal}
+        onClose={() => {
+          console.log('🔵 CantFindBookModal closed');
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setShowCantFindModal(false);
+        }}
+        onTypeISBN={handleTypeISBN}
+        onUploadOwn={handleUploadOwn}
+      />
     </Modal>
   );
 }
