@@ -8,6 +8,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
+import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
 
 interface Moment {
   id: string;
@@ -16,6 +17,8 @@ interface Moment {
   created_at: string;
   trim_start?: number;
   trim_end?: number;
+  signedVideoUrl?: string | null;
+  signedThumbnailUrl?: string | null;
 }
 
 export default function AllMomentsScreen() {
@@ -43,7 +46,7 @@ export default function AllMomentsScreen() {
         .from('moments')
         .select('id, video_url, thumbnail_url, created_at, trim_start, trim_end')
         .eq('child_id', selectedChild.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false});
 
       if (fetchError) {
         console.error('AllMomentsScreen (iOS): Error fetching moments:', fetchError);
@@ -51,7 +54,16 @@ export default function AllMomentsScreen() {
       }
 
       console.log('AllMomentsScreen (iOS): Fetched', data?.length || 0, 'moments');
-      setMoments(data || []);
+      
+      // Generate signed URLs for all moments
+      if (data && data.length > 0) {
+        console.log('AllMomentsScreen (iOS): Generating signed URLs for moments...');
+        const momentsWithSignedUrls = await processMomentsWithSignedUrls(data);
+        setMoments(momentsWithSignedUrls);
+        console.log('AllMomentsScreen (iOS): ✓ Signed URLs generated');
+      } else {
+        setMoments([]);
+      }
     } catch (err) {
       console.error('AllMomentsScreen (iOS): Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load moments');
@@ -112,7 +124,9 @@ export default function AllMomentsScreen() {
 
   const handleMomentPress = (moment: Moment) => {
     console.log('AllMomentsScreen (iOS): Moment pressed:', moment.id);
-    setSelectedVideoUri(moment.video_url);
+    // Use signed URL if available, fallback to original URL
+    const videoUrl = moment.signedVideoUrl || moment.video_url;
+    setSelectedVideoUri(videoUrl);
     setShowVideoPlayer(true);
   };
 
@@ -124,15 +138,18 @@ export default function AllMomentsScreen() {
 
   const renderMomentItem = ({ item, index }: { item: Moment; index: number }) => {
     const isLeftColumn = index % 2 === 0;
+    // Use signed thumbnail URL if available, fallback to original URL
+    const thumbnailUrl = item.signedThumbnailUrl || item.thumbnail_url;
+    
     return (
       <TouchableOpacity
         style={[styles.momentCard, isLeftColumn ? styles.momentCardLeft : styles.momentCardRight]}
         onPress={() => handleMomentPress(item)}
         activeOpacity={0.8}
       >
-        {item.thumbnail_url ? (
+        {thumbnailUrl ? (
           <Image 
-            source={{ uri: item.thumbnail_url }}
+            source={{ uri: thumbnailUrl }}
             style={styles.momentImage}
           />
         ) : (

@@ -7,6 +7,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
+import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
 
 interface Moment {
   id: string;
@@ -15,6 +16,8 @@ interface Moment {
   created_at: string;
   trim_start?: number;
   trim_end?: number;
+  signedVideoUrl?: string | null;
+  signedThumbnailUrl?: string | null;
 }
 
 const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
@@ -49,7 +52,16 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
       }
 
       console.log('AllMomentsBottomSheet: Fetched', data?.length || 0, 'moments');
-      setMoments(data || []);
+      
+      // Generate signed URLs for all moments
+      if (data && data.length > 0) {
+        console.log('AllMomentsBottomSheet: Generating signed URLs for moments...');
+        const momentsWithSignedUrls = await processMomentsWithSignedUrls(data);
+        setMoments(momentsWithSignedUrls);
+        console.log('AllMomentsBottomSheet: ✓ Signed URLs generated');
+      } else {
+        setMoments([]);
+      }
     } catch (err) {
       console.error('AllMomentsBottomSheet: Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load moments');
@@ -106,7 +118,9 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
 
   const handleMomentPress = (moment: Moment) => {
     console.log('AllMomentsBottomSheet: Moment pressed:', moment.id);
-    setSelectedVideoUri(moment.video_url);
+    // Use signed URL if available, fallback to original URL
+    const videoUrl = moment.signedVideoUrl || moment.video_url;
+    setSelectedVideoUri(videoUrl);
     setShowVideoPlayer(true);
   };
 
@@ -130,15 +144,18 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
 
   const renderMomentItem = ({ item, index }: { item: Moment; index: number }) => {
     const isLeftColumn = index % 2 === 0;
+    // Use signed thumbnail URL if available, fallback to original URL
+    const thumbnailUrl = item.signedThumbnailUrl || item.thumbnail_url;
+    
     return (
       <TouchableOpacity
         style={[styles.momentCard, isLeftColumn ? styles.momentCardLeft : styles.momentCardRight]}
         onPress={() => handleMomentPress(item)}
         activeOpacity={0.8}
       >
-        {item.thumbnail_url ? (
+        {thumbnailUrl ? (
           <Image 
-            source={{ uri: item.thumbnail_url }}
+            source={{ uri: thumbnailUrl }}
             style={styles.momentImage}
           />
         ) : (
