@@ -16,8 +16,8 @@ export const milestonesData: Milestone[] = [
     color: MILESTONE_COLORS.YELLOW,
     achieved: false,
     progress: '0/1',
-    lockedImage: require('@/assets/images/0dfbc3f0-6690-4444-acc4-cb2fee51cef0.png'),
-    unlockedImage: require('@/assets/images/df5d52dc-ed08-4da3-bf57-0df7c2028917.png'),
+    lockedImage: require('@/assets/images/a613b109-6a8f-48b8-a73c-66bb577ff540.png'),
+    unlockedImage: require('@/assets/images/2d4fd1e6-bc9e-4f93-bf31-fb77a5b45c9f.png'),
   },
   {
     id: 'super_fan',
