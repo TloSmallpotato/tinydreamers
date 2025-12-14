@@ -17,11 +17,14 @@ export interface BookCover {
  * Processes and uploads a book cover image via Edge Function
  * The Edge Function handles:
  * - Downloading the image from the URL
- * - Converting to PNG format
+ * - Converting to WebP format for optimal file size and quality
  * - Optimizing to be under 2MB
  * - Detecting low resolution (<800px in either dimension)
  * - Uploading to Supabase Storage
  * - Saving metadata to book_covers table
+ * 
+ * Note: If WebP conversion fails or CLOUDCONVERT_API_KEY is not set,
+ * the image will be stored in its original format (PNG/JPEG)
  * 
  * @param coverUrl - The URL of the cover image to download and process
  * @param bookId - The ID of the book in the books_library table
