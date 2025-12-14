@@ -26,6 +26,8 @@ export const milestonesData: Milestone[] = [
     color: MILESTONE_COLORS.PINK,
     achieved: false,
     progress: '0/50',
+    lockedImage: require('@/assets/images/204f79ce-3dcb-44d3-a50a-6dfb8ff422b1.png'),
+    unlockedImage: require('@/assets/images/4e6a5f1c-7c97-4636-8c4f-87f426402187.png'),
   },
   {
     id: 'animal_friend',
@@ -34,6 +36,8 @@ export const milestonesData: Milestone[] = [
     color: MILESTONE_COLORS.GREEN,
     achieved: false,
     progress: '0/10',
+    lockedImage: require('@/assets/images/fc792d3c-33a6-443d-b66c-df50747d3722.png'),
+    unlockedImage: require('@/assets/images/764ce075-a6da-4fcb-9bd3-e63696b82ac2.png'),
   },
   // Row 2
   {
