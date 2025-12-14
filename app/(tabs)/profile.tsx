@@ -261,13 +261,9 @@ export default function ProfileScreen() {
 
     console.log('ProfileScreen: Setting up real-time subscriptions for child:', selectedChild.id);
 
-    // Subscribe to user_words changes
+    // Subscribe to user_words changes - REMOVED self: false to receive own changes
     const wordsChannel = supabase
-      .channel(`profile_words_${selectedChild.id}`, {
-        config: {
-          broadcast: { self: false },
-        },
-      })
+      .channel(`profile_words_${selectedChild.id}`)
       .on(
         'postgres_changes',
         {
@@ -288,13 +284,9 @@ export default function ProfileScreen() {
         }
       });
 
-    // Subscribe to user_books changes
+    // Subscribe to user_books changes - REMOVED self: false to receive own changes
     const booksChannel = supabase
-      .channel(`profile_books_${selectedChild.id}`, {
-        config: {
-          broadcast: { self: false },
-        },
-      })
+      .channel(`profile_books_${selectedChild.id}`)
       .on(
         'postgres_changes',
         {
@@ -315,13 +307,9 @@ export default function ProfileScreen() {
         }
       });
 
-    // Subscribe to moments changes
+    // Subscribe to moments changes - REMOVED self: false to receive own changes
     const momentsChannel = supabase
-      .channel(`profile_moments_${selectedChild.id}`, {
-        config: {
-          broadcast: { self: false },
-        },
-      })
+      .channel(`profile_moments_${selectedChild.id}`)
       .on(
         'postgres_changes',
         {
