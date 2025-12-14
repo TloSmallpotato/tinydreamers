@@ -80,6 +80,8 @@ export default function MilestonesScreen() {
                   color={milestone.color}
                   size={100}
                   locked={!milestone.achieved}
+                  lockedImage={milestone.lockedImage}
+                  unlockedImage={milestone.unlockedImage}
                 />
                 <Text style={styles.badgeLabel}>{milestone.name}</Text>
               </TouchableOpacity>
