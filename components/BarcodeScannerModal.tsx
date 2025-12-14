@@ -166,7 +166,7 @@ export default function BarcodeScannerModal({
   };
 
   const handleCantFindBook = () => {
-    console.log('🔍 Can\'t find a book? button pressed');
+    console.log('🔍 Can\'t scan a book? button pressed');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     // Show the ISBNNotFoundModal (reusing it for consistency)
@@ -326,7 +326,7 @@ export default function BarcodeScannerModal({
               onPress={handleCantFindBook}
               activeOpacity={0.8}
             >
-              <Text style={styles.searchButtonText}>Can&apos;t find a book?</Text>
+              <Text style={styles.searchButtonText}>Can&apos;t scan a book?</Text>
             </TouchableOpacity>
           </View>
         </View>
