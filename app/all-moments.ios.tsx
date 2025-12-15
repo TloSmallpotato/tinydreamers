@@ -74,7 +74,7 @@ export default function AllMomentsScreen() {
 
   useEffect(() => {
     fetchAllMoments();
-  }, [fetchAllMoments]);
+  }, [selectedChild?.id, fetchAllMoments]);
 
   // Set up real-time subscription for moments updates
   useEffect(() => {

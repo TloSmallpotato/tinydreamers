@@ -159,7 +159,7 @@ export function ChildProvider({ children: childrenProp }: { children: React.Reac
         fetchTimeoutRef.current = null;
       }
     };
-  }, [user, authLoading, isInitialized]);
+  }, [user, authLoading, isInitialized, fetchChildren]);
 
   const selectChild = (childId: string) => {
     try {

@@ -72,7 +72,7 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
 
   useEffect(() => {
     fetchAllMoments();
-  }, [fetchAllMoments]);
+  }, [selectedChild?.id, fetchAllMoments]);
 
   // Set up real-time subscription for moments updates
   useEffect(() => {

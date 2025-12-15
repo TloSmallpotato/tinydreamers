@@ -45,6 +45,12 @@ module.exports = {
       rules: {
         '@typescript-eslint/no-var-requires': 'off'
       }
+    },
+    {
+      files: ['supabase/functions/**/*.ts'],
+      rules: {
+        'import/no-unresolved': 'off'
+      }
     }
   ]
 };

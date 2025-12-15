@@ -222,7 +222,7 @@ const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBotto
       } finally {
         setIsSaving(false);
       }
-    }, [title, isbn, description, coverImage, childId, userId, ref, onBookAdded]);
+    }, [title, isbn, description, coverImage, childId, userId, ref, onBookAdded, uploadCoverImage]);
 
     const renderBackdrop = useCallback(
       (props: any) => (
