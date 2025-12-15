@@ -12,34 +12,36 @@ export async function getSignedVideoUrl(
   expiresIn: number = 3600
 ): Promise<string | null> {
   try {
+    console.log('[VideoStorage] Generating signed URL for video:', videoUrl);
+    
     // Extract the path from the full URL if needed
     const path = extractStoragePath(videoUrl, 'video-moments');
     
     if (!path) {
-      console.error('Failed to extract storage path from:', videoUrl);
+      console.error('[VideoStorage] Failed to extract storage path from:', videoUrl);
       return null;
     }
 
-    console.log('Generating signed URL for path:', path);
+    console.log('[VideoStorage] Extracted path:', path);
 
     const { data, error } = await supabase.storage
       .from('video-moments')
       .createSignedUrl(path, expiresIn);
 
     if (error) {
-      console.error('Error generating signed URL:', error);
+      console.error('[VideoStorage] Error generating signed URL:', error);
       return null;
     }
 
     if (!data?.signedUrl) {
-      console.error('No signed URL returned');
+      console.error('[VideoStorage] No signed URL returned');
       return null;
     }
 
-    console.log('✓ Generated signed URL successfully');
+    console.log('[VideoStorage] ✓ Generated signed URL successfully');
     return data.signedUrl;
   } catch (error) {
-    console.error('Exception generating signed URL:', error);
+    console.error('[VideoStorage] Exception generating signed URL:', error);
     return null;
   }
 }
@@ -66,38 +68,45 @@ export async function getSignedVideoUrls(
  * @returns Signed URL or null if generation fails
  */
 export async function getSignedThumbnailUrl(
-  thumbnailUrl: string,
+  thumbnailUrl: string | null,
   expiresIn: number = 3600
 ): Promise<string | null> {
   try {
+    if (!thumbnailUrl) {
+      console.log('[VideoStorage] No thumbnail URL provided');
+      return null;
+    }
+
+    console.log('[VideoStorage] Generating signed URL for thumbnail:', thumbnailUrl);
+    
     // Extract the path from the full URL if needed
     const path = extractStoragePath(thumbnailUrl, 'video-moments');
     
     if (!path) {
-      console.error('Failed to extract storage path from:', thumbnailUrl);
+      console.error('[VideoStorage] Failed to extract storage path from:', thumbnailUrl);
       return null;
     }
 
-    console.log('Generating signed URL for thumbnail path:', path);
+    console.log('[VideoStorage] Extracted thumbnail path:', path);
 
     const { data, error } = await supabase.storage
       .from('video-moments')
       .createSignedUrl(path, expiresIn);
 
     if (error) {
-      console.error('Error generating signed thumbnail URL:', error);
+      console.error('[VideoStorage] Error generating signed thumbnail URL:', error);
       return null;
     }
 
     if (!data?.signedUrl) {
-      console.error('No signed thumbnail URL returned');
+      console.error('[VideoStorage] No signed thumbnail URL returned');
       return null;
     }
 
-    console.log('✓ Generated signed thumbnail URL successfully');
+    console.log('[VideoStorage] ✓ Generated signed thumbnail URL successfully');
     return data.signedUrl;
   } catch (error) {
-    console.error('Exception generating signed thumbnail URL:', error);
+    console.error('[VideoStorage] Exception generating signed thumbnail URL:', error);
     return null;
   }
 }
@@ -110,9 +119,14 @@ export async function getSignedThumbnailUrl(
  */
 function extractStoragePath(url: string, bucketName: string): string | null {
   try {
+    if (!url) {
+      console.error('[VideoStorage] Empty URL provided');
+      return null;
+    }
+
     // If it's already a path (doesn't start with http), return as-is
     if (!url.startsWith('http')) {
-      console.log('Already a storage path:', url);
+      console.log('[VideoStorage] Already a storage path:', url);
       return url;
     }
 
@@ -120,7 +134,7 @@ function extractStoragePath(url: string, bucketName: string): string | null {
     const urlObj = new URL(url);
     const pathname = urlObj.pathname;
 
-    console.log('Extracting path from URL pathname:', pathname);
+    console.log('[VideoStorage] Extracting path from URL pathname:', pathname);
 
     // Pattern: /storage/v1/object/public/bucket-name/path
     // or: /storage/v1/object/sign/bucket-name/path
@@ -129,13 +143,13 @@ function extractStoragePath(url: string, bucketName: string): string | null {
     
     if (pathname.includes(publicPattern)) {
       const extractedPath = pathname.split(publicPattern)[1];
-      console.log('Extracted from public pattern:', extractedPath);
+      console.log('[VideoStorage] Extracted from public pattern:', extractedPath);
       return extractedPath;
     }
     
     if (pathname.includes(signPattern)) {
       const extractedPath = pathname.split(signPattern)[1];
-      console.log('Extracted from sign pattern:', extractedPath);
+      console.log('[VideoStorage] Extracted from sign pattern:', extractedPath);
       return extractedPath;
     }
 
@@ -143,14 +157,14 @@ function extractStoragePath(url: string, bucketName: string): string | null {
     const bucketIndex = pathname.indexOf(`/${bucketName}/`);
     if (bucketIndex !== -1) {
       const extractedPath = pathname.substring(bucketIndex + bucketName.length + 2);
-      console.log('Extracted from bucket index:', extractedPath);
+      console.log('[VideoStorage] Extracted from bucket index:', extractedPath);
       return extractedPath;
     }
 
-    console.warn('Could not extract path from URL:', url);
+    console.warn('[VideoStorage] Could not extract path from URL:', url);
     return null;
   } catch (error) {
-    console.error('Error extracting storage path:', error);
+    console.error('[VideoStorage] Error extracting storage path:', error);
     return null;
   }
 }
@@ -165,12 +179,20 @@ export async function processMomentsWithSignedUrls<T extends { video_url: string
   moments: T[],
   expiresIn: number = 3600
 ): Promise<(T & { signedVideoUrl: string | null; signedThumbnailUrl: string | null })[]> {
+  console.log('[VideoStorage] Processing', moments.length, 'moments with signed URLs');
+  
   const processedMoments = await Promise.all(
-    moments.map(async (moment) => {
+    moments.map(async (moment, index) => {
+      console.log(`[VideoStorage] Processing moment ${index + 1}/${moments.length}`);
+      console.log(`[VideoStorage] Video URL: ${moment.video_url}`);
+      console.log(`[VideoStorage] Thumbnail URL: ${moment.thumbnail_url || 'none'}`);
+      
       const signedVideoUrl = await getSignedVideoUrl(moment.video_url, expiresIn);
       const signedThumbnailUrl = moment.thumbnail_url 
         ? await getSignedThumbnailUrl(moment.thumbnail_url, expiresIn)
         : null;
+
+      console.log(`[VideoStorage] Moment ${index + 1} - Video signed: ${signedVideoUrl ? 'YES' : 'NO'}, Thumbnail signed: ${signedThumbnailUrl ? 'YES' : 'NO'}`);
 
       return {
         ...moment,
@@ -180,5 +202,6 @@ export async function processMomentsWithSignedUrls<T extends { video_url: string
     })
   );
 
+  console.log('[VideoStorage] ✓ All moments processed');
   return processedMoments;
 }

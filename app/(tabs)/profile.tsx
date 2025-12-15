@@ -16,7 +16,7 @@ import ProfileAvatar from '@/components/ProfileAvatar';
 import { supabase } from '@/app/integrations/supabase/client';
 import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
 import { HapticFeedback } from '@/utils/haptics';
-import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
+import { processMomentsWithSignedUrls, getSignedVideoUrl } from '@/utils/videoStorage';
 
 interface ProfileStats {
   totalWords: number;
@@ -206,11 +206,12 @@ export default function ProfileScreen() {
 
       // Generate signed URLs for moments
       if (momentsData && momentsData.length > 0) {
-        console.log('ProfileScreen: Generating signed URLs for moments...');
+        console.log('ProfileScreen: Generating signed URLs for', momentsData.length, 'moments...');
         const momentsWithSignedUrls = await processMomentsWithSignedUrls(momentsData);
         setMoments(momentsWithSignedUrls);
-        console.log('ProfileScreen: ✓ Signed URLs generated');
+        console.log('ProfileScreen: ✓ Signed URLs generated for all moments');
       } else {
+        console.log('ProfileScreen: No moments to display');
         setMoments([]);
       }
     } catch (err) {
@@ -464,11 +465,27 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleMomentPress = (moment: Moment) => {
+  const handleMomentPress = async (moment: Moment) => {
     console.log('ProfileScreen: Moment pressed:', moment.id);
     HapticFeedback.medium();
+    
     // Use signed URL if available, fallback to original URL
-    const videoUrl = moment.signedVideoUrl || moment.video_url;
+    let videoUrl = moment.signedVideoUrl || moment.video_url;
+    
+    // If we don't have a signed URL, try to generate one now
+    if (!moment.signedVideoUrl) {
+      console.log('ProfileScreen: No signed URL available, generating fresh one...');
+      const freshSignedUrl = await getSignedVideoUrl(moment.video_url);
+      if (freshSignedUrl) {
+        console.log('ProfileScreen: ✓ Fresh signed URL generated');
+        videoUrl = freshSignedUrl;
+      } else {
+        console.error('ProfileScreen: ✗ Failed to generate fresh signed URL');
+        Alert.alert('Error', 'Unable to play video. Please try refreshing the page.');
+        return;
+      }
+    }
+    
     setSelectedVideoUri(videoUrl);
     setShowVideoPlayer(true);
   };
@@ -767,6 +784,9 @@ export default function ProfileScreen() {
                           <Image 
                             source={{ uri: thumbnailUrl }}
                             style={styles.momentImage}
+                            onError={(error) => {
+                              console.error('ProfileScreen: Error loading thumbnail:', error.nativeEvent.error);
+                            }}
                           />
                         ) : (
                           <View style={styles.momentPlaceholder}>
