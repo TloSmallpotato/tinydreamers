@@ -8,6 +8,7 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
+import { useStats } from '@/contexts/StatsContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
 import SettingsBottomSheet from '@/components/SettingsBottomSheet';
@@ -17,15 +18,6 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
 import { HapticFeedback } from '@/utils/haptics';
 import { processMomentsWithSignedUrls, getSignedVideoUrl } from '@/utils/videoStorage';
-
-interface ProfileStats {
-  totalWords: number;
-  totalBooks: number;
-  wordsThisWeek: number;
-  booksThisWeek: number;
-  momentsThisWeek: number;
-  newWordsThisWeek: number;
-}
 
 interface Moment {
   id: string;
@@ -38,32 +30,15 @@ interface Moment {
   signedThumbnailUrl?: string | null;
 }
 
-const getStartOfWeek = (): Date => {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diff);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-};
-
 export default function ProfileScreen() {
   const router = useRouter();
   const { children, selectedChild, selectChild, addChild, updateChild, refreshChildren, loading: childLoading } = useChild();
   const { triggerCamera } = useCameraTrigger();
+  const { stats, refreshStats } = useStats();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
   const settingsRef = useRef<BottomSheetModal>(null);
 
-  const [stats, setStats] = useState<ProfileStats>({
-    totalWords: 0,
-    totalBooks: 0,
-    wordsThisWeek: 0,
-    booksThisWeek: 0,
-    momentsThisWeek: 0,
-    newWordsThisWeek: 0,
-  });
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,8 +48,6 @@ export default function ProfileScreen() {
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [thumbnailErrors, setThumbnailErrors] = useState<Set<string>>(new Set());
-  const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const lastFetchTimeRef = useRef<number>(0);
 
   // Update local avatar URL when selectedChild changes
   useEffect(() => {
@@ -86,124 +59,28 @@ export default function ProfileScreen() {
     }
   }, [selectedChild?.avatar_url]);
 
-  // Fetch profile data function with improved logic
-  const fetchProfileData = useCallback(async (forceRefresh: boolean = false) => {
+  // Fetch moments data
+  const fetchMoments = useCallback(async () => {
     if (!selectedChild) {
-      console.log('ProfileScreen: No selected child, skipping fetch');
+      console.log('ProfileScreen: No selected child, skipping moments fetch');
+      setMoments([]);
       return;
     }
-
-    // Prevent excessive fetches (minimum 200ms between fetches unless forced)
-    const now = Date.now();
-    if (!forceRefresh && now - lastFetchTimeRef.current < 200) {
-      console.log('ProfileScreen: Skipping fetch - too soon since last fetch');
-      return;
-    }
-
-    lastFetchTimeRef.current = now;
 
     try {
-      setLoading(true);
-      setError(null);
-      console.log('ProfileScreen: Fetching profile data for child:', selectedChild.id);
+      console.log('ProfileScreen: Fetching moments for child:', selectedChild.id);
 
-      const startOfWeek = getStartOfWeek();
-      const startOfWeekISO = startOfWeek.toISOString();
-      console.log('ProfileScreen: Start of week (Monday):', startOfWeekISO);
+      const { data: momentsData, error: momentsError } = await supabase
+        .from('moments')
+        .select('id, video_url, thumbnail_url, created_at, trim_start, trim_end')
+        .eq('child_id', selectedChild.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
 
-      const [
-        totalWordsResult,
-        wordsThisWeekResult,
-        totalBooksResult,
-        booksThisWeekResult,
-        momentsThisWeekResult,
-        momentsDataResult,
-      ] = await Promise.allSettled([
-        supabase
-          .from('user_words')
-          .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id),
-        supabase
-          .from('user_words')
-          .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id)
-          .gte('created_at', startOfWeekISO),
-        supabase
-          .from('user_books')
-          .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id),
-        supabase
-          .from('user_books')
-          .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id)
-          .gte('created_at', startOfWeekISO),
-        supabase
-          .from('moments')
-          .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id)
-          .gte('created_at', startOfWeekISO),
-        supabase
-          .from('moments')
-          .select('id, video_url, thumbnail_url, created_at, trim_start, trim_end')
-          .eq('child_id', selectedChild.id)
-          .order('created_at', { ascending: false })
-          .limit(5),
-      ]);
-
-      const totalWordsCount = totalWordsResult.status === 'fulfilled' && !totalWordsResult.value.error
-        ? totalWordsResult.value.count || 0
-        : 0;
-
-      const wordsThisWeekCount = wordsThisWeekResult.status === 'fulfilled' && !wordsThisWeekResult.value.error
-        ? wordsThisWeekResult.value.count || 0
-        : 0;
-
-      const totalBooksCount = totalBooksResult.status === 'fulfilled' && !totalBooksResult.value.error
-        ? totalBooksResult.value.count || 0
-        : 0;
-
-      const booksThisWeekCount = booksThisWeekResult.status === 'fulfilled' && !booksThisWeekResult.value.error
-        ? booksThisWeekResult.value.count || 0
-        : 0;
-
-      const momentsThisWeekCount = momentsThisWeekResult.status === 'fulfilled' && !momentsThisWeekResult.value.error
-        ? momentsThisWeekResult.value.count || 0
-        : 0;
-
-      const momentsData = momentsDataResult.status === 'fulfilled' && !momentsDataResult.value.error
-        ? momentsDataResult.value.data || []
-        : [];
-
-      if (totalWordsResult.status === 'rejected') {
-        console.error('ProfileScreen: Error fetching total words:', totalWordsResult.reason);
+      if (momentsError) {
+        console.error('ProfileScreen: Error fetching moments:', momentsError);
+        return;
       }
-      if (wordsThisWeekResult.status === 'rejected') {
-        console.error('ProfileScreen: Error fetching words this week:', wordsThisWeekResult.reason);
-      }
-      if (totalBooksResult.status === 'rejected') {
-        console.error('ProfileScreen: Error fetching total books:', totalBooksResult.reason);
-      }
-      if (booksThisWeekResult.status === 'rejected') {
-        console.error('ProfileScreen: Error fetching books this week:', booksThisWeekResult.reason);
-      }
-      if (momentsThisWeekResult.status === 'rejected') {
-        console.error('ProfileScreen: Error fetching moments this week:', momentsThisWeekResult.reason);
-      }
-      if (momentsDataResult.status === 'rejected') {
-        console.error('ProfileScreen: Error fetching moments:', momentsDataResult.reason);
-      }
-
-      console.log('ProfileScreen: Profile data fetched successfully');
-      console.log('ProfileScreen: Stats - Total Words:', totalWordsCount, 'Words This Week:', wordsThisWeekCount, 'Total Books:', totalBooksCount, 'Books This Week:', booksThisWeekCount, 'Moments:', momentsThisWeekCount);
-
-      setStats({
-        totalWords: totalWordsCount,
-        totalBooks: totalBooksCount,
-        wordsThisWeek: wordsThisWeekCount,
-        booksThisWeek: booksThisWeekCount,
-        momentsThisWeek: momentsThisWeekCount,
-        newWordsThisWeek: wordsThisWeekCount,
-      });
 
       // Generate signed URLs for moments
       if (momentsData && momentsData.length > 0) {
@@ -219,56 +96,60 @@ export default function ProfileScreen() {
         setMoments([]);
       }
     } catch (err) {
-      console.error('ProfileScreen: Unexpected error fetching profile data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load profile data');
-    } finally {
-      setLoading(false);
+      console.error('ProfileScreen: Unexpected error fetching moments:', err);
     }
   }, [selectedChild]);
 
   // Initial data fetch when selectedChild changes
   useEffect(() => {
-    if (selectedChild) {
-      console.log('ProfileScreen: Selected child changed, fetching data...');
-      fetchProfileData(true);
-    } else if (!childLoading && !selectedChild) {
-      setLoading(false);
-      setStats({
-        totalWords: 0,
-        totalBooks: 0,
-        wordsThisWeek: 0,
-        booksThisWeek: 0,
-        momentsThisWeek: 0,
-        newWordsThisWeek: 0,
-      });
-      setMoments([]);
-    }
-  }, [selectedChild, childLoading, fetchProfileData]);
+    const loadData = async () => {
+      if (selectedChild) {
+        console.log('ProfileScreen: Selected child changed, loading data...');
+        setLoading(true);
+        setError(null);
+        
+        try {
+          // Refresh stats from database
+          await refreshStats(selectedChild.id);
+          // Fetch moments
+          await fetchMoments();
+        } catch (err) {
+          console.error('ProfileScreen: Error loading data:', err);
+          setError(err instanceof Error ? err.message : 'Failed to load profile data');
+        } finally {
+          setLoading(false);
+        }
+      } else if (!childLoading && !selectedChild) {
+        setLoading(false);
+        setMoments([]);
+      }
+    };
+
+    loadData();
+  }, [selectedChild, childLoading, refreshStats, fetchMoments]);
 
   // Pull to refresh handler
   const onRefresh = useCallback(async () => {
-    HapticFeedback.light();
-    setRefreshing(true);
-    await fetchProfileData(true);
-    setRefreshing(false);
-    HapticFeedback.success();
-  }, [fetchProfileData]);
-
-  // Debounced fetch function to prevent excessive API calls
-  const debouncedFetchProfileData = useCallback(() => {
-    // Clear any existing timeout
-    if (fetchDebounceRef.current) {
-      clearTimeout(fetchDebounceRef.current);
+    if (!selectedChild) {
+      return;
     }
 
-    // Set a new timeout with shorter delay for better responsiveness
-    fetchDebounceRef.current = setTimeout(() => {
-      console.log('ProfileScreen: Debounced fetch triggered');
-      fetchProfileData(false);
-    }, 300); // Reduced from 500ms to 300ms for faster updates
-  }, [fetchProfileData]);
+    HapticFeedback.light();
+    setRefreshing(true);
+    
+    try {
+      await refreshStats(selectedChild.id);
+      await fetchMoments();
+      HapticFeedback.success();
+    } catch (err) {
+      console.error('ProfileScreen: Error refreshing:', err);
+      HapticFeedback.error();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [selectedChild, refreshStats, fetchMoments]);
 
-  // Set up real-time subscriptions for stats updates
+  // Set up real-time subscriptions for syncing across devices
   useEffect(() => {
     if (!selectedChild) {
       console.log('ProfileScreen: No selected child, skipping subscriptions');
@@ -277,7 +158,7 @@ export default function ProfileScreen() {
 
     console.log('ProfileScreen: Setting up real-time subscriptions for child:', selectedChild.id);
 
-    // Subscribe to user_words changes - REMOVED self: false to receive own changes
+    // Subscribe to user_words changes
     const wordsChannel = supabase
       .channel(`profile_words_${selectedChild.id}`)
       .on(
@@ -289,8 +170,9 @@ export default function ProfileScreen() {
           filter: `child_id=eq.${selectedChild.id}`,
         },
         (payload) => {
-          console.log('ProfileScreen: user_words change detected:', payload.eventType, payload);
-          debouncedFetchProfileData();
+          console.log('ProfileScreen: user_words change detected from another device:', payload.eventType);
+          // Refresh stats from database to sync with other devices
+          refreshStats(selectedChild.id);
         }
       )
       .subscribe((status, err) => {
@@ -300,7 +182,7 @@ export default function ProfileScreen() {
         }
       });
 
-    // Subscribe to user_books changes - REMOVED self: false to receive own changes
+    // Subscribe to user_books changes
     const booksChannel = supabase
       .channel(`profile_books_${selectedChild.id}`)
       .on(
@@ -312,8 +194,9 @@ export default function ProfileScreen() {
           filter: `child_id=eq.${selectedChild.id}`,
         },
         (payload) => {
-          console.log('ProfileScreen: user_books change detected:', payload.eventType, payload);
-          debouncedFetchProfileData();
+          console.log('ProfileScreen: user_books change detected from another device:', payload.eventType);
+          // Refresh stats from database to sync with other devices
+          refreshStats(selectedChild.id);
         }
       )
       .subscribe((status, err) => {
@@ -323,7 +206,7 @@ export default function ProfileScreen() {
         }
       });
 
-    // Subscribe to moments changes - REMOVED self: false to receive own changes
+    // Subscribe to moments changes
     const momentsChannel = supabase
       .channel(`profile_moments_${selectedChild.id}`)
       .on(
@@ -335,8 +218,10 @@ export default function ProfileScreen() {
           filter: `child_id=eq.${selectedChild.id}`,
         },
         (payload) => {
-          console.log('ProfileScreen: moments change detected:', payload.eventType, payload);
-          debouncedFetchProfileData();
+          console.log('ProfileScreen: moments change detected from another device:', payload.eventType);
+          // Refresh stats and moments from database to sync with other devices
+          refreshStats(selectedChild.id);
+          fetchMoments();
         }
       )
       .subscribe((status, err) => {
@@ -349,19 +234,11 @@ export default function ProfileScreen() {
     // Cleanup subscriptions on unmount or when selectedChild changes
     return () => {
       console.log('ProfileScreen: Cleaning up subscriptions');
-      
-      // Clear debounce timeout
-      if (fetchDebounceRef.current) {
-        clearTimeout(fetchDebounceRef.current);
-        fetchDebounceRef.current = null;
-      }
-
-      // Unsubscribe from all channels
       supabase.removeChannel(wordsChannel);
       supabase.removeChannel(booksChannel);
       supabase.removeChannel(momentsChannel);
     };
-  }, [selectedChild?.id, debouncedFetchProfileData]);
+  }, [selectedChild?.id, refreshStats, fetchMoments]);
 
   const calculateAge = (birthDate: string) => {
     try {
@@ -642,7 +519,10 @@ export default function ProfileScreen() {
               style={styles.retryButton} 
               onPress={() => {
                 HapticFeedback.medium();
-                fetchProfileData(true);
+                if (selectedChild) {
+                  refreshStats(selectedChild.id);
+                  fetchMoments();
+                }
               }}
             >
               <Text style={styles.retryButtonText}>Retry</Text>
@@ -711,7 +591,7 @@ export default function ProfileScreen() {
             )}
           </View>
 
-          {stats.newWordsThisWeek > 0 && (
+          {stats.wordsThisWeek > 0 && (
             <View style={styles.achievementBanner}>
               <IconSymbol 
                 ios_icon_name="star.fill" 
@@ -720,7 +600,7 @@ export default function ProfileScreen() {
                 color={colors.accent} 
               />
               <Text style={styles.achievementText}>
-                {selectedChild?.name || 'Your child'} learned {stats.newWordsThisWeek} new {stats.newWordsThisWeek === 1 ? 'word' : 'words'} this week!
+                {selectedChild?.name || 'Your child'} learned {stats.wordsThisWeek} new {stats.wordsThisWeek === 1 ? 'word' : 'words'} this week!
               </Text>
             </View>
           )}

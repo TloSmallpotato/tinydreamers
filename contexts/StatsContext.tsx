@@ -1,0 +1,209 @@
+
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { supabase } from '@/app/integrations/supabase/client';
+
+interface StatsContextType {
+  incrementWordCount: () => void;
+  decrementWordCount: () => void;
+  incrementBookCount: () => void;
+  decrementBookCount: () => void;
+  incrementMomentCount: () => void;
+  decrementMomentCount: () => void;
+  refreshStats: (childId: string) => Promise<void>;
+  stats: {
+    totalWords: number;
+    totalBooks: number;
+    wordsThisWeek: number;
+    booksThisWeek: number;
+    momentsThisWeek: number;
+  };
+}
+
+const StatsContext = createContext<StatsContextType | undefined>(undefined);
+
+const getStartOfWeek = (): Date => {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
+export function StatsProvider({ children }: { children: React.ReactNode }) {
+  const [stats, setStats] = useState({
+    totalWords: 0,
+    totalBooks: 0,
+    wordsThisWeek: 0,
+    booksThisWeek: 0,
+    momentsThisWeek: 0,
+  });
+
+  const incrementWordCount = useCallback(() => {
+    console.log('StatsContext: Incrementing word count');
+    setStats(prev => ({
+      ...prev,
+      totalWords: prev.totalWords + 1,
+      wordsThisWeek: prev.wordsThisWeek + 1,
+    }));
+  }, []);
+
+  const decrementWordCount = useCallback(() => {
+    console.log('StatsContext: Decrementing word count');
+    setStats(prev => ({
+      ...prev,
+      totalWords: Math.max(0, prev.totalWords - 1),
+      wordsThisWeek: Math.max(0, prev.wordsThisWeek - 1),
+    }));
+  }, []);
+
+  const incrementBookCount = useCallback(() => {
+    console.log('StatsContext: Incrementing book count');
+    setStats(prev => ({
+      ...prev,
+      totalBooks: prev.totalBooks + 1,
+      booksThisWeek: prev.booksThisWeek + 1,
+    }));
+  }, []);
+
+  const decrementBookCount = useCallback(() => {
+    console.log('StatsContext: Decrementing book count');
+    setStats(prev => ({
+      ...prev,
+      totalBooks: Math.max(0, prev.totalBooks - 1),
+      booksThisWeek: Math.max(0, prev.booksThisWeek - 1),
+    }));
+  }, []);
+
+  const incrementMomentCount = useCallback(() => {
+    console.log('StatsContext: Incrementing moment count');
+    setStats(prev => ({
+      ...prev,
+      momentsThisWeek: prev.momentsThisWeek + 1,
+    }));
+  }, []);
+
+  const decrementMomentCount = useCallback(() => {
+    console.log('StatsContext: Decrementing moment count');
+    setStats(prev => ({
+      ...prev,
+      momentsThisWeek: Math.max(0, prev.momentsThisWeek - 1),
+    }));
+  }, []);
+
+  const refreshStats = useCallback(async (childId: string) => {
+    if (!childId) {
+      console.log('StatsContext: No child ID provided for refresh');
+      setStats({
+        totalWords: 0,
+        totalBooks: 0,
+        wordsThisWeek: 0,
+        booksThisWeek: 0,
+        momentsThisWeek: 0,
+      });
+      return;
+    }
+
+    try {
+      console.log('StatsContext: Refreshing stats for child:', childId);
+      const startOfWeek = getStartOfWeek();
+      const startOfWeekISO = startOfWeek.toISOString();
+
+      const [
+        totalWordsResult,
+        wordsThisWeekResult,
+        totalBooksResult,
+        booksThisWeekResult,
+        momentsThisWeekResult,
+      ] = await Promise.allSettled([
+        supabase
+          .from('user_words')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', childId),
+        supabase
+          .from('user_words')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', childId)
+          .gte('created_at', startOfWeekISO),
+        supabase
+          .from('user_books')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', childId),
+        supabase
+          .from('user_books')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', childId)
+          .gte('created_at', startOfWeekISO),
+        supabase
+          .from('moments')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', childId)
+          .gte('created_at', startOfWeekISO),
+      ]);
+
+      const totalWordsCount = totalWordsResult.status === 'fulfilled' && !totalWordsResult.value.error
+        ? totalWordsResult.value.count || 0
+        : 0;
+
+      const wordsThisWeekCount = wordsThisWeekResult.status === 'fulfilled' && !wordsThisWeekResult.value.error
+        ? wordsThisWeekResult.value.count || 0
+        : 0;
+
+      const totalBooksCount = totalBooksResult.status === 'fulfilled' && !totalBooksResult.value.error
+        ? totalBooksResult.value.count || 0
+        : 0;
+
+      const booksThisWeekCount = booksThisWeekResult.status === 'fulfilled' && !booksThisWeekResult.value.error
+        ? booksThisWeekResult.value.count || 0
+        : 0;
+
+      const momentsThisWeekCount = momentsThisWeekResult.status === 'fulfilled' && !momentsThisWeekResult.value.error
+        ? momentsThisWeekResult.value.count || 0
+        : 0;
+
+      console.log('StatsContext: Stats refreshed -', {
+        totalWords: totalWordsCount,
+        wordsThisWeek: wordsThisWeekCount,
+        totalBooks: totalBooksCount,
+        booksThisWeek: booksThisWeekCount,
+        momentsThisWeek: momentsThisWeekCount,
+      });
+
+      setStats({
+        totalWords: totalWordsCount,
+        totalBooks: totalBooksCount,
+        wordsThisWeek: wordsThisWeekCount,
+        booksThisWeek: booksThisWeekCount,
+        momentsThisWeek: momentsThisWeekCount,
+      });
+    } catch (error) {
+      console.error('StatsContext: Error refreshing stats:', error);
+    }
+  }, []);
+
+  return (
+    <StatsContext.Provider
+      value={{
+        incrementWordCount,
+        decrementWordCount,
+        incrementBookCount,
+        decrementBookCount,
+        incrementMomentCount,
+        decrementMomentCount,
+        refreshStats,
+        stats,
+      }}
+    >
+      {children}
+    </StatsContext.Provider>
+  );
+}
+
+export function useStats() {
+  const context = useContext(StatsContext);
+  if (context === undefined) {
+    throw new Error('useStats must be used within a StatsProvider');
+  }
+  return context;
+}
