@@ -20,6 +20,7 @@ import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useAddNavigation } from '@/contexts/AddNavigationContext';
+import { useStats } from '@/contexts/StatsContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { searchGoogleBooks, searchBookByISBN, BookSearchResult, getQuotaStatus } from '@/utils/googleBooksApi';
 import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
@@ -63,6 +64,7 @@ const LOADING_MESSAGES = [
 export default function BooksScreen() {
   const { selectedChild } = useChild();
   const { shouldFocusBookSearch, resetBookSearch } = useAddNavigation();
+  const { incrementBookCount } = useStats();
   const params = useLocalSearchParams();
   const router = useRouter();
   const [savedBooks, setSavedBooks] = useState<SavedBook[]>([]);
@@ -104,7 +106,7 @@ export default function BooksScreen() {
       
       loadingMessageIntervalRef.current = setInterval(() => {
         setLoadingMessageIndex((prevIndex) => (prevIndex + 1) % LOADING_MESSAGES.length);
-      }, 3000); // Change message every 3 seconds
+      }, 3000);
       
       return () => {
         if (loadingMessageIntervalRef.current) {
@@ -195,7 +197,7 @@ export default function BooksScreen() {
     try {
       const { data, error } = await supabase.storage
         .from('user-covers')
-        .createSignedUrl(path, 3600); // 1 hour expiry
+        .createSignedUrl(path, 3600);
 
       if (error) {
         console.error('Error generating signed URL:', error);
@@ -398,6 +400,10 @@ export default function BooksScreen() {
 
       console.log('Book added to user library successfully');
       console.log('=== ADDING BOOK PROCESS COMPLETED ===');
+
+      // Update stats context immediately
+      console.log('BooksScreen: Updating stats context...');
+      incrementBookCount();
 
       // Refresh the books list
       await fetchSavedBooks();

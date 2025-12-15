@@ -34,13 +34,13 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { children, selectedChild, selectChild, addChild, updateChild, refreshChildren, loading: childLoading } = useChild();
   const { triggerCamera } = useCameraTrigger();
-  const { stats, refreshStats } = useStats();
+  const { stats, isLoading: statsLoading } = useStats();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
   const settingsRef = useRef<BottomSheetModal>(null);
 
   const [moments, setMoments] = useState<Moment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingMoments, setLoadingMoments] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
@@ -64,11 +64,13 @@ export default function ProfileScreen() {
     if (!selectedChild) {
       console.log('ProfileScreen: No selected child, skipping moments fetch');
       setMoments([]);
+      setLoadingMoments(false);
       return;
     }
 
     try {
       console.log('ProfileScreen: Fetching moments for child:', selectedChild.id);
+      setLoadingMoments(true);
 
       const { data: momentsData, error: momentsError } = await supabase
         .from('moments')
@@ -97,6 +99,8 @@ export default function ProfileScreen() {
       }
     } catch (err) {
       console.error('ProfileScreen: Unexpected error fetching moments:', err);
+    } finally {
+      setLoadingMoments(false);
     }
   }, [selectedChild]);
 
@@ -104,31 +108,26 @@ export default function ProfileScreen() {
   useEffect(() => {
     const loadData = async () => {
       if (selectedChild) {
-        console.log('ProfileScreen: Selected child changed, loading data...');
-        setLoading(true);
+        console.log('ProfileScreen: Selected child changed, loading moments...');
         setError(null);
         
         try {
-          // Refresh stats from database
-          await refreshStats(selectedChild.id);
-          // Fetch moments
+          // Only fetch moments - stats come from context automatically
           await fetchMoments();
         } catch (err) {
           console.error('ProfileScreen: Error loading data:', err);
           setError(err instanceof Error ? err.message : 'Failed to load profile data');
-        } finally {
-          setLoading(false);
         }
       } else if (!childLoading && !selectedChild) {
-        setLoading(false);
+        setLoadingMoments(false);
         setMoments([]);
       }
     };
 
     loadData();
-  }, [selectedChild, childLoading, refreshStats, fetchMoments]);
+  }, [selectedChild, childLoading, fetchMoments]);
 
-  // Pull to refresh handler
+  // Pull to refresh handler - only refreshes moments, stats update automatically
   const onRefresh = useCallback(async () => {
     if (!selectedChild) {
       return;
@@ -138,7 +137,6 @@ export default function ProfileScreen() {
     setRefreshing(true);
     
     try {
-      await refreshStats(selectedChild.id);
       await fetchMoments();
       HapticFeedback.success();
     } catch (err) {
@@ -147,64 +145,17 @@ export default function ProfileScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [selectedChild, refreshStats, fetchMoments]);
+  }, [selectedChild, fetchMoments]);
 
-  // Set up real-time subscriptions for syncing across devices
+  // Set up real-time subscriptions for syncing moments across devices
+  // Stats are handled by StatsContext automatically
   useEffect(() => {
     if (!selectedChild) {
       console.log('ProfileScreen: No selected child, skipping subscriptions');
       return;
     }
 
-    console.log('ProfileScreen: Setting up real-time subscriptions for child:', selectedChild.id);
-
-    // Subscribe to user_words changes
-    const wordsChannel = supabase
-      .channel(`profile_words_${selectedChild.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_words',
-          filter: `child_id=eq.${selectedChild.id}`,
-        },
-        (payload) => {
-          console.log('ProfileScreen: user_words change detected from another device:', payload.eventType);
-          // Refresh stats from database to sync with other devices
-          refreshStats(selectedChild.id);
-        }
-      )
-      .subscribe((status, err) => {
-        console.log('ProfileScreen: user_words subscription status:', status);
-        if (err) {
-          console.error('ProfileScreen: user_words subscription error:', err);
-        }
-      });
-
-    // Subscribe to user_books changes
-    const booksChannel = supabase
-      .channel(`profile_books_${selectedChild.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_books',
-          filter: `child_id=eq.${selectedChild.id}`,
-        },
-        (payload) => {
-          console.log('ProfileScreen: user_books change detected from another device:', payload.eventType);
-          // Refresh stats from database to sync with other devices
-          refreshStats(selectedChild.id);
-        }
-      )
-      .subscribe((status, err) => {
-        console.log('ProfileScreen: user_books subscription status:', status);
-        if (err) {
-          console.error('ProfileScreen: user_books subscription error:', err);
-        }
-      });
+    console.log('ProfileScreen: Setting up real-time subscription for moments:', selectedChild.id);
 
     // Subscribe to moments changes
     const momentsChannel = supabase
@@ -219,8 +170,7 @@ export default function ProfileScreen() {
         },
         (payload) => {
           console.log('ProfileScreen: moments change detected from another device:', payload.eventType);
-          // Refresh stats and moments from database to sync with other devices
-          refreshStats(selectedChild.id);
+          // Refresh moments from database to sync with other devices
           fetchMoments();
         }
       )
@@ -234,11 +184,9 @@ export default function ProfileScreen() {
     // Cleanup subscriptions on unmount or when selectedChild changes
     return () => {
       console.log('ProfileScreen: Cleaning up subscriptions');
-      supabase.removeChannel(wordsChannel);
-      supabase.removeChannel(booksChannel);
       supabase.removeChannel(momentsChannel);
     };
-  }, [selectedChild?.id, refreshStats, fetchMoments]);
+  }, [selectedChild?.id, fetchMoments]);
 
   const calculateAge = (birthDate: string) => {
     try {
@@ -435,7 +383,7 @@ export default function ProfileScreen() {
       const { error: updateError } = await supabase
         .from('children')
         .update({ 
-          avatar_url: uploadResult.url, // Store the storage path, not a URL
+          avatar_url: uploadResult.url,
           updated_at: new Date().toISOString()
         })
         .eq('id', selectedChild.id);
@@ -489,7 +437,9 @@ export default function ProfileScreen() {
     }
   };
 
-  if (childLoading || loading) {
+  const loading = childLoading || statsLoading || loadingMoments;
+
+  if (loading) {
     return (
       <View style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -519,10 +469,7 @@ export default function ProfileScreen() {
               style={styles.retryButton} 
               onPress={() => {
                 HapticFeedback.medium();
-                if (selectedChild) {
-                  refreshStats(selectedChild.id);
-                  fetchMoments();
-                }
+                fetchMoments();
               }}
             >
               <Text style={styles.retryButtonText}>Retry</Text>
