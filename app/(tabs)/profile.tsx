@@ -16,6 +16,7 @@ import ProfileAvatar from '@/components/ProfileAvatar';
 import { supabase } from '@/app/integrations/supabase/client';
 import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
 import { HapticFeedback } from '@/utils/haptics';
+import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
 
 interface ProfileStats {
   totalWords: number;
@@ -33,6 +34,8 @@ interface Moment {
   created_at: string;
   trim_start?: number;
   trim_end?: number;
+  signedVideoUrl?: string | null;
+  signedThumbnailUrl?: string | null;
 }
 
 const getStartOfWeek = (): Date => {
@@ -201,7 +204,15 @@ export default function ProfileScreen() {
         newWordsThisWeek: wordsThisWeekCount,
       });
 
-      setMoments(momentsData);
+      // Generate signed URLs for moments
+      if (momentsData && momentsData.length > 0) {
+        console.log('ProfileScreen: Generating signed URLs for moments...');
+        const momentsWithSignedUrls = await processMomentsWithSignedUrls(momentsData);
+        setMoments(momentsWithSignedUrls);
+        console.log('ProfileScreen: ✓ Signed URLs generated');
+      } else {
+        setMoments([]);
+      }
     } catch (err) {
       console.error('ProfileScreen: Unexpected error fetching profile data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load profile data');
@@ -456,7 +467,9 @@ export default function ProfileScreen() {
   const handleMomentPress = (moment: Moment) => {
     console.log('ProfileScreen: Moment pressed:', moment.id);
     HapticFeedback.medium();
-    setSelectedVideoUri(moment.video_url);
+    // Use signed URL if available, fallback to original URL
+    const videoUrl = moment.signedVideoUrl || moment.video_url;
+    setSelectedVideoUri(videoUrl);
     setShowVideoPlayer(true);
   };
 
@@ -739,40 +752,45 @@ export default function ProfileScreen() {
             {moments.length > 0 ? (
               <>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.momentsScroll}>
-                  {moments.map((moment, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.momentCard}
-                      onPress={() => handleMomentPress(moment)}
-                      activeOpacity={0.8}
-                    >
-                      {moment.thumbnail_url ? (
-                        <Image 
-                          source={{ uri: moment.thumbnail_url }}
-                          style={styles.momentImage}
-                        />
-                      ) : (
-                        <View style={styles.momentPlaceholder}>
-                          <IconSymbol 
-                            ios_icon_name="video.fill" 
-                            android_material_icon_name="videocam" 
-                            size={48} 
-                            color={colors.backgroundAlt} 
+                  {moments.map((moment, index) => {
+                    // Use signed thumbnail URL if available, fallback to original URL
+                    const thumbnailUrl = moment.signedThumbnailUrl || moment.thumbnail_url;
+                    
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.momentCard}
+                        onPress={() => handleMomentPress(moment)}
+                        activeOpacity={0.8}
+                      >
+                        {thumbnailUrl ? (
+                          <Image 
+                            source={{ uri: thumbnailUrl }}
+                            style={styles.momentImage}
                           />
+                        ) : (
+                          <View style={styles.momentPlaceholder}>
+                            <IconSymbol 
+                              ios_icon_name="video.fill" 
+                              android_material_icon_name="videocam" 
+                              size={48} 
+                              color={colors.backgroundAlt} 
+                            />
+                          </View>
+                        )}
+                        <View style={styles.playIconOverlay}>
+                          <View style={styles.playIconCircle}>
+                            <IconSymbol 
+                              ios_icon_name="play.fill" 
+                              android_material_icon_name="play-arrow" 
+                              size={20} 
+                              color={colors.backgroundAlt} 
+                            />
+                          </View>
                         </View>
-                      )}
-                      <View style={styles.playIconOverlay}>
-                        <View style={styles.playIconCircle}>
-                          <IconSymbol 
-                            ios_icon_name="play.fill" 
-                            android_material_icon_name="play-arrow" 
-                            size={20} 
-                            color={colors.backgroundAlt} 
-                          />
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
                 <TouchableOpacity style={styles.viewMoreButton} onPress={handleViewMoreMoments}>
                   <Text style={styles.viewMoreText}>View more</Text>

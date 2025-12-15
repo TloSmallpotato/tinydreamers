@@ -42,11 +42,12 @@ export async function generateVideoThumbnail(videoUri: string): Promise<string |
 
 /**
  * Uploads a thumbnail file to Supabase Storage.
+ * Returns the storage path (not a public URL) since the bucket is private.
  * 
  * @param thumbnailUri - The local URI of the thumbnail file
  * @param childId - The ID of the child (for organizing files)
  * @param supabase - The Supabase client instance
- * @returns The public URL of the uploaded thumbnail, or null if upload failed
+ * @returns The storage path of the uploaded thumbnail, or null if upload failed
  */
 export async function uploadThumbnailToSupabase(
   thumbnailUri: string,
@@ -78,14 +79,14 @@ export async function uploadThumbnailToSupabase(
     
     // Create a unique filename in Supabase storage
     const timestamp = Date.now();
-    const supabaseFileName = `${childId}/${timestamp}_thumb.jpg`;
+    const storagePath = `${childId}/${timestamp}_thumb.jpg`;
     
-    console.log('[Upload] Uploading to Supabase as:', supabaseFileName);
+    console.log('[Upload] Uploading to Supabase as:', storagePath);
     
-    // Upload directly to Supabase without Base64 conversion
+    // Upload to private bucket
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('video-moments')
-      .upload(supabaseFileName, fileBytes, {
+      .upload(storagePath, fileBytes, {
         contentType: 'image/jpeg',
         cacheControl: '3600',
         upsert: false,
@@ -97,14 +98,10 @@ export async function uploadThumbnailToSupabase(
     }
 
     console.log('[Upload] Upload successful:', uploadData);
+    console.log('[Upload] Returning storage path (private bucket):', storagePath);
 
-    // Get the public URL
-    const { data: urlData } = supabase.storage
-      .from('video-moments')
-      .getPublicUrl(supabaseFileName);
-
-    console.log('[Upload] Public URL:', urlData.publicUrl);
-    return urlData.publicUrl;
+    // Return the storage path, not a public URL (bucket is private)
+    return storagePath;
     
   } catch (error) {
     console.error('[Upload] Error uploading thumbnail:', error);
@@ -114,11 +111,12 @@ export async function uploadThumbnailToSupabase(
 
 /**
  * Uploads a video file to Supabase Storage.
+ * Returns the storage path (not a public URL) since the bucket is private.
  * 
  * @param videoUri - The local URI of the video file
  * @param childId - The ID of the child (for organizing files)
  * @param supabase - The Supabase client instance
- * @returns The public URL of the uploaded video, or null if upload failed
+ * @returns The storage path of the uploaded video, or null if upload failed
  */
 export async function uploadVideoToSupabase(
   videoUri: string,
@@ -145,14 +143,14 @@ export async function uploadVideoToSupabase(
     
     // Create a unique filename in Supabase storage
     const timestamp = Date.now();
-    const supabaseFileName = `${childId}/${timestamp}.mp4`;
+    const storagePath = `${childId}/${timestamp}.mp4`;
     
-    console.log('[Video Upload] Uploading to Supabase as:', supabaseFileName);
+    console.log('[Video Upload] Uploading to Supabase as:', storagePath);
     
-    // Upload directly to Supabase without Base64 conversion
+    // Upload to private bucket
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('video-moments')
-      .upload(supabaseFileName, fileBytes, {
+      .upload(storagePath, fileBytes, {
         contentType: 'video/mp4',
         cacheControl: '3600',
         upsert: false,
@@ -164,14 +162,10 @@ export async function uploadVideoToSupabase(
     }
 
     console.log('[Video Upload] Upload successful:', uploadData);
+    console.log('[Video Upload] Returning storage path (private bucket):', storagePath);
 
-    // Get the public URL
-    const { data: urlData } = supabase.storage
-      .from('video-moments')
-      .getPublicUrl(supabaseFileName);
-
-    console.log('[Video Upload] Public URL:', urlData.publicUrl);
-    return urlData.publicUrl;
+    // Return the storage path, not a public URL (bucket is private)
+    return storagePath;
     
   } catch (error) {
     console.error('[Video Upload] Error uploading video:', error);

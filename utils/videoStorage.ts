@@ -103,7 +103,7 @@ export async function getSignedThumbnailUrl(
 }
 
 /**
- * Extract the storage path from a full Supabase storage URL
+ * Extract the storage path from a full Supabase storage URL or return the path as-is
  * @param url - Full storage URL or path
  * @param bucketName - Name of the storage bucket
  * @returns Storage path or null if extraction fails
@@ -112,6 +112,7 @@ function extractStoragePath(url: string, bucketName: string): string | null {
   try {
     // If it's already a path (doesn't start with http), return as-is
     if (!url.startsWith('http')) {
+      console.log('Already a storage path:', url);
       return url;
     }
 
@@ -119,23 +120,31 @@ function extractStoragePath(url: string, bucketName: string): string | null {
     const urlObj = new URL(url);
     const pathname = urlObj.pathname;
 
+    console.log('Extracting path from URL pathname:', pathname);
+
     // Pattern: /storage/v1/object/public/bucket-name/path
     // or: /storage/v1/object/sign/bucket-name/path
     const publicPattern = `/storage/v1/object/public/${bucketName}/`;
     const signPattern = `/storage/v1/object/sign/${bucketName}/`;
     
     if (pathname.includes(publicPattern)) {
-      return pathname.split(publicPattern)[1];
+      const extractedPath = pathname.split(publicPattern)[1];
+      console.log('Extracted from public pattern:', extractedPath);
+      return extractedPath;
     }
     
     if (pathname.includes(signPattern)) {
-      return pathname.split(signPattern)[1];
+      const extractedPath = pathname.split(signPattern)[1];
+      console.log('Extracted from sign pattern:', extractedPath);
+      return extractedPath;
     }
 
     // Try to find bucket name in path and extract everything after it
     const bucketIndex = pathname.indexOf(`/${bucketName}/`);
     if (bucketIndex !== -1) {
-      return pathname.substring(bucketIndex + bucketName.length + 2);
+      const extractedPath = pathname.substring(bucketIndex + bucketName.length + 2);
+      console.log('Extracted from bucket index:', extractedPath);
+      return extractedPath;
     }
 
     console.warn('Could not extract path from URL:', url);
