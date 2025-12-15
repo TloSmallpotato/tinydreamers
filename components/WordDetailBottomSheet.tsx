@@ -9,6 +9,7 @@ import { useVideoRecording } from '@/contexts/VideoRecordingContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 import { Image } from 'expo-image';
+import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -27,6 +28,8 @@ interface Moment {
   video_url: string;
   thumbnail_url?: string;
   created_at: string;
+  signedVideoUrl?: string | null;
+  signedThumbnailUrl?: string | null;
 }
 
 interface WordDetailBottomSheetProps {
@@ -73,6 +76,8 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
 
       try {
         setLoading(true);
+        console.log('[WordDetail] Fetching moments for word:', word.id);
+        
         const { data, error } = await supabase
           .from('moments')
           .select('*')
@@ -80,22 +85,32 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           .order('created_at', { ascending: false });
 
         if (error) {
-          console.error('Error fetching moments:', error);
+          console.error('[WordDetail] Error fetching moments:', error);
           throw error;
         }
 
-        setMoments(data || []);
+        console.log('[WordDetail] Fetched', data?.length || 0, 'moments');
+
+        // Process moments to generate signed URLs
+        if (data && data.length > 0) {
+          console.log('[WordDetail] Processing moments with signed URLs...');
+          const processedMoments = await processMomentsWithSignedUrls(data);
+          console.log('[WordDetail] Processed moments:', processedMoments.length);
+          setMoments(processedMoments);
+        } else {
+          setMoments([]);
+        }
         
         const hasMoments = data && data.length > 0;
         if (hasMoments && !word.is_recorded) {
-          console.log('Auto-updating word to recorded status');
+          console.log('[WordDetail] Auto-updating word to recorded status');
           await updateWordStatus('is_recorded', true);
         } else if (!hasMoments && word.is_recorded) {
-          console.log('Auto-updating word to not recorded status');
+          console.log('[WordDetail] Auto-updating word to not recorded status');
           await updateWordStatus('is_recorded', false);
         }
       } catch (error) {
-        console.error('Error in fetchMoments:', error);
+        console.error('[WordDetail] Error in fetchMoments:', error);
         Alert.alert('Error', 'Failed to load videos');
       } finally {
         setLoading(false);
@@ -125,7 +140,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
     const handleOpenCamera = () => {
       if (!word) return;
       
-      console.log('Opening camera from word detail for word:', word.id);
+      console.log('[WordDetail] Opening camera from word detail for word:', word.id);
       
       setTargetWord(word.id);
       setIsRecordingFromWordDetail(true);
@@ -138,8 +153,10 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
     };
 
     const handlePlayVideo = (moment: Moment) => {
-      console.log('Playing video:', moment.video_url);
-      setSelectedVideoUri(moment.video_url);
+      // Use signed URL if available, otherwise fall back to original URL
+      const videoUrl = moment.signedVideoUrl || moment.video_url;
+      console.log('[WordDetail] Playing video:', videoUrl);
+      setSelectedVideoUri(videoUrl);
       setShowVideoPlayer(true);
     };
 
@@ -170,32 +187,61 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
 
     const deleteMoment = async (moment: Moment) => {
       try {
-        console.log('Deleting moment:', moment.id);
+        console.log('[WordDetail] Deleting moment:', moment.id);
         
-        const urlParts = moment.video_url.split('/video-moments/');
-        if (urlParts.length > 1) {
-          const filePath = urlParts[1];
-          
+        // Extract storage path from video_url (not signed URL)
+        const videoPath = moment.video_url;
+        
+        // If it's a full URL, extract the path
+        if (videoPath.includes('/video-moments/')) {
+          const urlParts = videoPath.split('/video-moments/');
+          if (urlParts.length > 1) {
+            const filePath = urlParts[1];
+            
+            const { error: storageError } = await supabase.storage
+              .from('video-moments')
+              .remove([filePath]);
+
+            if (storageError) {
+              console.error('[WordDetail] Error deleting from storage:', storageError);
+            }
+          }
+        } else {
+          // It's already a storage path
           const { error: storageError } = await supabase.storage
             .from('video-moments')
-            .remove([filePath]);
+            .remove([videoPath]);
 
           if (storageError) {
-            console.error('Error deleting from storage:', storageError);
+            console.error('[WordDetail] Error deleting from storage:', storageError);
           }
         }
         
+        // Delete thumbnail if exists
         if (moment.thumbnail_url) {
-          const thumbUrlParts = moment.thumbnail_url.split('/video-moments/');
-          if (thumbUrlParts.length > 1) {
-            const thumbFilePath = thumbUrlParts[1];
-            
+          const thumbnailPath = moment.thumbnail_url;
+          
+          if (thumbnailPath.includes('/video-moments/')) {
+            const thumbUrlParts = thumbnailPath.split('/video-moments/');
+            if (thumbUrlParts.length > 1) {
+              const thumbFilePath = thumbUrlParts[1];
+              
+              const { error: thumbStorageError } = await supabase.storage
+                .from('video-moments')
+                .remove([thumbFilePath]);
+
+              if (thumbStorageError) {
+                console.error('[WordDetail] Error deleting thumbnail from storage:', thumbStorageError);
+              }
+            }
+          } else {
+            // It's already a storage path
             const { error: thumbStorageError } = await supabase.storage
               .from('video-moments')
-              .remove([thumbFilePath]);
+              .remove([thumbnailPath]);
 
             if (thumbStorageError) {
-              console.error('Error deleting thumbnail from storage:', thumbStorageError);
+              console.error('[WordDetail] Error deleting thumbnail from storage:', thumbStorageError);
             }
           }
         }
@@ -206,17 +252,17 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           .eq('id', moment.id);
 
         if (dbError) {
-          console.error('Error deleting from database:', dbError);
+          console.error('[WordDetail] Error deleting from database:', dbError);
           throw dbError;
         }
 
-        console.log('Moment deleted successfully');
+        console.log('[WordDetail] Moment deleted successfully');
         
         await fetchMoments();
         
         Alert.alert('Success', 'Video deleted successfully');
       } catch (error) {
-        console.error('Error in deleteMoment:', error);
+        console.error('[WordDetail] Error in deleteMoment:', error);
         Alert.alert('Error', 'Failed to delete video');
       }
     };
@@ -333,22 +379,35 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
                     </View>
                   ) : (
                     <View style={styles.momentsGrid}>
-                      {moments.map((moment, index) => (
-                        <View key={index} style={[styles.momentCard, { width: columnWidth }]}>
-                          <TouchableOpacity
-                            style={[styles.momentThumbnail, { height: thumbnailHeight }]}
-                            onPress={() => handlePlayVideo(moment)}
-                            activeOpacity={0.8}
-                          >
-                            {moment.thumbnail_url ? (
-                              <Image
-                                source={{ uri: moment.thumbnail_url }}
-                                style={styles.thumbnailImage}
-                                contentFit="cover"
-                                transition={200}
-                              />
-                            ) : (
-                              <View style={styles.thumbnailPlaceholder}>
+                      {moments.map((moment, index) => {
+                        // Use signed thumbnail URL if available, otherwise fall back to original
+                        const thumbnailUrl = moment.signedThumbnailUrl || moment.thumbnail_url;
+                        
+                        return (
+                          <View key={index} style={[styles.momentCard, { width: columnWidth }]}>
+                            <TouchableOpacity
+                              style={[styles.momentThumbnail, { height: thumbnailHeight }]}
+                              onPress={() => handlePlayVideo(moment)}
+                              activeOpacity={0.8}
+                            >
+                              {thumbnailUrl ? (
+                                <Image
+                                  source={{ uri: thumbnailUrl }}
+                                  style={styles.thumbnailImage}
+                                  contentFit="cover"
+                                  transition={200}
+                                />
+                              ) : (
+                                <View style={styles.thumbnailPlaceholder}>
+                                  <IconSymbol
+                                    ios_icon_name="play.circle.fill"
+                                    android_material_icon_name="play-circle-filled"
+                                    size={48}
+                                    color={colors.backgroundAlt}
+                                  />
+                                </View>
+                              )}
+                              <View style={styles.playOverlay}>
                                 <IconSymbol
                                   ios_icon_name="play.circle.fill"
                                   android_material_icon_name="play-circle-filled"
@@ -356,34 +415,26 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
                                   color={colors.backgroundAlt}
                                 />
                               </View>
-                            )}
-                            <View style={styles.playOverlay}>
-                              <IconSymbol
-                                ios_icon_name="play.circle.fill"
-                                android_material_icon_name="play-circle-filled"
-                                size={48}
-                                color={colors.backgroundAlt}
-                              />
-                            </View>
-                          </TouchableOpacity>
-                          <View style={styles.momentInfo}>
-                            <Text style={styles.momentDate}>
-                              {new Date(moment.created_at).toLocaleDateString()}
-                            </Text>
-                            <TouchableOpacity
-                              style={styles.deleteButton}
-                              onPress={() => handleDeleteMoment(moment)}
-                            >
-                              <IconSymbol
-                                ios_icon_name="trash"
-                                android_material_icon_name="delete"
-                                size={16}
-                                color={colors.secondary}
-                              />
                             </TouchableOpacity>
+                            <View style={styles.momentInfo}>
+                              <Text style={styles.momentDate}>
+                                {new Date(moment.created_at).toLocaleDateString()}
+                              </Text>
+                              <TouchableOpacity
+                                style={styles.deleteButton}
+                                onPress={() => handleDeleteMoment(moment)}
+                              >
+                                <IconSymbol
+                                  ios_icon_name="trash"
+                                  android_material_icon_name="delete"
+                                  size={16}
+                                  color={colors.secondary}
+                                />
+                              </TouchableOpacity>
+                            </View>
                           </View>
-                        </View>
-                      ))}
+                        );
+                      })}
                     </View>
                   )}
                 </View>
