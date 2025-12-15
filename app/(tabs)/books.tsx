@@ -401,8 +401,8 @@ export default function BooksScreen() {
       console.log('Book added to user library successfully');
       console.log('=== ADDING BOOK PROCESS COMPLETED ===');
 
-      // Update stats context immediately
-      console.log('BooksScreen: Updating stats context...');
+      // 🔥 Update stats context immediately
+      console.log('StatsContext: Calling incrementBookCount');
       incrementBookCount();
 
       // Refresh the books list
