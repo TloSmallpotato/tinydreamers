@@ -5,6 +5,7 @@ import { Image } from 'expo-image';
 import Svg, { Defs, Mask, Path, Rect, Image as SvgImage } from 'react-native-svg';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
+import { getSignedAvatarUrl } from '@/utils/profileAvatarUpload';
 
 interface ProfileAvatarProps {
   imageUrl?: string | null;
@@ -21,12 +22,56 @@ export default function ProfileAvatar({
 }: ProfileAvatarProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
 
-  // Reset error state when imageUrl changes
+  // Generate signed URL when imageUrl changes
   useEffect(() => {
     console.log('ProfileAvatar: Image URL changed:', imageUrl);
     setImageError(false);
-    setImageLoading(!!imageUrl);
+    setImageLoading(false);
+    setSignedUrl(null);
+
+    if (!imageUrl) {
+      console.log('ProfileAvatar: No image URL provided');
+      return;
+    }
+
+    // If it's a local file URI (starts with file://), use it directly
+    if (imageUrl.startsWith('file://')) {
+      console.log('ProfileAvatar: Using local file URI directly');
+      setSignedUrl(imageUrl);
+      setImageLoading(true);
+      return;
+    }
+
+    // If it's already a signed URL (contains token parameter), use it directly
+    if (imageUrl.includes('token=')) {
+      console.log('ProfileAvatar: Using existing signed URL');
+      setSignedUrl(imageUrl);
+      setImageLoading(true);
+      return;
+    }
+
+    // Otherwise, generate a signed URL
+    console.log('ProfileAvatar: Generating signed URL for storage path...');
+    setImageLoading(true);
+    
+    getSignedAvatarUrl(imageUrl)
+      .then((url) => {
+        if (url) {
+          console.log('ProfileAvatar: ✓ Signed URL generated successfully');
+          setSignedUrl(url);
+        } else {
+          console.error('ProfileAvatar: ✗ Failed to generate signed URL');
+          setImageError(true);
+          setImageLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.error('ProfileAvatar: Error generating signed URL:', error);
+        setImageError(true);
+        setImageLoading(false);
+      });
   }, [imageUrl]);
 
   const handleImageLoad = () => {
@@ -41,8 +86,8 @@ export default function ProfileAvatar({
     setImageError(true);
   };
 
-  const showImage = imageUrl && !imageError;
-  const showPlaceholder = !imageUrl || imageError;
+  const showImage = signedUrl && !imageError;
+  const showPlaceholder = !signedUrl || imageError;
 
   // Original SVG viewBox is 196x194, we'll scale it to the desired size
   const originalWidth = 196;
@@ -71,8 +116,8 @@ export default function ProfileAvatar({
         {/* Image with mask applied */}
         {showImage && (
           <SvgImage
-            key={imageUrl}
-            href={imageUrl}
+            key={signedUrl}
+            href={signedUrl}
             width={originalWidth}
             height={originalHeight}
             preserveAspectRatio="xMidYMid slice"
@@ -101,12 +146,12 @@ export default function ProfileAvatar({
       )}
 
       {/* Loading indicator */}
-      {isUploading && (
+      {(isUploading || (imageLoading && signedUrl)) && (
         <View style={[styles.overlay, { width: scaledWidth, height: scaledHeight }]}>
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={colors.backgroundAlt} />
             <Text style={[styles.loadingText, { fontSize: size * 0.08 }]}>
-              Uploading...
+              {isUploading ? 'Uploading...' : 'Loading...'}
             </Text>
           </View>
         </View>

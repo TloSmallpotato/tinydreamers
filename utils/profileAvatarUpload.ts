@@ -12,6 +12,52 @@ export interface UploadAvatarResult {
 }
 
 /**
+ * Get a signed URL for a profile avatar stored in Supabase Storage
+ * @param storagePath - The storage path (e.g., "avatars/child-id-timestamp.jpg")
+ * @returns The signed URL or null if failed
+ */
+export async function getSignedAvatarUrl(storagePath: string): Promise<string | null> {
+  try {
+    console.log('getSignedAvatarUrl: Generating signed URL for path:', storagePath);
+
+    // Remove any query parameters from the path
+    const cleanPath = storagePath.split('?')[0];
+
+    // Extract just the file path if it's a full URL
+    let filePath = cleanPath;
+    if (cleanPath.includes('/profile-avatars/')) {
+      const match = cleanPath.match(/\/profile-avatars\/(.+)$/);
+      if (match && match[1]) {
+        filePath = match[1];
+      }
+    }
+
+    console.log('getSignedAvatarUrl: Clean file path:', filePath);
+
+    // Generate signed URL with 1 year expiry
+    const { data, error } = await supabase.storage
+      .from('profile-avatars')
+      .createSignedUrl(filePath, 60 * 60 * 24 * 365); // 1 year
+
+    if (error) {
+      console.error('getSignedAvatarUrl: Error generating signed URL:', error);
+      return null;
+    }
+
+    if (!data?.signedUrl) {
+      console.error('getSignedAvatarUrl: No signed URL returned');
+      return null;
+    }
+
+    console.log('getSignedAvatarUrl: ✓ Signed URL generated successfully');
+    return data.signedUrl;
+  } catch (error) {
+    console.error('getSignedAvatarUrl: Unexpected error:', error);
+    return null;
+  }
+}
+
+/**
  * Pick an image from the device's photo library
  * @returns The URI of the selected image, or null if cancelled
  */
@@ -55,7 +101,7 @@ export async function pickProfileImage(): Promise<string | null> {
  * Upload a profile avatar to Supabase Storage
  * @param childId - The ID of the child
  * @param imageUri - The local URI of the image to upload
- * @returns UploadAvatarResult with success status and URL or error
+ * @returns UploadAvatarResult with success status and storage path or error
  */
 export async function uploadProfileAvatar(
   childId: string,
@@ -157,18 +203,12 @@ export async function uploadProfileAvatar(
 
     console.log('uploadProfileAvatar: Upload successful:', uploadData);
 
-    // Get public URL with cache-busting timestamp
-    const { data: publicUrlData } = supabase.storage
-      .from('profile-avatars')
-      .getPublicUrl(filePath);
-
-    // Add cache-busting query parameter to force image refresh
-    const avatarUrl = `${publicUrlData.publicUrl}?t=${timestamp}`;
-    console.log('uploadProfileAvatar: Public URL with cache-busting:', avatarUrl);
+    // Return the storage path (not a URL) - we'll generate signed URLs when needed
+    console.log('uploadProfileAvatar: Returning storage path:', filePath);
 
     return {
       success: true,
-      url: avatarUrl,
+      url: filePath, // Store the path, not the URL
     };
   } catch (error) {
     console.error('uploadProfileAvatar: Unexpected error:', error);
@@ -181,22 +221,23 @@ export async function uploadProfileAvatar(
 
 /**
  * Delete an old profile avatar from Supabase Storage
- * @param avatarUrl - The full URL of the avatar to delete
+ * @param avatarPath - The storage path or URL of the avatar to delete
  */
-export async function deleteProfileAvatar(avatarUrl: string): Promise<void> {
+export async function deleteProfileAvatar(avatarPath: string): Promise<void> {
   try {
-    console.log('deleteProfileAvatar: Deleting avatar:', avatarUrl);
+    console.log('deleteProfileAvatar: Deleting avatar:', avatarPath);
 
-    // Extract the file path from the URL (remove query parameters first)
-    const urlWithoutQuery = avatarUrl.split('?')[0];
-    const urlMatch = urlWithoutQuery.match(/\/profile-avatars\/(.+?)$/);
+    // Extract the file path from the URL or path
+    let filePath = avatarPath;
     
-    if (!urlMatch || !urlMatch[1]) {
-      console.warn('deleteProfileAvatar: Could not extract file path from URL');
-      return;
+    // If it's a full URL, extract the path
+    if (avatarPath.includes('/profile-avatars/')) {
+      const urlMatch = avatarPath.match(/\/profile-avatars\/(.+?)(\?|$)/);
+      if (urlMatch && urlMatch[1]) {
+        filePath = urlMatch[1];
+      }
     }
 
-    const filePath = urlMatch[1];
     console.log('deleteProfileAvatar: Extracted file path:', filePath);
 
     // Delete from storage

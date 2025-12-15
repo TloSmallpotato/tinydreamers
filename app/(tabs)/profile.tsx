@@ -536,8 +536,8 @@ export default function ProfileScreen() {
       setLocalAvatarUrl(imageUri);
       setUploadingAvatar(true);
 
-      // Step 3: Get old avatar URL before uploading new one
-      const oldAvatarUrl = selectedChild.avatar_url;
+      // Step 3: Get old avatar path before uploading new one
+      const oldAvatarPath = selectedChild.avatar_url;
 
       // Step 4: Upload to Supabase Storage
       const uploadResult = await uploadProfileAvatar(selectedChild.id, imageUri);
@@ -546,19 +546,19 @@ export default function ProfileScreen() {
         console.error('ProfileScreen: Upload failed:', uploadResult.error);
         Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image');
         HapticFeedback.error();
-        // Revert to old avatar URL on failure
-        setLocalAvatarUrl(oldAvatarUrl || null);
+        // Revert to old avatar path on failure
+        setLocalAvatarUrl(oldAvatarPath || null);
         setUploadingAvatar(false);
         return;
       }
 
-      console.log('ProfileScreen: Upload successful, URL:', uploadResult.url);
+      console.log('ProfileScreen: Upload successful, storage path:', uploadResult.url);
 
-      // Step 5: Update database with new avatar URL
+      // Step 5: Update database with new avatar storage path
       const { error: updateError } = await supabase
         .from('children')
         .update({ 
-          avatar_url: uploadResult.url,
+          avatar_url: uploadResult.url, // Store the storage path, not a URL
           updated_at: new Date().toISOString()
         })
         .eq('id', selectedChild.id);
@@ -567,22 +567,22 @@ export default function ProfileScreen() {
         console.error('ProfileScreen: Database update failed:', updateError);
         Alert.alert('Update Failed', 'Failed to save profile photo');
         HapticFeedback.error();
-        // Revert to old avatar URL on failure
-        setLocalAvatarUrl(oldAvatarUrl || null);
+        // Revert to old avatar path on failure
+        setLocalAvatarUrl(oldAvatarPath || null);
         setUploadingAvatar(false);
         return;
       }
 
       console.log('ProfileScreen: Database updated successfully');
 
-      // Step 6: Update local state with server URL immediately
+      // Step 6: Update local state with storage path immediately
       setLocalAvatarUrl(uploadResult.url);
 
       // Step 7: Delete old avatar if it exists and is different
-      if (oldAvatarUrl && oldAvatarUrl !== uploadResult.url) {
-        console.log('ProfileScreen: Deleting old avatar:', oldAvatarUrl);
+      if (oldAvatarPath && oldAvatarPath !== uploadResult.url) {
+        console.log('ProfileScreen: Deleting old avatar:', oldAvatarPath);
         // Don't await this - let it happen in background
-        deleteProfileAvatar(oldAvatarUrl).catch(err => {
+        deleteProfileAvatar(oldAvatarPath).catch(err => {
           console.error('ProfileScreen: Error deleting old avatar:', err);
         });
       }
@@ -605,7 +605,7 @@ export default function ProfileScreen() {
     } catch (err) {
       console.error('ProfileScreen: Error changing avatar:', err);
       setUploadingAvatar(false);
-      // Revert to context avatar URL on error
+      // Revert to context avatar path on error
       setLocalAvatarUrl(selectedChild?.avatar_url || null);
       HapticFeedback.error();
       Alert.alert('Error', 'Failed to update profile photo. Please try again.');
