@@ -8,6 +8,8 @@ import {
   Animated,
   Dimensions,
   TouchableWithoutFeedback,
+  Platform,
+  Alert,
 } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
@@ -114,6 +116,18 @@ export default function AddOptionsModal({
 
   const handleCaptureMoment = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // Check if we're on web
+    if (Platform.OS === 'web') {
+      Alert.alert(
+        'Camera Not Available',
+        'Video recording is not supported on web. Please use the mobile app (iOS or Android) to capture moments.',
+        [{ text: 'OK' }]
+      );
+      onClose();
+      return;
+    }
+    
     onCaptureMoment();
   };
 
@@ -188,7 +202,9 @@ export default function AddOptionsModal({
                 activeOpacity={0.8}
               >
                 <View style={[styles.solidButtonLarge, { backgroundColor: '#F54B02' }]}>
-                  <Text style={styles.largeButtonText}>Capture new Moment</Text>
+                  <Text style={styles.largeButtonText}>
+                    {Platform.OS === 'web' ? 'Capture new Moment (Mobile Only)' : 'Capture new Moment'}
+                  </Text>
                 </View>
               </TouchableOpacity>
             </Animated.View>

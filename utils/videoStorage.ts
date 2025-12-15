@@ -39,6 +39,7 @@ export async function getSignedVideoUrl(
     }
 
     console.log('[VideoStorage] ✓ Generated signed URL successfully');
+    console.log('[VideoStorage] Signed URL:', data.signedUrl);
     return data.signedUrl;
   } catch (error) {
     console.error('[VideoStorage] Exception generating signed URL:', error);
@@ -104,6 +105,7 @@ export async function getSignedThumbnailUrl(
     }
 
     console.log('[VideoStorage] ✓ Generated signed thumbnail URL successfully');
+    console.log('[VideoStorage] Signed thumbnail URL:', data.signedUrl);
     return data.signedUrl;
   } catch (error) {
     console.error('[VideoStorage] Exception generating signed thumbnail URL:', error);

@@ -72,6 +72,7 @@ export default function ProfileScreen() {
   const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [thumbnailErrors, setThumbnailErrors] = useState<Set<string>>(new Set());
   const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
 
@@ -210,6 +211,9 @@ export default function ProfileScreen() {
         const momentsWithSignedUrls = await processMomentsWithSignedUrls(momentsData);
         setMoments(momentsWithSignedUrls);
         console.log('ProfileScreen: ✓ Signed URLs generated for all moments');
+        
+        // Reset thumbnail errors when fetching new data
+        setThumbnailErrors(new Set());
       } else {
         console.log('ProfileScreen: No moments to display');
         setMoments([]);
@@ -496,6 +500,11 @@ export default function ProfileScreen() {
     setSelectedVideoUri(null);
   };
 
+  const handleThumbnailError = (momentId: string) => {
+    console.error('ProfileScreen: Thumbnail failed to load for moment:', momentId);
+    setThumbnailErrors(prev => new Set(prev).add(momentId));
+  };
+
   const handleChangeAvatar = async () => {
     if (!selectedChild) {
       console.log('ProfileScreen: No selected child for avatar change');
@@ -772,6 +781,7 @@ export default function ProfileScreen() {
                   {moments.map((moment, index) => {
                     // Use signed thumbnail URL if available, fallback to original URL
                     const thumbnailUrl = moment.signedThumbnailUrl || moment.thumbnail_url;
+                    const hasThumbnailError = thumbnailErrors.has(moment.id);
                     
                     return (
                       <TouchableOpacity
@@ -780,13 +790,11 @@ export default function ProfileScreen() {
                         onPress={() => handleMomentPress(moment)}
                         activeOpacity={0.8}
                       >
-                        {thumbnailUrl ? (
+                        {thumbnailUrl && !hasThumbnailError ? (
                           <Image 
                             source={{ uri: thumbnailUrl }}
                             style={styles.momentImage}
-                            onError={(error) => {
-                              console.error('ProfileScreen: Error loading thumbnail:', error.nativeEvent.error);
-                            }}
+                            onError={() => handleThumbnailError(moment.id)}
                           />
                         ) : (
                           <View style={styles.momentPlaceholder}>
@@ -796,6 +804,9 @@ export default function ProfileScreen() {
                               size={48} 
                               color={colors.backgroundAlt} 
                             />
+                            {hasThumbnailError && (
+                              <Text style={styles.thumbnailErrorText}>Thumbnail unavailable</Text>
+                            )}
                           </View>
                         )}
                         <View style={styles.playIconOverlay}>
@@ -1090,6 +1101,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.cardPurple,
+  },
+  thumbnailErrorText: {
+    fontSize: 10,
+    color: colors.backgroundAlt,
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 8,
   },
   playIconOverlay: {
     position: 'absolute',

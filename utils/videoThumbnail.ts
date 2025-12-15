@@ -1,6 +1,6 @@
 
-import { File } from 'expo-file-system';
 import * as VideoThumbnails from 'expo-video-thumbnails';
+import { Platform } from 'react-native';
 
 /**
  * Generates a thumbnail from a video file using expo-video-thumbnails.
@@ -23,15 +23,6 @@ export async function generateVideoThumbnail(videoUri: string): Promise<string |
     );
     
     console.log('[Thumbnail] Thumbnail generated successfully:', uri);
-    
-    // Verify the file exists
-    const thumbnailFile = new File(uri);
-    if (!thumbnailFile.exists) {
-      console.error('[Thumbnail] Generated thumbnail file does not exist');
-      return null;
-    }
-    
-    console.log('[Thumbnail] Thumbnail file size:', thumbnailFile.size, 'bytes');
     return uri;
     
   } catch (error) {
@@ -62,20 +53,31 @@ export async function uploadThumbnailToSupabase(
       return null;
     }
     
-    // Create a File instance from the URI
-    const thumbnailFile = new File(thumbnailUri);
+    // Read the file as a blob/arraybuffer depending on platform
+    let fileData: Blob | ArrayBuffer;
     
-    // Verify the file exists
-    if (!thumbnailFile.exists) {
-      console.error('[Upload] Thumbnail file does not exist:', thumbnailUri);
-      return null;
+    if (Platform.OS === 'web') {
+      // On web, fetch the file as a blob
+      const response = await fetch(thumbnailUri);
+      fileData = await response.blob();
+      console.log('[Upload] Read blob from web, size:', fileData.size, 'bytes');
+    } else {
+      // On native, use expo-file-system to read the file
+      const { File } = await import('expo-file-system');
+      const thumbnailFile = new File(thumbnailUri);
+      
+      // Verify the file exists
+      if (!thumbnailFile.exists) {
+        console.error('[Upload] Thumbnail file does not exist:', thumbnailUri);
+        return null;
+      }
+      
+      console.log('[Upload] File exists, size:', thumbnailFile.size, 'bytes');
+      
+      // Read the file as bytes (Uint8Array)
+      fileData = await thumbnailFile.bytes();
+      console.log('[Upload] Read', fileData.byteLength, 'bytes from file');
     }
-    
-    console.log('[Upload] File exists, size:', thumbnailFile.size, 'bytes');
-    
-    // Read the file as bytes (Uint8Array)
-    const fileBytes = await thumbnailFile.bytes();
-    console.log('[Upload] Read', fileBytes.length, 'bytes from file');
     
     // Create a unique filename in Supabase storage
     const timestamp = Date.now();
@@ -86,7 +88,7 @@ export async function uploadThumbnailToSupabase(
     // Upload to private bucket
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('video-moments')
-      .upload(storagePath, fileBytes, {
+      .upload(storagePath, fileData, {
         contentType: 'image/jpeg',
         cacheControl: '3600',
         upsert: false,
@@ -126,20 +128,31 @@ export async function uploadVideoToSupabase(
   try {
     console.log('[Video Upload] Starting video upload:', videoUri);
     
-    // Create a File instance from the URI
-    const videoFile = new File(videoUri);
+    // Read the file as a blob/arraybuffer depending on platform
+    let fileData: Blob | ArrayBuffer;
     
-    // Verify the file exists
-    if (!videoFile.exists) {
-      console.error('[Video Upload] Video file does not exist:', videoUri);
-      return null;
+    if (Platform.OS === 'web') {
+      // On web, fetch the file as a blob
+      const response = await fetch(videoUri);
+      fileData = await response.blob();
+      console.log('[Video Upload] Read blob from web, size:', fileData.size, 'bytes');
+    } else {
+      // On native, use expo-file-system to read the file
+      const { File } = await import('expo-file-system');
+      const videoFile = new File(videoUri);
+      
+      // Verify the file exists
+      if (!videoFile.exists) {
+        console.error('[Video Upload] Video file does not exist:', videoUri);
+        return null;
+      }
+      
+      console.log('[Video Upload] File exists, size:', videoFile.size, 'bytes');
+      
+      // Read the file as bytes (Uint8Array)
+      fileData = await videoFile.bytes();
+      console.log('[Video Upload] Read', fileData.byteLength, 'bytes from file');
     }
-    
-    console.log('[Video Upload] File exists, size:', videoFile.size, 'bytes');
-    
-    // Read the file as bytes (Uint8Array)
-    const fileBytes = await videoFile.bytes();
-    console.log('[Video Upload] Read', fileBytes.length, 'bytes from file');
     
     // Create a unique filename in Supabase storage
     const timestamp = Date.now();
@@ -150,7 +163,7 @@ export async function uploadVideoToSupabase(
     // Upload to private bucket
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('video-moments')
-      .upload(storagePath, fileBytes, {
+      .upload(storagePath, fileData, {
         contentType: 'video/mp4',
         cacheControl: '3600',
         upsert: false,
