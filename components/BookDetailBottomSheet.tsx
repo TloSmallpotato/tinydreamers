@@ -6,7 +6,6 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Image } from 'expo-image';
-import { useStats } from '@/contexts/StatsContext';
 import * as Haptics from 'expo-haptics';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -43,7 +42,6 @@ type RatingType = 'not_vibing' | 'like_it' | 'love_it' | null;
 const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheetProps>(
   ({ userBook, onClose, onRefresh }, ref) => {
     const snapPoints = useMemo(() => [screenHeight * 0.85], []);
-    const { decrementBookCount } = useStats();
     const [rating, setRating] = useState<RatingType>(null);
     const [wouldRecommend, setWouldRecommend] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
@@ -102,7 +100,6 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       if (!cachedUserBook) return;
 
       try {
-        console.log('BookDetailBottomSheet: Deleting book from database...');
         const { error } = await supabase
           .from('user_books')
           .delete()
@@ -112,10 +109,6 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
           console.error('Error deleting book:', error);
           throw error;
         }
-
-        console.log('BookDetailBottomSheet: Book deleted successfully, updating stats...');
-        // Update stats context immediately
-        decrementBookCount();
 
         if (ref && typeof ref !== 'function' && ref.current) {
           ref.current.dismiss();
@@ -127,7 +120,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         console.error('Error in deleteBook:', error);
         Alert.alert('Error', 'Failed to remove book');
       }
-    }, [cachedUserBook, ref, onRefresh, decrementBookCount]);
+    }, [cachedUserBook, ref, onRefresh]);
 
     const handleDeleteBook = useCallback(() => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
