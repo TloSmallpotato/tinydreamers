@@ -48,6 +48,20 @@
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone to record audio with videos.",
           "recordAudioAndroid": true
         }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos and videos to upload moments.",
+          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos and videos.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos and videos to upload moments."
+        }
       ]
     ],
     "scheme": "natively",

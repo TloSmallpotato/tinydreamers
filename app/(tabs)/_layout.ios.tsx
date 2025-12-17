@@ -4,7 +4,7 @@ import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
 import { View, TouchableOpacity, StyleSheet, Animated, Alert, Image, Text } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
 import { usePathname, useRouter, Stack } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useVideoRecording } from '@/contexts/VideoRecordingContext';
@@ -21,6 +21,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { File } from 'expo-file-system';
 import { generateVideoThumbnail, uploadThumbnailToSupabase, uploadVideoToSupabase } from '@/utils/videoThumbnail';
 import { Video, AVPlaybackStatus } from 'expo-av';
+import * as ImagePicker from 'expo-image-picker';
 
 interface TabItem {
   name: string;
@@ -88,6 +89,7 @@ function CustomTabBar() {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
   const cameraRef = useRef<CameraView>(null);
   const scaleAnims = useRef(tabs.map(() => new Animated.Value(1))).current;
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -117,6 +119,9 @@ function CustomTabBar() {
   // Store trim information
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
+
+  // Store original creation date for uploaded videos
+  const [videoCreationDate, setVideoCreationDate] = useState<Date | null>(null);
 
   useEffect(() => {
     if (!showCamera && !recordedVideoUri) {
@@ -159,6 +164,8 @@ function CustomTabBar() {
     setIsCameraReady(false);
     setShowCamera(true);
     setRecordingTime(0);
+    setCameraFacing('back');
+    setVideoCreationDate(null);
   }, [cameraPermission, requestCameraPermission]);
 
   useEffect(() => {
@@ -323,6 +330,9 @@ function CustomTabBar() {
         const actualDuration = await getVideoDuration(video.uri);
         console.log('Setting video with actual duration:', actualDuration);
         
+        // Set creation date to now for recorded videos
+        setVideoCreationDate(new Date());
+        
         setRecordedVideo(video.uri, actualDuration);
         setShowCamera(false);
         setIsCameraReady(false);
@@ -346,6 +356,83 @@ function CustomTabBar() {
     }
   };
 
+  const toggleCameraFacing = () => {
+    console.log('Toggling camera facing');
+    setCameraFacing((current) => (current === 'back' ? 'front' : 'back'));
+  };
+
+  const pickVideoFromLibrary = async () => {
+    try {
+      console.log('Opening video picker from library');
+      
+      // Request media library permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant media library permission to upload videos.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Launch image library with video-only filter
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['videos'], // Only allow videos
+        allowsEditing: false,
+        quality: 1,
+        videoMaxDuration: 300, // 5 minutes max
+      });
+
+      console.log('Video picker result:', result);
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        console.log('Selected video asset:', asset);
+        
+        // Get video duration
+        const duration = asset.duration ? Math.round(asset.duration / 1000) : 0;
+        console.log('Video duration from picker:', duration);
+        
+        // Try to get creation date from asset
+        // Note: ImagePicker doesn't directly provide creation date, but we can use the assetId
+        // to fetch more info from MediaLibrary if needed
+        let creationDate: Date | null = null;
+        
+        if (asset.assetId) {
+          try {
+            // Import MediaLibrary to get asset info
+            const MediaLibrary = await import('expo-media-library');
+            const assetInfo = await MediaLibrary.getAssetInfoAsync(asset.assetId);
+            console.log('Asset info:', assetInfo);
+            
+            if (assetInfo.creationTime) {
+              creationDate = new Date(assetInfo.creationTime);
+              console.log('Original video creation date:', creationDate);
+            }
+          } catch (error) {
+            console.warn('Could not fetch asset creation date:', error);
+          }
+        }
+        
+        // If we couldn't get creation date, use current date
+        if (!creationDate) {
+          creationDate = new Date();
+          console.log('Using current date as fallback');
+        }
+        
+        setVideoCreationDate(creationDate);
+        setRecordedVideo(asset.uri, duration);
+        setShowCamera(false);
+        setIsCameraReady(false);
+      }
+    } catch (error) {
+      console.error('Error picking video from library:', error);
+      Alert.alert('Error', 'Failed to pick video from library');
+    }
+  };
+
   const closeCamera = () => {
     console.log('Closing camera - cancelling recording');
     if (isRecording) {
@@ -359,6 +446,7 @@ function CustomTabBar() {
     setIsCameraReady(false);
     setIsRecording(false);
     setRecordingTime(0);
+    setVideoCreationDate(null);
     clearRecordedVideo();
   };
 
@@ -366,6 +454,7 @@ function CustomTabBar() {
     console.log('Video confirmed with trim:', { startTime, endTime });
     console.log('isRecordingFromWordDetail:', isRecordingFromWordDetail);
     console.log('targetWordId:', targetWordId);
+    console.log('videoCreationDate:', videoCreationDate);
     
     // Store trim information
     setTrimStart(startTime);
@@ -391,6 +480,7 @@ function CustomTabBar() {
 
   const handleCancelVideo = () => {
     console.log('Video cancelled');
+    setVideoCreationDate(null);
     clearRecordedVideo();
   };
 
@@ -412,6 +502,7 @@ function CustomTabBar() {
       console.log('Trim range:', startTime, '-', endTime);
       console.log('User Word ID:', wordId);
       console.log('Child ID:', selectedChild.id);
+      console.log('Video creation date:', videoCreationDate);
       
       setToastMessage('Video saving…');
       setShowToastViewButton(false);
@@ -459,21 +550,29 @@ function CustomTabBar() {
       
       console.log('✓ Video uploaded successfully:', uploadedVideoUrl);
       
-      // Step 3: Save to database with trim information
-      console.log('Step 3: Saving to database with trim info...');
+      // Step 3: Save to database with trim information and creation date
+      console.log('Step 3: Saving to database with trim info and creation date...');
       const trimmedDuration = endTime - startTime;
+      
+      const momentData: any = {
+        word_id: wordId,
+        child_id: selectedChild.id,
+        video_url: uploadedVideoUrl,
+        thumbnail_url: uploadedThumbnailUrl,
+        duration: trimmedDuration,
+        trim_start: startTime,
+        trim_end: endTime,
+      };
+      
+      // Add original creation date if available
+      if (videoCreationDate) {
+        momentData.original_created_at = videoCreationDate.toISOString();
+        console.log('Including original creation date:', momentData.original_created_at);
+      }
       
       const { error: insertError } = await supabase
         .from('moments')
-        .insert({
-          word_id: wordId,
-          child_id: selectedChild.id,
-          video_url: uploadedVideoUrl,
-          thumbnail_url: uploadedThumbnailUrl,
-          duration: trimmedDuration,
-          trim_start: startTime,
-          trim_end: endTime,
-        });
+        .insert(momentData);
 
       if (insertError) {
         console.error('✗ Database insert error:', insertError);
@@ -482,6 +581,9 @@ function CustomTabBar() {
 
       console.log('✓ Saved to database successfully');
       console.log('=== Video save process complete ===');
+      
+      // Clear the creation date after saving
+      setVideoCreationDate(null);
       
       setToastVisible(false);
       
@@ -573,12 +675,26 @@ function CustomTabBar() {
             ref={cameraRef}
             style={StyleSheet.absoluteFill} 
             mode="video"
-            facing="back"
+            facing={cameraFacing}
             onCameraReady={handleCameraReady}
           />
 
           {isCameraReady && (
             <View style={styles.cameraControls}>
+              {/* Upload from album button - bottom left */}
+              <TouchableOpacity 
+                style={styles.uploadButton}
+                onPress={pickVideoFromLibrary}
+                disabled={isRecording}
+              >
+                <MaterialIcons 
+                  name="photo-library" 
+                  size={28} 
+                  color={isRecording ? 'rgba(255, 255, 255, 0.3)' : colors.backgroundAlt} 
+                />
+              </TouchableOpacity>
+
+              {/* Record/Stop button - center */}
               {!isRecording ? (
                 <TouchableOpacity 
                   style={styles.recordButton}
@@ -594,6 +710,19 @@ function CustomTabBar() {
                   <View style={styles.stopButtonInner} />
                 </TouchableOpacity>
               )}
+
+              {/* Switch camera button - bottom right */}
+              <TouchableOpacity 
+                style={styles.switchCameraButton}
+                onPress={toggleCameraFacing}
+                disabled={isRecording}
+              >
+                <MaterialIcons 
+                  name="flip-camera-ios" 
+                  size={28} 
+                  color={isRecording ? 'rgba(255, 255, 255, 0.3)' : colors.backgroundAlt} 
+                />
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -849,8 +978,19 @@ const styles = StyleSheet.create({
     bottom: 40,
     left: 0,
     right: 0,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 40,
     zIndex: 2000,
+  },
+  uploadButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   recordButton: {
     width: 72,
@@ -883,5 +1023,13 @@ const styles = StyleSheet.create({
     height: 32,
     backgroundColor: colors.secondary,
     borderRadius: 4,
+  },
+  switchCameraButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
