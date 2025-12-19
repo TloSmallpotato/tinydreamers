@@ -4,7 +4,7 @@
  */
 
 /**
- * Checks if an image URL is likely to be blank or invalid
+ * Checks if an image URL is likely to be blank or invalid based on URL patterns
  * This includes checking for:
  * - Known blank image patterns
  * - Very small file sizes
@@ -94,6 +94,60 @@ export async function validateImageUrl(url: string): Promise<boolean> {
 }
 
 /**
+ * Validates an image by checking its actual dimensions
+ * Returns an object with validation result and dimensions
+ */
+export async function validateImageDimensions(
+  url: string,
+  minWidth: number = 50,
+  minHeight: number = 50
+): Promise<{ isValid: boolean; width?: number; height?: number }> {
+  return new Promise((resolve) => {
+    // First check for obvious blank patterns
+    if (isLikelyBlankImage(url)) {
+      console.log('🔍 Image failed URL pattern check:', url);
+      resolve({ isValid: false });
+      return;
+    }
+
+    // Create an Image object to load the image
+    const img = new Image();
+    
+    // Set a timeout to prevent hanging
+    const timeout = setTimeout(() => {
+      console.log('🔍 Image dimension check timed out:', url);
+      resolve({ isValid: false });
+    }, 5000);
+
+    img.onload = () => {
+      clearTimeout(timeout);
+      const width = img.naturalWidth || img.width;
+      const height = img.naturalHeight || img.height;
+      
+      console.log('🔍 Image dimensions:', width, 'x', height, url);
+      
+      // Check if dimensions are too small (1x1 or below threshold)
+      if (width <= minWidth || height <= minHeight) {
+        console.log('🔍 Image dimensions too small:', width, 'x', height, 'Min:', minWidth, 'x', minHeight);
+        resolve({ isValid: false, width, height });
+        return;
+      }
+      
+      resolve({ isValid: true, width, height });
+    };
+
+    img.onerror = () => {
+      clearTimeout(timeout);
+      console.log('🔍 Image failed to load:', url);
+      resolve({ isValid: false });
+    };
+
+    // Start loading the image
+    img.src = url;
+  });
+}
+
+/**
  * Filters out blank images from a list of URLs
  * Returns the first valid URL or null if none are valid
  */
@@ -103,5 +157,60 @@ export function getFirstValidImageUrl(urls: (string | null | undefined)[]): stri
       return url;
     }
   }
+  return null;
+}
+
+/**
+ * Validates an image URL with dimension checking
+ * This is an async version that checks both URL patterns and actual dimensions
+ * Use this for more thorough validation when you need to ensure image quality
+ */
+export async function validateImageWithDimensions(
+  url: string | null | undefined,
+  minWidth: number = 50,
+  minHeight: number = 50
+): Promise<boolean> {
+  if (!url) return false;
+  
+  // First check URL patterns
+  if (isLikelyBlankImage(url)) {
+    return false;
+  }
+  
+  // Then check actual dimensions
+  const result = await validateImageDimensions(url, minWidth, minHeight);
+  return result.isValid;
+}
+
+/**
+ * Gets the first valid image URL from a list, with optional dimension checking
+ * If checkDimensions is true, it will validate actual image dimensions
+ */
+export async function getFirstValidImageUrlAsync(
+  urls: (string | null | undefined)[],
+  checkDimensions: boolean = false,
+  minWidth: number = 50,
+  minHeight: number = 50
+): Promise<string | null> {
+  for (const url of urls) {
+    if (!url) continue;
+    
+    // Quick URL pattern check
+    if (isLikelyBlankImage(url)) {
+      continue;
+    }
+    
+    // If dimension checking is enabled, validate dimensions
+    if (checkDimensions) {
+      const result = await validateImageDimensions(url, minWidth, minHeight);
+      if (result.isValid) {
+        return url;
+      }
+    } else {
+      // Just return the first URL that passes pattern check
+      return url;
+    }
+  }
+  
   return null;
 }
