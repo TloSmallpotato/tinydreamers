@@ -28,6 +28,7 @@ import ISBNNotFoundModal from '@/components/ISBNNotFoundModal';
 import ToastNotification from '@/components/ToastNotification';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { isLikelyBlankImage, getFirstValidImageUrl } from '@/utils/imageValidation';
 
 interface SavedBook {
   id: string;
@@ -574,18 +575,22 @@ export default function BooksScreen() {
     // For custom books with private covers, use signed URL
     if (book.is_custom_for_user && book.cover_url_private) {
       const signedUrl = signedUrls.get(book.id);
-      if (signedUrl) {
+      if (signedUrl && !isLikelyBlankImage(signedUrl)) {
         return signedUrl;
       }
     }
 
-    // For regular books, try cover_url first, then thumbnail_url as fallback
-    if (book.book.cover_url && !imageErrors.has(book.book.id)) {
-      return book.book.cover_url;
+    // For regular books, get the first valid image URL
+    const validUrl = getFirstValidImageUrl([
+      book.book.cover_url,
+      book.book.thumbnail_url
+    ]);
+
+    // Check if the URL has already failed to load
+    if (validUrl && !imageErrors.has(book.book.id) && !imageErrors.has(`${book.book.id}-thumb`)) {
+      return validUrl;
     }
-    if (book.book.thumbnail_url && !imageErrors.has(`${book.book.id}-thumb`)) {
-      return book.book.thumbnail_url;
-    }
+
     return null;
   };
 

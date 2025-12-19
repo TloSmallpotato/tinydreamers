@@ -7,6 +7,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
+import { isLikelyBlankImage, getFirstValidImageUrl } from '@/utils/imageValidation';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -177,13 +178,17 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       if (!cachedUserBook) return null;
       const book = cachedUserBook.book;
       
-      // Try cover_url first, then thumbnail_url as fallback
-      if (book.cover_url && !imageError) {
-        return book.cover_url;
+      // Get the first valid image URL (not blank and not errored)
+      const validUrl = getFirstValidImageUrl([
+        book.cover_url,
+        book.thumbnail_url
+      ]);
+
+      // If we have a valid URL and it hasn't errored, use it
+      if (validUrl && !imageError) {
+        return validUrl;
       }
-      if (book.thumbnail_url) {
-        return book.thumbnail_url;
-      }
+
       return null;
     }, [cachedUserBook, imageError]);
 

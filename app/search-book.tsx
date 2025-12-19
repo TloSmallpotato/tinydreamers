@@ -20,6 +20,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { searchGoogleBooks, BookSearchResult } from '@/utils/googleBooksApi';
 import ToastNotification from '@/components/ToastNotification';
 import { useRouter } from 'expo-router';
+import { getFirstValidImageUrl } from '@/utils/imageValidation';
 
 export default function SearchBookScreen() {
   const { selectedChild } = useChild();
@@ -285,42 +286,45 @@ export default function SearchBookScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {searchResults.map((book, index) => (
-              <TouchableOpacity
-                key={`${book.googleBooksId}-${index}`}
-                style={styles.dropdownItem}
-                onPress={() => handleSelectBook(book)}
-                disabled={isAddingBook}
-              >
-                <View style={styles.bookCoverContainer}>
-                  {book.thumbnailUrl || book.coverUrl ? (
-                    <Image
-                      source={{ uri: book.thumbnailUrl || book.coverUrl }}
-                      style={styles.bookCoverSmall}
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
-                      priority="high"
-                      transition={200}
-                      onError={() => console.log('Dropdown image error:', book.title)}
-                    />
-                  ) : (
-                    <View style={[styles.bookCoverSmall, styles.placeholderCover]}>
-                      <Text style={styles.placeholderText} numberOfLines={2}>
-                        {book.title}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.bookInfo}>
-                  <Text style={styles.bookTitle} numberOfLines={2}>
-                    {book.title}
-                  </Text>
-                  <Text style={styles.bookAuthor} numberOfLines={1}>
-                    {book.authors}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {searchResults.map((book, index) => {
+              const imageUrl = getFirstValidImageUrl([book.thumbnailUrl, book.coverUrl]);
+              return (
+                <TouchableOpacity
+                  key={`${book.googleBooksId}-${index}`}
+                  style={styles.dropdownItem}
+                  onPress={() => handleSelectBook(book)}
+                  disabled={isAddingBook}
+                >
+                  <View style={styles.bookCoverContainer}>
+                    {imageUrl ? (
+                      <Image
+                        source={{ uri: imageUrl }}
+                        style={styles.bookCoverSmall}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        priority="high"
+                        transition={200}
+                        onError={() => console.log('Dropdown image error:', book.title)}
+                      />
+                    ) : (
+                      <View style={[styles.bookCoverSmall, styles.placeholderCover]}>
+                        <Text style={styles.placeholderText} numberOfLines={2}>
+                          {book.title}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.bookInfo}>
+                    <Text style={styles.bookTitle} numberOfLines={2}>
+                      {book.title}
+                    </Text>
+                    <Text style={styles.bookAuthor} numberOfLines={1}>
+                      {book.authors}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         )}
 
