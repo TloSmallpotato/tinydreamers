@@ -305,12 +305,9 @@ export default function SearchBookScreen() {
                     />
                   ) : (
                     <View style={[styles.bookCoverSmall, styles.placeholderCover]}>
-                      <IconSymbol
-                        ios_icon_name="book.fill"
-                        android_material_icon_name="book"
-                        size={24}
-                        color={colors.textSecondary}
-                      />
+                      <Text style={styles.placeholderText} numberOfLines={2}>
+                        {book.title}
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -434,18 +431,27 @@ const styles = StyleSheet.create({
   bookCoverContainer: {
     marginRight: 12,
     backgroundColor: colors.background,
-    borderRadius: 16,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
     overflow: 'hidden',
   },
   bookCoverSmall: {
     width: 50,
     height: 75,
-    borderRadius: 16,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
   },
   placeholderCover: {
-    backgroundColor: colors.background,
+    backgroundColor: '#EDEDFF',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 4,
+  },
+  placeholderText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'center',
   },
   bookInfo: {
     flex: 1,

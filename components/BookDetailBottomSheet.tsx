@@ -260,13 +260,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
               />
             ) : (
               <View style={[styles.bookCover, styles.placeholderCover]}>
-                <IconSymbol
-                  ios_icon_name="book.fill"
-                  android_material_icon_name="book"
-                  size={80}
-                  color={colors.textSecondary}
-                />
-                <Text style={styles.placeholderTitle} numberOfLines={3}>
+                <Text style={styles.placeholderTitle} numberOfLines={4}>
                   {book.title}
                 </Text>
               </View>
@@ -442,20 +436,20 @@ const styles = StyleSheet.create({
   bookCover: {
     width: screenWidth * 0.5,
     height: screenWidth * 0.7,
-    borderRadius: 16,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
   },
   placeholderCover: {
-    backgroundColor: colors.background,
+    backgroundColor: '#EDEDFF',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
   },
   placeholderTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: colors.primary,
     textAlign: 'center',
-    marginTop: 12,
   },
   bookInfo: {
     paddingHorizontal: 20,

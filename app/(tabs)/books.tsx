@@ -710,13 +710,7 @@ export default function BooksScreen() {
                       />
                     ) : (
                       <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
-                        <IconSymbol
-                          ios_icon_name="book.fill"
-                          android_material_icon_name="book"
-                          size={48}
-                          color={colors.textSecondary}
-                        />
-                        <Text style={styles.placeholderText} numberOfLines={3}>
+                        <Text style={styles.placeholderText} numberOfLines={4}>
                           {savedBook.book.title}
                         </Text>
                       </View>
@@ -897,20 +891,20 @@ const styles = StyleSheet.create({
   bookCoverLarge: {
     width: '100%',
     height: '100%',
-    borderRadius: 16,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
   },
   placeholderCoverLarge: {
-    backgroundColor: colors.backgroundAlt,
+    backgroundColor: '#EDEDFF',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 12,
+    padding: 16,
   },
   placeholderText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: colors.primary,
     textAlign: 'center',
-    marginTop: 8,
   },
   customBadge: {
     position: 'absolute',
