@@ -535,9 +535,9 @@ export default function BooksScreen() {
     setIsModalOpen(true);
     setSelectedBook(book);
     
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       bookDetailRef.current?.present();
-    });
+    }, 50);
   }, [isModalOpen]);
 
   const handleCloseBookDetail = () => {
@@ -876,6 +876,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
+    aspectRatio: 1,
   },
   placeholderText: {
     fontSize: 14,

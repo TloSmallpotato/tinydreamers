@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Image, ImageProps } from 'expo-image';
 import { colors } from '@/styles/commonStyles';
 import { isLikelyBlankImage } from '@/utils/imageValidation';
@@ -116,6 +116,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopRightRadius: 16,
     borderBottomRightRadius: 16,
+    aspectRatio: 1,
   },
   placeholderText: {
     fontSize: 14,

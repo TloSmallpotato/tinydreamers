@@ -29,6 +29,7 @@ import ToastNotification from '@/components/ToastNotification';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { isLikelyBlankImage, getFirstValidImageUrl } from '@/utils/imageValidation';
+import ValidatedImage from '@/components/ValidatedImage';
 
 interface SavedBook {
   id: string;
@@ -103,7 +104,7 @@ export default function BooksScreen() {
       
       loadingMessageIntervalRef.current = setInterval(() => {
         setLoadingMessageIndex((prevIndex) => (prevIndex + 1) % LOADING_MESSAGES.length);
-      }, 3000); // Change message every 3 seconds
+      }, 3000);
       
       return () => {
         if (loadingMessageIntervalRef.current) {
@@ -162,7 +163,7 @@ export default function BooksScreen() {
     };
   }, []);
 
-  // Handle autoScan parameter from navigation - runs every time screen comes into focus
+  // Handle autoScan parameter from navigation
   useFocusEffect(
     useCallback(() => {
       const autoScan = params.autoScan;
@@ -172,16 +173,13 @@ export default function BooksScreen() {
         console.log('🔵 [iOS] autoScan parameter detected - opening barcode scanner');
         hasProcessedAutoOpen.current = true;
         
-        // Clear the parameter immediately
         router.replace('/(tabs)/books');
         
-        // Open the scanner
         setTimeout(() => {
           setShowScanner(true);
         }, 300);
       }
       
-      // Reset the flag when leaving the screen
       return () => {
         console.log('[iOS] Leaving books screen - resetting hasProcessedAutoOpen flag');
         hasProcessedAutoOpen.current = false;
@@ -194,7 +192,7 @@ export default function BooksScreen() {
     try {
       const { data, error } = await supabase.storage
         .from('user-covers')
-        .createSignedUrl(path, 3600); // 1 hour expiry
+        .createSignedUrl(path, 3600);
 
       if (error) {
         console.error('Error generating signed URL:', error);
@@ -274,7 +272,6 @@ export default function BooksScreen() {
   }, [fetchSavedBooks]);
 
   const handleSelectBook = async (book: BookSearchResult) => {
-    // Prevent duplicate additions
     if (isAddingBook) {
       console.log('Already adding a book - ignoring duplicate request');
       return;
@@ -288,13 +285,11 @@ export default function BooksScreen() {
     }
 
     try {
-      // Set flag to prevent duplicate additions
       setIsAddingBook(true);
       console.log('=== ADDING BOOK PROCESS STARTED ===');
       console.log('Book title:', book.title);
       console.log('Google Books ID:', book.googleBooksId);
 
-      // STEP 1: Check if book exists in books_library database
       console.log('STEP 1: Checking if book exists in database...');
       let { data: existingBook, error: fetchError } = await supabase
         .from('books_library')
@@ -305,7 +300,6 @@ export default function BooksScreen() {
       let bookId: string;
 
       if (fetchError && fetchError.code === 'PGRST116') {
-        // STEP 2: Book not found in database - create new entry
         console.log('STEP 2: Book NOT found in database. Creating new entry...');
         console.log('Cover URL:', book.coverUrl);
         console.log('Thumbnail URL:', book.thumbnailUrl);
@@ -338,7 +332,6 @@ export default function BooksScreen() {
         bookId = newBook.id;
         console.log('Book created successfully in database with ID:', bookId);
       } else if (existingBook) {
-        // Book already exists in database - reuse it
         bookId = existingBook.id;
         console.log('STEP 2: Book FOUND in database with ID:', bookId);
       } else {
@@ -349,7 +342,6 @@ export default function BooksScreen() {
         return;
       }
 
-      // STEP 3: Check if user already has this book in their library
       console.log('STEP 3: Checking if user already has this book...');
       const { data: existingUserBook } = await supabase
         .from('user_books')
@@ -366,7 +358,6 @@ export default function BooksScreen() {
         return;
       }
 
-      // STEP 4: Create user_book relationship
       console.log('STEP 4: Adding book to user library...');
       const { error: relationError } = await supabase
         .from('user_books')
@@ -388,10 +379,8 @@ export default function BooksScreen() {
       console.log('Book added to user library successfully');
       console.log('=== ADDING BOOK PROCESS COMPLETED ===');
 
-      // Refresh the books list
       await fetchSavedBooks();
 
-      // Show success message
       showToast('Book added to your library!', 'success');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -399,7 +388,6 @@ export default function BooksScreen() {
       showToast('An unexpected error occurred. Please try again.', 'error');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
-      // Reset the flag after a short delay to prevent rapid re-additions
       addBookTimeoutRef.current = setTimeout(() => {
         console.log('Resetting isAddingBook flag');
         setIsAddingBook(false);
@@ -411,7 +399,6 @@ export default function BooksScreen() {
     console.log('🔵 [iOS] ISBN scanned:', isbn);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    // Prevent duplicate processing
     if (isAddingBook) {
       console.log('Already adding a book - ignoring barcode scan');
       return;
@@ -423,17 +410,14 @@ export default function BooksScreen() {
       return;
     }
 
-    // Set flag immediately
     setIsAddingBook(true);
     setIsSearching(true);
 
     try {
       console.log('Searching for book by ISBN...');
-      // Search for book by ISBN - this will use fallback methods if quota exceeded
       const book = await searchBookByISBN(isbn);
 
       if (!book) {
-        // Book not found - show options modal
         console.log('Book not found - showing options modal');
         setNotFoundISBN(isbn);
         setShowISBNNotFoundModal(true);
@@ -444,7 +428,6 @@ export default function BooksScreen() {
       }
 
       console.log('Book found by ISBN:', book.title);
-      // Add the book
       await handleSelectBook(book);
     } catch (error) {
       console.error('Error handling barcode scan:', error);
@@ -474,7 +457,6 @@ export default function BooksScreen() {
       const book = await searchBookByISBN(isbn);
 
       if (!book) {
-        // Still not found - update the modal to show manual input mode with this ISBN
         console.log('Book still not found - staying in modal');
         setNotFoundISBN(isbn);
         setIsSearching(false);
@@ -485,9 +467,7 @@ export default function BooksScreen() {
       }
 
       console.log('Book found by manual ISBN:', book.title);
-      // Close the modal
       setShowISBNNotFoundModal(false);
-      // Add the book
       await handleSelectBook(book);
     } catch (error) {
       console.error('Error handling manual ISBN:', error);
@@ -503,10 +483,8 @@ export default function BooksScreen() {
     console.log('🔍 [iOS] Search book name selected from modal');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    // Close the ISBN not found modal
     setShowISBNNotFoundModal(false);
     
-    // Navigate to search-book page
     setTimeout(() => {
       try {
         console.log('🔍 [iOS] Navigating to /search-book');
@@ -522,41 +500,32 @@ export default function BooksScreen() {
     console.log('🔵 [iOS] Book pressed:', book.book.title, 'Modal open:', isModalOpen, 'Last clicked:', lastClickedBookIdRef.current);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    // If modal is already open, ignore the press
     if (isModalOpen) {
       console.log('Modal already open - ignoring press');
       return;
     }
 
-    // If clicking the same book within 500ms, ignore (debounce)
     if (lastClickedBookIdRef.current === book.id) {
       console.log('Same book clicked within debounce period - ignoring');
       return;
     }
 
-    // Clear any existing timeout
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
     }
 
-    // Set the last clicked book ID
     lastClickedBookIdRef.current = book.id;
 
-    // Reset the last clicked book ID after 500ms
     clickTimeoutRef.current = setTimeout(() => {
       lastClickedBookIdRef.current = null;
     }, 500);
 
-    // Set modal as opening
     setIsModalOpen(true);
-    
-    // Set the selected book
     setSelectedBook(book);
     
-    // Use requestAnimationFrame to ensure state is set before presenting
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       bookDetailRef.current?.present();
-    });
+    }, 50);
   }, [isModalOpen]);
 
   const handleCloseBookDetail = () => {
@@ -566,8 +535,8 @@ export default function BooksScreen() {
     lastClickedBookIdRef.current = null;
   };
 
-  const handleImageError = (bookId: string) => {
-    console.log('Image failed to load for book:', bookId);
+  const handleImageValidationFailed = (bookId: string) => {
+    console.log('Image validation failed for book:', bookId);
     setImageErrors(prev => new Set(prev).add(bookId));
   };
 
@@ -684,14 +653,17 @@ export default function BooksScreen() {
                     activeOpacity={0.7}
                   >
                     {imageUrl ? (
-                      <Image
+                      <ValidatedImage
                         source={{ uri: imageUrl }}
                         style={styles.bookCoverLarge}
+                        fallbackTitle={savedBook.book.title}
+                        minWidth={50}
+                        minHeight={50}
                         contentFit="contain"
                         cachePolicy="memory-disk"
                         priority="high"
                         transition={200}
-                        onError={() => handleImageError(savedBook.book.id)}
+                        onValidationFailed={() => handleImageValidationFailed(savedBook.book.id)}
                       />
                     ) : (
                       <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
@@ -884,6 +856,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
+    aspectRatio: 1,
   },
   placeholderText: {
     fontSize: 14,
