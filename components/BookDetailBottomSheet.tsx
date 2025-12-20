@@ -22,7 +22,7 @@ interface Book {
   description: string;
   published_date: string;
   page_count: number;
-  requested: boolean;
+  requested: number;
 }
 
 interface UserBook {
@@ -238,19 +238,29 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
         console.log('Requesting cover for book:', cachedUserBook.book.id);
 
-        const { data, error } = await supabase
-          .from('books_library')
-          .update({ requested: true })
-          .eq('id', cachedUserBook.book.id)
-          .select();
+        // Increment the requested count by 1
+        const { data, error } = await supabase.rpc('increment_book_request', {
+          book_id: cachedUserBook.book.id
+        });
 
         if (error) {
           console.error('Error requesting cover:', error);
-          Alert.alert('Error', 'Failed to submit request. Please try again.');
-          return;
+          
+          // Fallback: If RPC doesn't exist, use direct update with increment
+          const currentCount = cachedUserBook.book.requested || 0;
+          const { error: updateError } = await supabase
+            .from('books_library')
+            .update({ requested: currentCount + 1 })
+            .eq('id', cachedUserBook.book.id);
+
+          if (updateError) {
+            console.error('Error with fallback update:', updateError);
+            Alert.alert('Error', 'Failed to submit request. Please try again.');
+            return;
+          }
         }
 
-        console.log('Successfully updated requested status:', data);
+        console.log('Successfully incremented request count');
 
         Alert.alert(
           'Request Submitted',
@@ -264,7 +274,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
             ...cachedUserBook,
             book: {
               ...cachedUserBook.book,
-              requested: true
+              requested: (cachedUserBook.book.requested || 0) + 1
             }
           });
         }
@@ -283,7 +293,8 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
     const book = cachedUserBook.book;
     const imageUrl = getImageUrl();
-    const showRequestButton = (hasNoCover || isLowRes) && !book.requested;
+    const hasRequested = book.requested > 0;
+    const showRequestButton = hasNoCover || isLowRes;
 
     return (
       <BottomSheetModal
@@ -364,16 +375,25 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
               )}
             </View>
             
-            {/* Request Button - Now outside coverWrapper with proper margins */}
+            {/* Request Button - Grey out if already requested */}
             {showRequestButton && (
               <TouchableOpacity
-                style={styles.requestButton}
+                style={[
+                  styles.requestButton,
+                  hasRequested && styles.requestButtonDisabled
+                ]}
                 onPress={handleRequestCover}
-                disabled={isRequesting}
-                activeOpacity={0.7}
+                disabled={isRequesting || hasRequested}
+                activeOpacity={hasRequested ? 1 : 0.7}
               >
-                <Text style={styles.requestButtonText}>
-                  {hasNoCover ? 'Request book cover' : 'Request better image'}
+                <Text style={[
+                  styles.requestButtonText,
+                  hasRequested && styles.requestButtonTextDisabled
+                ]}>
+                  {hasRequested 
+                    ? (hasNoCover ? 'Book cover requested' : 'Better image requested')
+                    : (hasNoCover ? 'Request book cover' : 'Request better image')
+                  }
                 </Text>
               </TouchableOpacity>
             )}
@@ -577,11 +597,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: screenWidth * 0.5, // Match the cover width
   },
+  requestButtonDisabled: {
+    backgroundColor: colors.textSecondary,
+    opacity: 0.5,
+  },
   requestButtonText: {
     fontSize: 13,
     fontWeight: '700',
     color: colors.backgroundAlt,
     textAlign: 'center',
+  },
+  requestButtonTextDisabled: {
+    color: colors.primary,
   },
   bookInfo: {
     paddingHorizontal: 20,
