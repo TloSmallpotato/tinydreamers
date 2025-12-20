@@ -69,6 +69,24 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       }
     }, [userBook]);
 
+    // Check if we have a valid cover URL and update hasNoCover state
+    useEffect(() => {
+      if (!cachedUserBook) return;
+      
+      const book = cachedUserBook.book;
+      const validUrl = getFirstValidImageUrl([
+        book.cover_url,
+        book.thumbnail_url
+      ]);
+
+      // Update hasNoCover state based on whether we have a valid URL
+      if (!validUrl || imageError) {
+        setHasNoCover(true);
+      } else {
+        setHasNoCover(false);
+      }
+    }, [cachedUserBook, imageError]);
+
     const updateBookData = useCallback(async (field: 'rating' | 'would_recommend', value: any) => {
       if (!cachedUserBook) return;
 
@@ -207,8 +225,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         return validUrl;
       }
 
-      // No valid cover found
-      setHasNoCover(true);
+      // No valid cover found - don't set state here, it's handled in useEffect
       return null;
     }, [cachedUserBook, imageError]);
 
