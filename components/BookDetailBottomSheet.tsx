@@ -52,7 +52,8 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     const [isLowRes, setIsLowRes] = useState(false);
     const [hasNoCover, setHasNoCover] = useState(false);
     const [isRequesting, setIsRequesting] = useState(false);
-    const [hasUserRequested, setHasUserRequested] = useState(false);
+    const [hasUserRequestedCover, setHasUserRequestedCover] = useState(false);
+    const [hasUserRequestedBetterImage, setHasUserRequestedBetterImage] = useState(false);
     const [isCheckingRequest, setIsCheckingRequest] = useState(false);
 
     // Cache the current book data to prevent flickering
@@ -83,7 +84,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         }
 
         const hasRequested = !!data;
-        console.log('✅ User has requested:', hasRequested);
+        console.log(`✅ User has requested ${requestType}:`, hasRequested);
         return hasRequested;
       } catch (error) {
         console.error('❌ Error in checkUserRequest:', error);
@@ -103,7 +104,8 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         setIsLowRes(false);
         setHasNoCover(false);
         // Reset request state when new book is opened
-        setHasUserRequested(false);
+        setHasUserRequestedCover(false);
+        setHasUserRequestedBetterImage(false);
         setIsCheckingRequest(false);
       }
     }, [userBook]);
@@ -132,17 +134,24 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     useEffect(() => {
       if (!cachedUserBook) return;
 
-      const checkRequest = async () => {
+      const checkRequests = async () => {
         setIsCheckingRequest(true);
-        const requestType = hasNoCover ? 'cover' : 'better_image';
-        console.log('🔄 Checking request status for:', requestType);
-        const hasRequested = await checkUserRequest(cachedUserBook.book.id, requestType);
-        setHasUserRequested(hasRequested);
+        
+        // Check both request types
+        const [hasCoverRequest, hasBetterImageRequest] = await Promise.all([
+          checkUserRequest(cachedUserBook.book.id, 'cover'),
+          checkUserRequest(cachedUserBook.book.id, 'better_image')
+        ]);
+        
+        console.log('🔄 Request status - Cover:', hasCoverRequest, 'Better Image:', hasBetterImageRequest);
+        
+        setHasUserRequestedCover(hasCoverRequest);
+        setHasUserRequestedBetterImage(hasBetterImageRequest);
         setIsCheckingRequest(false);
       };
 
-      checkRequest();
-    }, [cachedUserBook, hasNoCover, isLowRes, checkUserRequest]);
+      checkRequests();
+    }, [cachedUserBook, checkUserRequest]);
 
     const updateBookData = useCallback(async (field: 'rating' | 'would_recommend', value: any) => {
       if (!cachedUserBook) return;
@@ -287,12 +296,20 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     }, [cachedUserBook, imageError]);
 
     const handleRequestCover = useCallback(async () => {
-      if (!cachedUserBook || isRequesting || hasUserRequested) {
+      if (!cachedUserBook || isRequesting) {
         console.log('⚠️ Cannot request:', { 
           hasBook: !!cachedUserBook, 
-          isRequesting, 
-          hasUserRequested 
+          isRequesting
         });
+        return;
+      }
+
+      // Determine request type based on current state
+      const requestType = hasNoCover ? 'cover' : 'better_image';
+      const hasAlreadyRequested = requestType === 'cover' ? hasUserRequestedCover : hasUserRequestedBetterImage;
+
+      if (hasAlreadyRequested) {
+        console.log('⚠️ User has already requested:', requestType);
         return;
       }
 
@@ -300,7 +317,6 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         setIsRequesting(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-        const requestType = hasNoCover ? 'cover' : 'better_image';
         console.log('📤 Requesting', requestType, 'for book:', cachedUserBook.book.id);
 
         // Call the RPC function which will check if user has already requested
@@ -318,7 +334,11 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         console.log('✅ Successfully submitted request');
 
         // Mark as requested locally immediately
-        setHasUserRequested(true);
+        if (requestType === 'cover') {
+          setHasUserRequestedCover(true);
+        } else {
+          setHasUserRequestedBetterImage(true);
+        }
 
         Alert.alert(
           'Request Submitted',
@@ -333,7 +353,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       } finally {
         setIsRequesting(false);
       }
-    }, [cachedUserBook, isRequesting, hasUserRequested, hasNoCover, onRefresh]);
+    }, [cachedUserBook, isRequesting, hasUserRequestedCover, hasUserRequestedBetterImage, hasNoCover, onRefresh]);
 
     // Don't return null - keep the component mounted with cached data
     if (!cachedUserBook) return null;
@@ -341,6 +361,10 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     const book = cachedUserBook.book;
     const imageUrl = getImageUrl();
     const showRequestButton = hasNoCover || isLowRes;
+    
+    // Determine which request state to check based on current button type
+    const requestType = hasNoCover ? 'cover' : 'better_image';
+    const hasUserRequested = requestType === 'cover' ? hasUserRequestedCover : hasUserRequestedBetterImage;
 
     return (
       <BottomSheetModal
