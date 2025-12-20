@@ -8,6 +8,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { isLikelyBlankImage, getFirstValidImageUrl } from '@/utils/imageValidation';
+import ValidatedImage from '@/components/ValidatedImage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -169,8 +170,8 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       onClose();
     }, [onClose]);
 
-    const handleImageError = useCallback(() => {
-      console.log('Image failed to load in detail view');
+    const handleImageValidationFailed = useCallback(() => {
+      console.log('Image validation failed in detail view');
       setImageError(true);
     }, []);
 
@@ -254,14 +255,17 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
           {/* Book Cover */}
           <View style={styles.coverContainer}>
             {imageUrl ? (
-              <Image
+              <ValidatedImage
                 source={{ uri: imageUrl }}
                 style={styles.bookCover}
+                fallbackTitle={book.title}
+                minWidth={50}
+                minHeight={50}
                 contentFit="contain"
                 cachePolicy="memory-disk"
                 priority="high"
                 transition={200}
-                onError={handleImageError}
+                onValidationFailed={handleImageValidationFailed}
               />
             ) : (
               <View style={[styles.bookCover, styles.placeholderCover]}>
@@ -440,12 +444,12 @@ const styles = StyleSheet.create({
   },
   bookCover: {
     width: screenWidth * 0.5,
-    height: screenWidth * 0.7,
+    height: screenWidth * 0.625, // 5:4 portrait ratio (0.5 * 1.25 = 0.625)
     borderTopRightRadius: 16,
     borderBottomRightRadius: 16,
   },
   placeholderCover: {
-    backgroundColor: '#EDEDFF',
+    backgroundColor: '#FFD0A3',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,

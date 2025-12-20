@@ -852,11 +852,11 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 16,
   },
   placeholderCoverLarge: {
-    backgroundColor: '#EDEDFF',
+    backgroundColor: '#FFD0A3',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
-    aspectRatio: 1,
+    aspectRatio: 4 / 5, // 5:4 portrait ratio (width:height = 4:5)
   },
   placeholderText: {
     fontSize: 14,
