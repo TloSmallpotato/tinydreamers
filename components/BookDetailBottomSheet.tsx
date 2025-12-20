@@ -53,6 +53,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     const [hasNoCover, setHasNoCover] = useState(false);
     const [isRequesting, setIsRequesting] = useState(false);
     const [hasUserRequested, setHasUserRequested] = useState(false);
+    const [isCheckingRequest, setIsCheckingRequest] = useState(false);
 
     // Cache the current book data to prevent flickering
     const [cachedUserBook, setCachedUserBook] = useState<UserBook | null>(null);
@@ -60,8 +61,13 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     // Check if user has already requested this book
     const checkUserRequest = useCallback(async (bookId: string, requestType: 'cover' | 'better_image') => {
       try {
+        console.log('🔍 Checking if user has requested:', bookId, requestType);
+        
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return false;
+        if (!user) {
+          console.log('❌ No user found');
+          return false;
+        }
 
         const { data, error } = await supabase
           .from('book_requests')
@@ -72,13 +78,15 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
           .maybeSingle();
 
         if (error) {
-          console.error('Error checking user request:', error);
+          console.error('❌ Error checking user request:', error);
           return false;
         }
 
-        return !!data;
+        const hasRequested = !!data;
+        console.log('✅ User has requested:', hasRequested);
+        return hasRequested;
       } catch (error) {
-        console.error('Error in checkUserRequest:', error);
+        console.error('❌ Error in checkUserRequest:', error);
         return false;
       }
     }, []);
@@ -86,6 +94,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     // Update cached data when userBook changes
     useEffect(() => {
       if (userBook) {
+        console.log('📖 New book opened:', userBook.book.title);
         setCachedUserBook(userBook);
         setRating((userBook.rating as RatingType) || null);
         setWouldRecommend(userBook.would_recommend || false);
@@ -93,7 +102,9 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         setImageError(false);
         setIsLowRes(false);
         setHasNoCover(false);
+        // Reset request state when new book is opened
         setHasUserRequested(false);
+        setIsCheckingRequest(false);
       }
     }, [userBook]);
 
@@ -109,8 +120,10 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
       // Update hasNoCover state based on whether we have a valid URL
       if (!validUrl || imageError) {
+        console.log('📷 No valid cover found');
         setHasNoCover(true);
       } else {
+        console.log('📷 Valid cover found:', validUrl);
         setHasNoCover(false);
       }
     }, [cachedUserBook, imageError]);
@@ -120,9 +133,12 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       if (!cachedUserBook) return;
 
       const checkRequest = async () => {
+        setIsCheckingRequest(true);
         const requestType = hasNoCover ? 'cover' : 'better_image';
+        console.log('🔄 Checking request status for:', requestType);
         const hasRequested = await checkUserRequest(cachedUserBook.book.id, requestType);
         setHasUserRequested(hasRequested);
+        setIsCheckingRequest(false);
       };
 
       checkRequest();
@@ -236,7 +252,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     }, [onClose]);
 
     const handleImageValidationFailed = useCallback(() => {
-      console.log('Image validation failed in detail view');
+      console.log('❌ Image validation failed in detail view');
       setImageError(true);
     }, []);
 
@@ -271,14 +287,21 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     }, [cachedUserBook, imageError]);
 
     const handleRequestCover = useCallback(async () => {
-      if (!cachedUserBook || isRequesting || hasUserRequested) return;
+      if (!cachedUserBook || isRequesting || hasUserRequested) {
+        console.log('⚠️ Cannot request:', { 
+          hasBook: !!cachedUserBook, 
+          isRequesting, 
+          hasUserRequested 
+        });
+        return;
+      }
 
       try {
         setIsRequesting(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
         const requestType = hasNoCover ? 'cover' : 'better_image';
-        console.log('Requesting', requestType, 'for book:', cachedUserBook.book.id);
+        console.log('📤 Requesting', requestType, 'for book:', cachedUserBook.book.id);
 
         // Call the RPC function which will check if user has already requested
         const { error } = await supabase.rpc('increment_book_request', {
@@ -287,14 +310,14 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         });
 
         if (error) {
-          console.error('Error requesting cover:', error);
+          console.error('❌ Error requesting cover:', error);
           Alert.alert('Error', 'Failed to submit request. Please try again.');
           return;
         }
 
-        console.log('Successfully submitted request');
+        console.log('✅ Successfully submitted request');
 
-        // Mark as requested locally
+        // Mark as requested locally immediately
         setHasUserRequested(true);
 
         Alert.alert(
@@ -305,7 +328,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
         onRefresh();
       } catch (error) {
-        console.error('Error in handleRequestCover:', error);
+        console.error('❌ Error in handleRequestCover:', error);
         Alert.alert('Error', 'An unexpected error occurred. Please try again.');
       } finally {
         setIsRequesting(false);
@@ -398,24 +421,26 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
               )}
             </View>
             
-            {/* Request Button - Grey out if already requested */}
+            {/* Request Button - Always show, grey out if already requested */}
             {showRequestButton && (
               <TouchableOpacity
                 style={[
                   styles.requestButton,
-                  hasUserRequested && styles.requestButtonDisabled
+                  (hasUserRequested || isCheckingRequest) && styles.requestButtonDisabled
                 ]}
                 onPress={handleRequestCover}
-                disabled={isRequesting || hasUserRequested}
+                disabled={isRequesting || hasUserRequested || isCheckingRequest}
                 activeOpacity={hasUserRequested ? 1 : 0.7}
               >
                 <Text style={[
                   styles.requestButtonText,
-                  hasUserRequested && styles.requestButtonTextDisabled
+                  (hasUserRequested || isCheckingRequest) && styles.requestButtonTextDisabled
                 ]}>
-                  {hasUserRequested 
-                    ? (hasNoCover ? 'Book cover requested' : 'Better image requested')
-                    : (hasNoCover ? 'Request book cover' : 'Request better image')
+                  {isCheckingRequest 
+                    ? 'Checking...'
+                    : hasUserRequested 
+                      ? (hasNoCover ? 'Book cover requested' : 'Better image requested')
+                      : (hasNoCover ? 'Request book cover' : 'Request better image')
                   }
                 </Text>
               </TouchableOpacity>
