@@ -52,9 +52,36 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     const [isLowRes, setIsLowRes] = useState(false);
     const [hasNoCover, setHasNoCover] = useState(false);
     const [isRequesting, setIsRequesting] = useState(false);
+    const [hasUserRequested, setHasUserRequested] = useState(false);
 
     // Cache the current book data to prevent flickering
     const [cachedUserBook, setCachedUserBook] = useState<UserBook | null>(null);
+
+    // Check if user has already requested this book
+    const checkUserRequest = useCallback(async (bookId: string, requestType: 'cover' | 'better_image') => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return false;
+
+        const { data, error } = await supabase
+          .from('book_requests')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('book_id', bookId)
+          .eq('request_type', requestType)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Error checking user request:', error);
+          return false;
+        }
+
+        return !!data;
+      } catch (error) {
+        console.error('Error in checkUserRequest:', error);
+        return false;
+      }
+    }, []);
 
     // Update cached data when userBook changes
     useEffect(() => {
@@ -66,6 +93,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         setImageError(false);
         setIsLowRes(false);
         setHasNoCover(false);
+        setHasUserRequested(false);
       }
     }, [userBook]);
 
@@ -86,6 +114,19 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         setHasNoCover(false);
       }
     }, [cachedUserBook, imageError]);
+
+    // Check if user has already requested when book changes or image state changes
+    useEffect(() => {
+      if (!cachedUserBook) return;
+
+      const checkRequest = async () => {
+        const requestType = hasNoCover ? 'cover' : 'better_image';
+        const hasRequested = await checkUserRequest(cachedUserBook.book.id, requestType);
+        setHasUserRequested(hasRequested);
+      };
+
+      checkRequest();
+    }, [cachedUserBook, hasNoCover, isLowRes, checkUserRequest]);
 
     const updateBookData = useCallback(async (field: 'rating' | 'would_recommend', value: any) => {
       if (!cachedUserBook) return;
@@ -230,54 +271,37 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     }, [cachedUserBook, imageError]);
 
     const handleRequestCover = useCallback(async () => {
-      if (!cachedUserBook || isRequesting) return;
+      if (!cachedUserBook || isRequesting || hasUserRequested) return;
 
       try {
         setIsRequesting(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-        console.log('Requesting cover for book:', cachedUserBook.book.id);
+        const requestType = hasNoCover ? 'cover' : 'better_image';
+        console.log('Requesting', requestType, 'for book:', cachedUserBook.book.id);
 
-        // Increment the requested count by 1
-        const { data, error } = await supabase.rpc('increment_book_request', {
-          book_id: cachedUserBook.book.id
+        // Call the RPC function which will check if user has already requested
+        const { error } = await supabase.rpc('increment_book_request', {
+          book_id: cachedUserBook.book.id,
+          request_type: requestType
         });
 
         if (error) {
           console.error('Error requesting cover:', error);
-          
-          // Fallback: If RPC doesn't exist, use direct update with increment
-          const currentCount = cachedUserBook.book.requested || 0;
-          const { error: updateError } = await supabase
-            .from('books_library')
-            .update({ requested: currentCount + 1 })
-            .eq('id', cachedUserBook.book.id);
-
-          if (updateError) {
-            console.error('Error with fallback update:', updateError);
-            Alert.alert('Error', 'Failed to submit request. Please try again.');
-            return;
-          }
+          Alert.alert('Error', 'Failed to submit request. Please try again.');
+          return;
         }
 
-        console.log('Successfully incremented request count');
+        console.log('Successfully submitted request');
+
+        // Mark as requested locally
+        setHasUserRequested(true);
 
         Alert.alert(
           'Request Submitted',
           'Your request has been submitted. We\'ll update the book cover as soon as possible.',
           [{ text: 'OK', onPress: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success) }]
         );
-
-        // Update the cached book to reflect the change
-        if (cachedUserBook) {
-          setCachedUserBook({
-            ...cachedUserBook,
-            book: {
-              ...cachedUserBook.book,
-              requested: (cachedUserBook.book.requested || 0) + 1
-            }
-          });
-        }
 
         onRefresh();
       } catch (error) {
@@ -286,14 +310,13 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       } finally {
         setIsRequesting(false);
       }
-    }, [cachedUserBook, isRequesting, onRefresh]);
+    }, [cachedUserBook, isRequesting, hasUserRequested, hasNoCover, onRefresh]);
 
     // Don't return null - keep the component mounted with cached data
     if (!cachedUserBook) return null;
 
     const book = cachedUserBook.book;
     const imageUrl = getImageUrl();
-    const hasRequested = book.requested > 0;
     const showRequestButton = hasNoCover || isLowRes;
 
     return (
@@ -380,17 +403,17 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
               <TouchableOpacity
                 style={[
                   styles.requestButton,
-                  hasRequested && styles.requestButtonDisabled
+                  hasUserRequested && styles.requestButtonDisabled
                 ]}
                 onPress={handleRequestCover}
-                disabled={isRequesting || hasRequested}
-                activeOpacity={hasRequested ? 1 : 0.7}
+                disabled={isRequesting || hasUserRequested}
+                activeOpacity={hasUserRequested ? 1 : 0.7}
               >
                 <Text style={[
                   styles.requestButtonText,
-                  hasRequested && styles.requestButtonTextDisabled
+                  hasUserRequested && styles.requestButtonTextDisabled
                 ]}>
-                  {hasRequested 
+                  {hasUserRequested 
                     ? (hasNoCover ? 'Book cover requested' : 'Better image requested')
                     : (hasNoCover ? 'Request book cover' : 'Request better image')
                   }
@@ -599,7 +622,7 @@ const styles = StyleSheet.create({
   },
   requestButtonDisabled: {
     backgroundColor: colors.textSecondary,
-    opacity: 0.5,
+    opacity: 0.6,
   },
   requestButtonText: {
     fontSize: 13,
@@ -608,7 +631,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   requestButtonTextDisabled: {
-    color: colors.primary,
+    color: '#FFFFFF',
   },
   bookInfo: {
     paddingHorizontal: 20,
