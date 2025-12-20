@@ -236,10 +236,13 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         setIsRequesting(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-        const { error } = await supabase
+        console.log('Requesting cover for book:', cachedUserBook.book.id);
+
+        const { data, error } = await supabase
           .from('books_library')
           .update({ requested: true })
-          .eq('id', cachedUserBook.book.id);
+          .eq('id', cachedUserBook.book.id)
+          .select();
 
         if (error) {
           console.error('Error requesting cover:', error);
@@ -247,11 +250,24 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
           return;
         }
 
+        console.log('Successfully updated requested status:', data);
+
         Alert.alert(
           'Request Submitted',
           'Your request has been submitted. We\'ll update the book cover as soon as possible.',
           [{ text: 'OK', onPress: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success) }]
         );
+
+        // Update the cached book to reflect the change
+        if (cachedUserBook) {
+          setCachedUserBook({
+            ...cachedUserBook,
+            book: {
+              ...cachedUserBook.book,
+              requested: true
+            }
+          });
+        }
 
         onRefresh();
       } catch (error) {
@@ -346,21 +362,21 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
                   </Text>
                 </View>
               )}
-              
-              {/* Request Button */}
-              {showRequestButton && (
-                <TouchableOpacity
-                  style={styles.requestButton}
-                  onPress={handleRequestCover}
-                  disabled={isRequesting}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.requestButtonText}>
-                    {hasNoCover ? 'Request book cover' : 'Request better image'}
-                  </Text>
-                </TouchableOpacity>
-              )}
             </View>
+            
+            {/* Request Button - Now outside coverWrapper with proper margins */}
+            {showRequestButton && (
+              <TouchableOpacity
+                style={styles.requestButton}
+                onPress={handleRequestCover}
+                disabled={isRequesting}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.requestButtonText}>
+                  {hasNoCover ? 'Request book cover' : 'Request better image'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Book Info */}
@@ -530,9 +546,9 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   coverWrapper: {
-    position: 'relative',
     width: screenWidth * 0.5,
     aspectRatio: 4 / 5, // 5:4 portrait ratio
+    marginBottom: 12, // Add margin between cover and button
   },
   bookCover: {
     width: '100%',
@@ -553,19 +569,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   requestButton: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: colors.buttonBlue,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderBottomRightRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    width: screenWidth * 0.5, // Match the cover width
   },
   requestButtonText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.backgroundAlt,
     textAlign: 'center',
