@@ -22,6 +22,7 @@ interface Book {
   description: string;
   published_date: string;
   page_count: number;
+  requested: boolean;
 }
 
 interface UserBook {
@@ -48,6 +49,9 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     const [wouldRecommend, setWouldRecommend] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [imageError, setImageError] = useState(false);
+    const [isLowRes, setIsLowRes] = useState(false);
+    const [hasNoCover, setHasNoCover] = useState(false);
+    const [isRequesting, setIsRequesting] = useState(false);
 
     // Cache the current book data to prevent flickering
     const [cachedUserBook, setCachedUserBook] = useState<UserBook | null>(null);
@@ -60,6 +64,8 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         setWouldRecommend(userBook.would_recommend || false);
         setShowMenu(false);
         setImageError(false);
+        setIsLowRes(false);
+        setHasNoCover(false);
       }
     }, [userBook]);
 
@@ -175,6 +181,17 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       setImageError(true);
     }, []);
 
+    const handleImageLoad = useCallback((event: any) => {
+      // Check if image dimensions are low resolution
+      if (event?.source) {
+        const { width, height } = event.source;
+        if (width && height && (width <= 50 || height <= 50)) {
+          console.log('🔍 Low resolution image detected:', width, 'x', height);
+          setIsLowRes(true);
+        }
+      }
+    }, []);
+
     const getImageUrl = useCallback(() => {
       if (!cachedUserBook) return null;
       const book = cachedUserBook.book;
@@ -190,14 +207,50 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         return validUrl;
       }
 
+      // No valid cover found
+      setHasNoCover(true);
       return null;
     }, [cachedUserBook, imageError]);
+
+    const handleRequestCover = useCallback(async () => {
+      if (!cachedUserBook || isRequesting) return;
+
+      try {
+        setIsRequesting(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+        const { error } = await supabase
+          .from('books_library')
+          .update({ requested: true })
+          .eq('id', cachedUserBook.book.id);
+
+        if (error) {
+          console.error('Error requesting cover:', error);
+          Alert.alert('Error', 'Failed to submit request. Please try again.');
+          return;
+        }
+
+        Alert.alert(
+          'Request Submitted',
+          'Your request has been submitted. We\'ll update the book cover as soon as possible.',
+          [{ text: 'OK', onPress: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success) }]
+        );
+
+        onRefresh();
+      } catch (error) {
+        console.error('Error in handleRequestCover:', error);
+        Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      } finally {
+        setIsRequesting(false);
+      }
+    }, [cachedUserBook, isRequesting, onRefresh]);
 
     // Don't return null - keep the component mounted with cached data
     if (!cachedUserBook) return null;
 
     const book = cachedUserBook.book;
     const imageUrl = getImageUrl();
+    const showRequestButton = (hasNoCover || isLowRes) && !book.requested;
 
     return (
       <BottomSheetModal
@@ -254,26 +307,43 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
           {/* Book Cover */}
           <View style={styles.coverContainer}>
-            {imageUrl ? (
-              <ValidatedImage
-                source={{ uri: imageUrl }}
-                style={styles.bookCover}
-                fallbackTitle={book.title}
-                minWidth={50}
-                minHeight={50}
-                contentFit="contain"
-                cachePolicy="memory-disk"
-                priority="high"
-                transition={200}
-                onValidationFailed={handleImageValidationFailed}
-              />
-            ) : (
-              <View style={[styles.bookCover, styles.placeholderCover]}>
-                <Text style={styles.placeholderTitle} numberOfLines={4}>
-                  {book.title}
-                </Text>
-              </View>
-            )}
+            <View style={styles.coverWrapper}>
+              {imageUrl ? (
+                <ValidatedImage
+                  source={{ uri: imageUrl }}
+                  style={styles.bookCover}
+                  fallbackTitle={book.title}
+                  minWidth={50}
+                  minHeight={50}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                  priority="high"
+                  transition={200}
+                  onValidationFailed={handleImageValidationFailed}
+                  onLoad={handleImageLoad}
+                />
+              ) : (
+                <View style={[styles.bookCover, styles.placeholderCover]}>
+                  <Text style={styles.placeholderTitle} numberOfLines={4}>
+                    {book.title}
+                  </Text>
+                </View>
+              )}
+              
+              {/* Request Button */}
+              {showRequestButton && (
+                <TouchableOpacity
+                  style={styles.requestButton}
+                  onPress={handleRequestCover}
+                  disabled={isRequesting}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.requestButtonText}>
+                    {hasNoCover ? 'Request book cover' : 'Request better image'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {/* Book Info */}
@@ -442,9 +512,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
   },
-  bookCover: {
+  coverWrapper: {
+    position: 'relative',
     width: screenWidth * 0.5,
-    height: screenWidth * 0.625, // 5:4 portrait ratio (0.5 * 1.25 = 0.625)
+    aspectRatio: 4 / 5, // 5:4 portrait ratio
+  },
+  bookCover: {
+    width: '100%',
+    height: '100%',
     borderTopRightRadius: 16,
     borderBottomRightRadius: 16,
   },
@@ -458,6 +533,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.primary,
+    textAlign: 'center',
+  },
+  requestButton: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.buttonBlue,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderBottomRightRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
     textAlign: 'center',
   },
   bookInfo: {

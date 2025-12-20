@@ -672,26 +672,28 @@ export default function BooksScreen() {
                     onPress={() => handleBookPress(savedBook)}
                     activeOpacity={0.7}
                   >
-                    {imageUrl ? (
-                      <ValidatedImage
-                        source={{ uri: imageUrl }}
-                        style={styles.bookCoverLarge}
-                        fallbackTitle={savedBook.book.title}
-                        minWidth={50}
-                        minHeight={50}
-                        contentFit="contain"
-                        cachePolicy="memory-disk"
-                        priority="high"
-                        transition={200}
-                        onValidationFailed={() => handleImageValidationFailed(savedBook.book.id)}
-                      />
-                    ) : (
-                      <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
-                        <Text style={styles.placeholderText} numberOfLines={4}>
-                          {savedBook.book.title}
-                        </Text>
-                      </View>
-                    )}
+                    <View style={styles.bookCoverContainer}>
+                      {imageUrl ? (
+                        <ValidatedImage
+                          source={{ uri: imageUrl }}
+                          style={styles.bookCoverLarge}
+                          fallbackTitle={savedBook.book.title}
+                          minWidth={50}
+                          minHeight={50}
+                          contentFit="contain"
+                          cachePolicy="memory-disk"
+                          priority="high"
+                          transition={200}
+                          onValidationFailed={() => handleImageValidationFailed(savedBook.book.id)}
+                        />
+                      ) : (
+                        <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
+                          <Text style={styles.placeholderText} numberOfLines={4}>
+                            {savedBook.book.title}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                     {savedBook.is_custom_for_user && (
                       <View style={styles.customBadge}>
                         <Text style={styles.customBadgeText}>Custom</Text>
@@ -860,10 +862,13 @@ const styles = StyleSheet.create({
   },
   bookCard: {
     width: '47%',
-    aspectRatio: 0.7,
     marginBottom: 16,
     overflow: 'visible',
     position: 'relative',
+  },
+  bookCoverContainer: {
+    width: '100%',
+    aspectRatio: 4 / 5, // 5:4 portrait ratio (width:height = 4:5)
   },
   bookCoverLarge: {
     width: '100%',
@@ -876,7 +881,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
-    aspectRatio: 4 / 5, // 5:4 portrait ratio (width:height = 4:5)
   },
   placeholderText: {
     fontSize: 14,

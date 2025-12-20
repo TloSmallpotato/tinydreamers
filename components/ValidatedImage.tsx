@@ -116,7 +116,9 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopRightRadius: 16,
     borderBottomRightRadius: 16,
-    aspectRatio: 4 / 5, // 5:4 portrait ratio (width:height = 4:5)
+    // Use width and height from parent container
+    width: '100%',
+    height: '100%',
   },
   placeholderText: {
     fontSize: 14,
