@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -21,6 +22,8 @@ import { searchGoogleBooks, BookSearchResult } from '@/utils/googleBooksApi';
 import ToastNotification from '@/components/ToastNotification';
 import { useRouter } from 'expo-router';
 import { getFirstValidImageUrl } from '@/utils/imageValidation';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import AddCustomBookBottomSheet from '@/components/AddCustomBookBottomSheet';
 
 export default function SearchBookScreen() {
   const { selectedChild } = useChild();
@@ -37,6 +40,7 @@ export default function SearchBookScreen() {
   
   const searchInputRef = useRef<TextInput>(null);
   const addBookTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const addCustomBookBottomSheetRef = useRef<BottomSheetModal>(null);
 
   const showToast = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setToastMessage(message);
@@ -232,6 +236,39 @@ export default function SearchBookScreen() {
     }
   };
 
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowDropdown(false);
+    searchInputRef.current?.focus();
+  };
+
+  const handleTapOutside = () => {
+    if (showDropdown) {
+      setShowDropdown(false);
+      Keyboard.dismiss();
+    }
+  };
+
+  const handleOpenCustomBook = () => {
+    if (!selectedChild) {
+      showToast('Please select a child before adding books.', 'warning');
+      return;
+    }
+    if (!currentUserId) {
+      showToast('User not authenticated.', 'error');
+      return;
+    }
+    addCustomBookBottomSheetRef.current?.present();
+  };
+
+  const handleCustomBookAdded = () => {
+    showToast('Custom book added successfully!', 'success');
+    setTimeout(() => {
+      router.back();
+    }, 1500);
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -250,6 +287,23 @@ export default function SearchBookScreen() {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Search a Book</Text>
           <View style={styles.headerSpacer} />
+        </View>
+
+        {/* Add Custom Book Button */}
+        <View style={styles.customBookButtonContainer}>
+          <TouchableOpacity
+            style={styles.customBookButton}
+            onPress={handleOpenCustomBook}
+            activeOpacity={0.7}
+          >
+            <IconSymbol
+              ios_icon_name="plus.circle.fill"
+              android_material_icon_name="add-circle"
+              size={20}
+              color={colors.primary}
+            />
+            <Text style={styles.customBookButtonText}>Add custom book</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.searchContainer}>
@@ -277,86 +331,104 @@ export default function SearchBookScreen() {
             {isSearching && (
               <ActivityIndicator size="small" color={colors.primary} />
             )}
+            {!isSearching && searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={handleClearSearch}
+                style={styles.clearButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <IconSymbol
+                  ios_icon_name="xmark.circle.fill"
+                  android_material_icon_name="cancel"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
-        {showDropdown && searchResults.length > 0 && (
-          <ScrollView 
-            style={styles.dropdown}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {searchResults.map((book, index) => {
-              const imageUrl = getFirstValidImageUrl([book.thumbnailUrl, book.coverUrl]);
-              return (
-                <TouchableOpacity
-                  key={`${book.googleBooksId}-${index}`}
-                  style={styles.dropdownItem}
-                  onPress={() => handleSelectBook(book)}
-                  disabled={isAddingBook}
-                >
-                  <View style={styles.bookCoverContainer}>
-                    {imageUrl ? (
-                      <Image
-                        source={{ uri: imageUrl }}
-                        style={styles.bookCoverSmall}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                        priority="high"
-                        transition={200}
-                        onError={() => console.log('[iOS] Dropdown image error:', book.title)}
-                      />
-                    ) : (
-                      <View style={[styles.bookCoverSmall, styles.placeholderCover]}>
-                        <Text style={styles.placeholderText} numberOfLines={2}>
+        <TouchableWithoutFeedback onPress={handleTapOutside}>
+          <View style={styles.contentArea}>
+            {showDropdown && searchResults.length > 0 && (
+              <ScrollView 
+                style={styles.dropdown}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {searchResults.map((book, index) => {
+                  const imageUrl = getFirstValidImageUrl([book.thumbnailUrl, book.coverUrl]);
+                  return (
+                    <TouchableOpacity
+                      key={`${book.googleBooksId}-${index}`}
+                      style={styles.dropdownItem}
+                      onPress={() => handleSelectBook(book)}
+                      disabled={isAddingBook}
+                    >
+                      <View style={styles.bookCoverContainer}>
+                        {imageUrl ? (
+                          <Image
+                            source={{ uri: imageUrl }}
+                            style={styles.bookCoverSmall}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            priority="high"
+                            transition={200}
+                            onError={() => console.log('[iOS] Dropdown image error:', book.title)}
+                          />
+                        ) : (
+                          <View style={[styles.bookCoverSmall, styles.placeholderCover]}>
+                            <Text style={styles.placeholderText} numberOfLines={2}>
+                              {book.title}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.bookInfo}>
+                        <Text style={styles.bookTitle} numberOfLines={2}>
                           {book.title}
                         </Text>
+                        <Text style={styles.bookAuthor} numberOfLines={1}>
+                          {book.authors}
+                        </Text>
                       </View>
-                    )}
-                  </View>
-                  <View style={styles.bookInfo}>
-                    <Text style={styles.bookTitle} numberOfLines={2}>
-                      {book.title}
-                    </Text>
-                    <Text style={styles.bookAuthor} numberOfLines={1}>
-                      {book.authors}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
 
-        {!showDropdown && searchQuery.length === 0 && (
-          <View style={styles.emptyState}>
-            <IconSymbol
-              ios_icon_name="magnifyingglass"
-              android_material_icon_name="search"
-              size={64}
-              color={colors.textSecondary}
-            />
-            <Text style={styles.emptyText}>Search for a book</Text>
-            <Text style={styles.emptySubtext}>
-              Type the title or author to find books
-            </Text>
-          </View>
-        )}
+            {!showDropdown && searchQuery.length === 0 && (
+              <View style={styles.emptyState}>
+                <IconSymbol
+                  ios_icon_name="magnifyingglass"
+                  android_material_icon_name="search"
+                  size={64}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.emptyText}>Search for a book</Text>
+                <Text style={styles.emptySubtext}>
+                  Type the title or author to find books
+                </Text>
+              </View>
+            )}
 
-        {!showDropdown && searchQuery.length > 0 && !isSearching && searchResults.length === 0 && (
-          <View style={styles.emptyState}>
-            <IconSymbol
-              ios_icon_name="book.closed"
-              android_material_icon_name="book"
-              size={64}
-              color={colors.textSecondary}
-            />
-            <Text style={styles.emptyText}>No books found</Text>
-            <Text style={styles.emptySubtext}>
-              Try a different search term
-            </Text>
+            {!showDropdown && searchQuery.length > 0 && !isSearching && searchResults.length === 0 && (
+              <View style={styles.emptyState}>
+                <IconSymbol
+                  ios_icon_name="book.closed"
+                  android_material_icon_name="book"
+                  size={64}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.emptyText}>No books found</Text>
+                <Text style={styles.emptySubtext}>
+                  Try a different search term
+                </Text>
+              </View>
+            )}
           </View>
-        )}
+        </TouchableWithoutFeedback>
       </SafeAreaView>
 
       <ToastNotification
@@ -365,6 +437,16 @@ export default function SearchBookScreen() {
         type={toastType}
         onHide={() => setToastVisible(false)}
       />
+
+      {selectedChild && currentUserId && (
+        <AddCustomBookBottomSheet
+          ref={addCustomBookBottomSheetRef}
+          onClose={() => console.log('[iOS] Custom book bottom sheet closed')}
+          onBookAdded={handleCustomBookAdded}
+          childId={selectedChild.id}
+          userId={currentUserId}
+        />
+      )}
     </View>
   );
 }
@@ -401,6 +483,25 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 44,
   },
+  customBookButtonContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  customBookButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  customBookButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.primary,
+  },
   searchContainer: {
     paddingHorizontal: 20,
     marginBottom: 16,
@@ -419,6 +520,13 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: 16,
     color: colors.primary,
+  },
+  clearButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  contentArea: {
+    flex: 1,
   },
   dropdown: {
     flex: 1,
