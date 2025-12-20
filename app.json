@@ -1,16 +1,17 @@
+
 {
   "expo": {
     "name": "TinyDreamers",
     "slug": "TinyDreamers",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/natively-dark.png",
+    "icon": "./assets/images/3e1ea99a-f17a-42c3-b801-1361ce0bce92.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/natively-dark.png",
+      "image": "./assets/images/3e1ea99a-f17a-42c3-b801-1361ce0bce92.png",
       "resizeMode": "contain",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#E8B4D9"
     },
     "ios": {
       "supportsTablet": true,
@@ -23,8 +24,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/natively-dark.png",
-        "backgroundColor": "#000000"
+        "foregroundImage": "./assets/images/3e1ea99a-f17a-42c3-b801-1361ce0bce92.png",
+        "backgroundColor": "#E8B4D9"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Natively",
@@ -34,7 +35,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/final_quest_240x240.png",
+      "favicon": "./assets/images/3e1ea99a-f17a-42c3-b801-1361ce0bce92.png",
       "bundler": "metro"
     },
     "plugins": [
