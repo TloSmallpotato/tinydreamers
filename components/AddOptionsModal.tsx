@@ -121,7 +121,7 @@ export default function AddOptionsModal({
     if (Platform.OS === 'web') {
       Alert.alert(
         'Camera Not Available',
-        'Video recording is not supported on web. Please use the mobile app (iOS or Android) to capture moments.',
+        'Video recording is not supported on web. Please use Expo Go on your mobile device (scan the QR code) or build the app for iOS/Android to capture moments.',
         [{ text: 'OK' }]
       );
       onClose();
@@ -203,7 +203,7 @@ export default function AddOptionsModal({
               >
                 <View style={[styles.solidButtonLarge, { backgroundColor: '#F54B02' }]}>
                   <Text style={styles.largeButtonText}>
-                    {Platform.OS === 'web' ? 'Capture new Moment (Mobile Only)' : 'Capture new Moment'}
+                    Capture new Moment{Platform.OS === 'web' ? ' (Mobile Only)' : ''}
                   </Text>
                 </View>
               </TouchableOpacity>
