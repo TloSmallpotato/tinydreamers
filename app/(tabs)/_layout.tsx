@@ -135,44 +135,71 @@ function CustomTabBar() {
 
   useEffect(() => {
     const initPermissions = async () => {
-      if (cameraPermission && !cameraPermission.granted) {
-        console.log('Pre-requesting camera permission');
-        await requestCameraPermission();
+      console.log('[TabLayout] Initializing camera permissions...');
+      if (cameraPermission) {
+        console.log('[TabLayout] Camera permission status:', cameraPermission.granted ? 'granted' : 'not granted');
+        if (!cameraPermission.granted) {
+          console.log('[TabLayout] Pre-requesting camera permission');
+          const result = await requestCameraPermission();
+          console.log('[TabLayout] Pre-request result:', result.granted ? 'granted' : 'denied');
+        }
+      } else {
+        console.log('[TabLayout] Camera permission object not loaded yet');
       }
     };
     initPermissions();
   }, [cameraPermission, requestCameraPermission]);
 
   const openCamera = useCallback(async () => {
-    console.log('Opening camera for video recording');
+    console.log('[TabLayout] ===== OPENING CAMERA =====');
+    console.log('[TabLayout] Camera permission object:', cameraPermission);
     
     if (!cameraPermission) {
-      console.log('Camera permission not loaded yet');
+      console.error('[TabLayout] Camera permission not loaded yet');
+      Alert.alert('Error', 'Camera is not ready. Please try again.');
       return;
     }
 
+    console.log('[TabLayout] Current permission status:', cameraPermission.granted ? 'GRANTED' : 'NOT GRANTED');
+    console.log('[TabLayout] Can ask again:', cameraPermission.canAskAgain);
+
     if (!cameraPermission.granted) {
-      console.log('Requesting camera permission');
-      const result = await requestCameraPermission();
-      if (!result.granted) {
-        console.log('Camera permission denied');
-        Alert.alert(
-          'Camera Permission Required',
-          'Please grant camera permission to record videos.',
-          [{ text: 'OK' }]
-        );
+      console.log('[TabLayout] Requesting camera permission...');
+      
+      try {
+        const result = await requestCameraPermission();
+        console.log('[TabLayout] Permission request result:', result);
+        console.log('[TabLayout] Permission granted:', result.granted);
+        
+        if (!result.granted) {
+          console.error('[TabLayout] Camera permission DENIED by user');
+          Alert.alert(
+            'Camera Permission Required',
+            'Please grant camera permission in your device settings to record videos.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+        
+        console.log('[TabLayout] Camera permission GRANTED');
+      } catch (error) {
+        console.error('[TabLayout] Error requesting camera permission:', error);
+        Alert.alert('Error', 'Failed to request camera permission. Please try again.');
         return;
       }
     }
 
+    console.log('[TabLayout] Setting up camera view...');
     setIsCameraReady(false);
     setShowCamera(true);
     setRecordingTime(0);
+    console.log('[TabLayout] Camera view should now be visible');
+    console.log('[TabLayout] ===== CAMERA OPENING COMPLETE =====');
   }, [cameraPermission, requestCameraPermission]);
 
   useEffect(() => {
     if (shouldOpenCamera) {
-      console.log('Camera trigger detected from WordDetailBottomSheet');
+      console.log('[TabLayout] Camera trigger detected from WordDetailBottomSheet');
       openCamera();
       resetCameraTrigger();
     }
@@ -281,13 +308,22 @@ function CustomTabBar() {
   };
 
   const handleCaptureMoment = async () => {
-    console.log('Capture moment selected');
-    setShowAddModal(false);
-    await openCamera();
+    console.log('[TabLayout] ===== CAPTURE MOMENT HANDLER =====');
+    console.log('[TabLayout] Capture moment selected from modal');
+    
+    try {
+      await openCamera();
+      console.log('[TabLayout] Camera opened successfully, closing modal');
+      // Close modal after camera opens successfully
+      setShowAddModal(false);
+    } catch (error) {
+      console.error('[TabLayout] Error opening camera:', error);
+      Alert.alert('Error', 'Failed to open camera. Please try again.');
+    }
   };
 
   const handleCameraReady = () => {
-    console.log('Camera is ready!');
+    console.log('[TabLayout] Camera is ready!');
     setIsCameraReady(true);
   };
 

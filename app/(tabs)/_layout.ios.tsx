@@ -131,46 +131,73 @@ function CustomTabBar() {
 
   useEffect(() => {
     const initPermissions = async () => {
-      if (cameraPermission && !cameraPermission.granted) {
-        console.log('Pre-requesting camera permission');
-        await requestCameraPermission();
+      console.log('[iOS TabLayout] Initializing camera permissions...');
+      if (cameraPermission) {
+        console.log('[iOS TabLayout] Camera permission status:', cameraPermission.granted ? 'granted' : 'not granted');
+        if (!cameraPermission.granted) {
+          console.log('[iOS TabLayout] Pre-requesting camera permission');
+          const result = await requestCameraPermission();
+          console.log('[iOS TabLayout] Pre-request result:', result.granted ? 'granted' : 'denied');
+        }
+      } else {
+        console.log('[iOS TabLayout] Camera permission object not loaded yet');
       }
     };
     initPermissions();
   }, [cameraPermission, requestCameraPermission]);
 
   const openCamera = useCallback(async () => {
-    console.log('Opening camera for video recording');
+    console.log('[iOS TabLayout] ===== OPENING CAMERA =====');
+    console.log('[iOS TabLayout] Camera permission object:', cameraPermission);
     
     if (!cameraPermission) {
-      console.log('Camera permission not loaded yet');
+      console.error('[iOS TabLayout] Camera permission not loaded yet');
+      Alert.alert('Error', 'Camera is not ready. Please try again.');
       return;
     }
 
+    console.log('[iOS TabLayout] Current permission status:', cameraPermission.granted ? 'GRANTED' : 'NOT GRANTED');
+    console.log('[iOS TabLayout] Can ask again:', cameraPermission.canAskAgain);
+
     if (!cameraPermission.granted) {
-      console.log('Requesting camera permission');
-      const result = await requestCameraPermission();
-      if (!result.granted) {
-        console.log('Camera permission denied');
-        Alert.alert(
-          'Camera Permission Required',
-          'Please grant camera permission to record videos.',
-          [{ text: 'OK' }]
-        );
+      console.log('[iOS TabLayout] Requesting camera permission...');
+      
+      try {
+        const result = await requestCameraPermission();
+        console.log('[iOS TabLayout] Permission request result:', result);
+        console.log('[iOS TabLayout] Permission granted:', result.granted);
+        
+        if (!result.granted) {
+          console.error('[iOS TabLayout] Camera permission DENIED by user');
+          Alert.alert(
+            'Camera Permission Required',
+            'Please grant camera permission in your device settings to record videos.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+        
+        console.log('[iOS TabLayout] Camera permission GRANTED');
+      } catch (error) {
+        console.error('[iOS TabLayout] Error requesting camera permission:', error);
+        Alert.alert('Error', 'Failed to request camera permission. Please try again.');
         return;
       }
     }
 
+    console.log('[iOS TabLayout] Setting up camera view...');
     setIsCameraReady(false);
     setShowCamera(true);
     setRecordingTime(0);
     setCameraFacing('back');
     setVideoCreationDate(null);
+    console.log('[iOS TabLayout] Camera view should now be visible');
+    console.log('[iOS TabLayout] ===== CAMERA OPENING COMPLETE =====');
   }, [cameraPermission, requestCameraPermission]);
 
   useEffect(() => {
     if (shouldOpenCamera) {
-      console.log('Camera trigger detected from WordDetailBottomSheet');
+      console.log('[iOS TabLayout] Camera trigger detected from WordDetailBottomSheet');
       openCamera();
       resetCameraTrigger();
     }
@@ -224,7 +251,7 @@ function CustomTabBar() {
   const shouldShowTabBar = !pathname.includes('/settings') && !pathname.includes('/search-book');
 
   const handleAddPress = async (index: number) => {
-    console.log('Add button pressed - showing options modal');
+    console.log('[iOS] Add button pressed - showing options modal');
     
     Animated.sequence([
       Animated.timing(scaleAnims[index], {
@@ -259,7 +286,7 @@ function CustomTabBar() {
   };
 
   const handleAddWord = () => {
-    console.log('Add word selected - navigating with autoOpen param');
+    console.log('[iOS] Add word selected - navigating with autoOpen param');
     setShowAddModal(false);
     // Navigate to words screen with autoOpen parameter
     router.push({
@@ -269,13 +296,22 @@ function CustomTabBar() {
   };
 
   const handleCaptureMoment = async () => {
-    console.log('Capture moment selected');
-    setShowAddModal(false);
-    await openCamera();
+    console.log('[iOS TabLayout] ===== CAPTURE MOMENT HANDLER =====');
+    console.log('[iOS TabLayout] Capture moment selected from modal');
+    
+    try {
+      await openCamera();
+      console.log('[iOS TabLayout] Camera opened successfully, closing modal');
+      // Close modal after camera opens successfully
+      setShowAddModal(false);
+    } catch (error) {
+      console.error('[iOS TabLayout] Error opening camera:', error);
+      Alert.alert('Error', 'Failed to open camera. Please try again.');
+    }
   };
 
   const handleCameraReady = () => {
-    console.log('Camera is ready!');
+    console.log('[iOS TabLayout] Camera is ready!');
     setIsCameraReady(true);
   };
 
