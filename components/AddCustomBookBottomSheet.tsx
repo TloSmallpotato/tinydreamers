@@ -97,7 +97,7 @@ const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBotto
       setCoverImage(null);
     }, []);
 
-    const uploadCoverImage = async (imageUri: string): Promise<string | null> => {
+    const uploadCoverImage = useCallback(async (imageUri: string): Promise<string | null> => {
       try {
         // Generate a unique filename
         const fileExt = imageUri.split('.').pop() || 'jpg';
@@ -127,7 +127,7 @@ const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBotto
         console.error('Error in uploadCoverImage:', error);
         return null;
       }
-    };
+    }, [userId]);
 
     const handleSave = useCallback(async () => {
       // Validate title

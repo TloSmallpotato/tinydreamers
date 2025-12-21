@@ -27,6 +27,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { getFirstValidImageUrl } from '@/utils/imageValidation';
 import ValidatedImage from '@/components/ValidatedImage';
+import PropTypes from 'prop-types';
 
 interface SavedBook {
   id: string;
@@ -103,6 +104,21 @@ const BookCard = React.memo<{
 });
 
 BookCard.displayName = 'BookCard';
+
+BookCard.propTypes = {
+  book: PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    book_id: PropTypes.string.isRequired,
+    is_custom_for_user: PropTypes.bool.isRequired,
+    book: PropTypes.shape({
+      id: PropTypes.string.isRequired,
+      title: PropTypes.string.isRequired,
+    }).isRequired,
+  }).isRequired,
+  imageUrl: PropTypes.string,
+  onPress: PropTypes.func.isRequired,
+  onImageError: PropTypes.func.isRequired,
+};
 
 export default function BooksScreen() {
   const { selectedChild } = useChild();

@@ -347,7 +347,7 @@ export default function ProfileScreen() {
       supabase.removeChannel(booksChannel);
       supabase.removeChannel(momentsChannel);
     };
-  }, [selectedChild?.id, debouncedFetchProfileData]);
+  }, [selectedChild, debouncedFetchProfileData]);
 
   const calculateAge = (birthDate: string) => {
     try {

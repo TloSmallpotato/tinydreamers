@@ -140,7 +140,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     };
 
     identifyUser();
-  }, [authUser?.id]);
+  }, [authUser?.id, updateSubscriptionStatus]);
 
   // Update subscription status based on customer info
   const updateSubscriptionStatus = useCallback((customerInfo: CustomerInfo) => {

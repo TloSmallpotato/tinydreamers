@@ -140,7 +140,7 @@ export function StatsProvider({ children }: { children: React.ReactNode }) {
     };
 
     fetchInitialStats();
-  }, [selectedChild?.id]);
+  }, [selectedChild]);
 
   const incrementWordCount = useCallback(() => {
     console.log('StatsContext: Incrementing word count');
