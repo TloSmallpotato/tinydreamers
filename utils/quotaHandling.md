@@ -1,116 +1,153 @@
 
-# Google Custom Search API Quota Handling
+# Quota Handling with Superwall
 
-## Problem
-The Google Custom Search API has a daily quota limit (100 queries per day for free tier). When this quota is exceeded, the API returns a 429 error, causing the book scanning feature to fail. Additionally, API calls can sometimes hang indefinitely, causing the app to appear frozen.
+This document explains how the freemium subscription model is implemented in the app using Superwall.
 
-## Solution
-We've implemented a robust error handling and fallback mechanism that:
+## Subscription Tiers
 
-1. **Detects quota exceeded errors** - Both HTTP 429 status codes and error messages in the response body
-2. **Automatically switches to fallback methods** - Uses free APIs (OpenLibrary and Google Books) when quota is exceeded
-3. **Caches the quota status** - Prevents repeated failed API calls for 24 hours
-4. **Provides seamless user experience** - Users can still add books even when quota is exceeded
-5. **Implements timeouts** - All API calls have a 10-second timeout to prevent infinite loading
-6. **Persistent quota tracking** - Quota status is saved to AsyncStorage and persists across app restarts
+### Free Tier
+- **Words**: 20 maximum
+- **Books**: 10 maximum
+- **Children**: 1 maximum
 
-## How It Works
+### Plus Tier
+- **Words**: Unlimited
+- **Books**: Unlimited
+- **Children**: 2 maximum
 
-### Timeout Protection
-All API calls are wrapped with a 10-second timeout using the `withTimeout` function:
-- If an API call takes longer than 10 seconds, it's automatically cancelled
-- The system logs the timeout and continues to the next fallback method
-- This prevents the app from hanging indefinitely
+## Implementation
 
-### Edge Function (`search-book-cover`)
-- Detects 429 errors from Google Custom Search API
-- Returns a specific error code `QUOTA_EXCEEDED` to the client
-- Includes detailed error information for debugging
+### 1. Subscription Context (`contexts/SubscriptionContext.tsx`)
 
-### Client-Side (`googleBooksApi.ts`)
-- Tracks quota status in memory (`isQuotaExceeded` flag)
-- Persists quota status to AsyncStorage for cross-session tracking
-- When quota is exceeded:
-  - Skips Google Custom Search API calls for 24 hours
-  - Goes directly to fallback methods (OpenLibrary → Google Books)
-  - Logs clear messages about using fallback methods
-- Automatically resets after 24 hours
-- All API calls have timeout protection
+The `SubscriptionContext` manages:
+- Current subscription tier (free/plus)
+- Usage tracking for words, books, and children
+- Quota checks before allowing actions
+- Paywall presentation
 
-### Fallback Strategy
-When Google Custom Search quota is exceeded, the system uses this fallback order:
+Key functions:
+- `checkQuota(type)`: Check if user can add more items
+- `showPaywall(placement)`: Display upgrade prompt
+- `refreshUsage()`: Update current usage counts
 
-1. **Check cache** (in-memory) - Free, instant
-2. **Check database** - Free, prevents duplicate API calls (5s timeout)
-3. **Skip Google Custom Search** - Quota exceeded
-4. **Try OpenLibrary API** - Free, no quota limits (10s timeout)
-5. **Try Google Books API** - Free, no quota limits (10s timeout)
-6. **Use best available** - Even if low-resolution
+### 2. Upgrade Prompt Modal (`components/UpgradePromptModal.tsx`)
 
-### Error Handling
-All API calls are wrapped in try-catch blocks with specific error handling:
-- **Timeout errors**: Logged and gracefully handled, continues to next fallback
-- **Network errors**: Logged and gracefully handled, continues to next fallback
-- **Quota errors**: Detected and quota status is updated
-- **Resolution check errors**: Logged but doesn't prevent using the image
+A modal that displays when users hit quota limits:
+- Shows comparison between Free and Plus tiers
+- Explains benefits of upgrading
+- Triggers Superwall paywall on "Upgrade" button
 
-## Cost Impact
-- **Normal operation**: $0.005 per new book (Google Custom Search)
-- **When quota exceeded**: $0.000 per book (free fallback APIs)
-- **Cached books**: $0.000 per book (no API calls)
+### 3. Subscription Status Card (`components/SubscriptionStatusCard.tsx`)
 
-## User Experience
-- **Before quota exceeded**: High-quality cover images from Google Custom Search
-- **After quota exceeded**: Cover images from OpenLibrary or Google Books (may be lower quality)
-- **No errors shown to user**: The system automatically handles the fallback
-- **Seamless operation**: Users can continue adding books without interruption
-- **No infinite loading**: All API calls timeout after 10 seconds maximum
+Displays on the profile page:
+- Shows current tier (Free/Plus)
+- For free users: displays quota usage with progress bars
+- For plus users: shows unlimited benefits
+- Includes upgrade button for free users
 
-## Monitoring
-Check the console logs for these messages:
-- `⚠️ Google Custom Search quota exceeded - will use fallback methods for 24 hours`
-- `⚠️ Skipping Google Custom Search - quota exceeded, using fallback methods`
-- `✅ 24 hours passed since quota exceeded - resetting flag`
-- `Request timeout` - API call took too long and was cancelled
-- `📦 Loaded quota state from storage` - Quota status loaded from AsyncStorage
-- `💾 Saved quota state to storage` - Quota status saved to AsyncStorage
+## Usage in Components
 
-## Quota Reset
-The quota status automatically resets after 24 hours, allowing the system to try Google Custom Search again. The quota status is persisted across app restarts using AsyncStorage.
+### Checking Quotas Before Actions
 
-## Recommendations
-1. **Monitor API usage** - Check Supabase Edge Function logs regularly
-2. **Consider upgrading quota** - If you need more than 100 queries per day
-3. **Optimize usage** - The current implementation already minimizes API calls by:
-   - Checking cache first
-   - Checking database before API calls
-   - Making only ONE API call per book
-   - Using fallback methods when quota exceeded
-   - Implementing timeouts to prevent hanging
-   - Persisting quota status across sessions
+```typescript
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
-## Troubleshooting
+function MyComponent() {
+  const { canAddWord, canAddBook, canAddChild, showPaywall } = useSubscription();
+  
+  const handleAddWord = () => {
+    if (!canAddWord) {
+      // Show upgrade prompt
+      showPaywall('word_limit');
+      return;
+    }
+    
+    // Proceed with adding word
+  };
+}
+```
 
-### Issue: ISBN scanning keeps loading forever
-**Cause**: API calls are timing out or hanging
-**Solution**: The timeout mechanism (10 seconds) should prevent this. If it still happens:
-1. Check console logs for timeout messages
-2. Verify network connectivity
-3. Check if the Edge Function is responding
-4. Try restarting the app
+### Showing Upgrade Modals
 
-### Issue: Books are added without cover images
-**Cause**: All API methods failed or timed out
-**Solution**: This is expected behavior when:
-1. Google Custom Search quota is exceeded
-2. OpenLibrary doesn't have the cover
-3. Google Books doesn't have the cover
-4. Network issues prevent API calls
-The book is still added successfully, just without a cover image.
+```typescript
+import UpgradePromptModal from '@/components/UpgradePromptModal';
 
-### Issue: Quota status doesn't reset after 24 hours
-**Cause**: AsyncStorage might not be working correctly
-**Solution**: 
-1. Clear app data and restart
-2. Check console logs for AsyncStorage errors
-3. The quota status should automatically reset after 24 hours
+function MyComponent() {
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  
+  return (
+    <>
+      {/* Your component UI */}
+      <UpgradePromptModal
+        visible={showUpgrade}
+        onClose={() => setShowUpgrade(false)}
+        quotaType="word" // or "book" or "child"
+      />
+    </>
+  );
+}
+```
+
+## Superwall Configuration
+
+### API Keys
+
+Set your Superwall API keys in `app/_layout.tsx`:
+
+```typescript
+const SUPERWALL_API_KEY_IOS = 'your_ios_key';
+const SUPERWALL_API_KEY_ANDROID = 'your_android_key';
+```
+
+Get your API keys from the [Superwall Dashboard](https://superwall.com/dashboard).
+
+### Placements
+
+Configure these placements in your Superwall dashboard:
+- `upgrade_prompt`: General upgrade prompt
+- `profile_upgrade`: Upgrade from profile page
+- `word_limit`: When word limit is reached
+- `book_limit`: When book limit is reached
+- `child_limit`: When child limit is reached
+
+### Products
+
+Create a subscription product in your Superwall dashboard:
+- Product ID: `plus_subscription`
+- Name: "Plus Plan"
+- Features: Unlimited words, unlimited books, 2 children
+
+## Real-time Usage Updates
+
+The subscription context automatically:
+1. Tracks usage when items are added/removed
+2. Updates quota availability in real-time
+3. Refreshes on pull-to-refresh in profile page
+4. Syncs with Superwall subscription status
+
+## Testing
+
+### Test Free Tier Limits
+
+1. Create a new account
+2. Add 20 words - should succeed
+3. Try to add 21st word - should show upgrade prompt
+4. Add 10 books - should succeed
+5. Try to add 11th book - should show upgrade prompt
+6. Add 1 child - should succeed
+7. Try to add 2nd child - should show upgrade prompt
+
+### Test Plus Tier
+
+1. Subscribe to Plus plan through Superwall paywall
+2. Verify unlimited words and books
+3. Verify can add up to 2 children
+4. Check profile shows "Plus Member" status
+
+## Notes
+
+- Quota checks happen client-side for instant feedback
+- Server-side validation should be added for security
+- Usage counts are fetched from Supabase database
+- Subscription status comes from Superwall SDK
+- All quota limits are defined in `QUOTA_LIMITS` constant

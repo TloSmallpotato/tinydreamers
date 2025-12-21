@@ -8,11 +8,14 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
 import SettingsBottomSheet from '@/components/SettingsBottomSheet';
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 import ProfileAvatar from '@/components/ProfileAvatar';
+import SubscriptionStatusCard from '@/components/SubscriptionStatusCard';
+import UpgradePromptModal from '@/components/UpgradePromptModal';
 import { supabase } from '@/app/integrations/supabase/client';
 import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
 import { HapticFeedback } from '@/utils/haptics';
@@ -52,6 +55,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { children, selectedChild, selectChild, addChild, updateChild, refreshChildren, loading: childLoading } = useChild();
   const { triggerCamera } = useCameraTrigger();
+  const { canAddChild, refreshUsage } = useSubscription();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
   const settingsRef = useRef<BottomSheetModal>(null);
@@ -73,6 +77,7 @@ export default function ProfileScreen() {
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [thumbnailErrors, setThumbnailErrors] = useState<Set<string>>(new Set());
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
 
@@ -249,10 +254,13 @@ export default function ProfileScreen() {
   const onRefresh = useCallback(async () => {
     HapticFeedback.light();
     setRefreshing(true);
-    await fetchProfileData(true);
+    await Promise.all([
+      fetchProfileData(true),
+      refreshUsage(),
+    ]);
     setRefreshing(false);
     HapticFeedback.success();
-  }, [fetchProfileData]);
+  }, [fetchProfileData, refreshUsage]);
 
   // Debounced fetch function to prevent excessive API calls
   const debouncedFetchProfileData = useCallback(() => {
@@ -265,7 +273,7 @@ export default function ProfileScreen() {
     fetchDebounceRef.current = setTimeout(() => {
       console.log('ProfileScreen: Debounced fetch triggered');
       fetchProfileData(false);
-    }, 300); // Reduced from 500ms to 300ms for faster updates
+    }, 300);
   }, [fetchProfileData]);
 
   // Set up real-time subscriptions for stats updates
@@ -277,7 +285,7 @@ export default function ProfileScreen() {
 
     console.log('ProfileScreen: Setting up real-time subscriptions for child:', selectedChild.id);
 
-    // Subscribe to user_words changes - REMOVED self: false to receive own changes
+    // Subscribe to user_words changes
     const wordsChannel = supabase
       .channel(`profile_words_${selectedChild.id}`)
       .on(
@@ -291,6 +299,7 @@ export default function ProfileScreen() {
         (payload) => {
           console.log('ProfileScreen: user_words change detected:', payload.eventType, payload);
           debouncedFetchProfileData();
+          refreshUsage();
         }
       )
       .subscribe((status, err) => {
@@ -300,7 +309,7 @@ export default function ProfileScreen() {
         }
       });
 
-    // Subscribe to user_books changes - REMOVED self: false to receive own changes
+    // Subscribe to user_books changes
     const booksChannel = supabase
       .channel(`profile_books_${selectedChild.id}`)
       .on(
@@ -314,6 +323,7 @@ export default function ProfileScreen() {
         (payload) => {
           console.log('ProfileScreen: user_books change detected:', payload.eventType, payload);
           debouncedFetchProfileData();
+          refreshUsage();
         }
       )
       .subscribe((status, err) => {
@@ -323,7 +333,7 @@ export default function ProfileScreen() {
         }
       });
 
-    // Subscribe to moments changes - REMOVED self: false to receive own changes
+    // Subscribe to moments changes
     const momentsChannel = supabase
       .channel(`profile_moments_${selectedChild.id}`)
       .on(
@@ -361,7 +371,7 @@ export default function ProfileScreen() {
       supabase.removeChannel(booksChannel);
       supabase.removeChannel(momentsChannel);
     };
-  }, [selectedChild?.id, debouncedFetchProfileData]);
+  }, [selectedChild?.id, debouncedFetchProfileData, refreshUsage]);
 
   const calculateAge = (birthDate: string) => {
     try {
@@ -407,6 +417,16 @@ export default function ProfileScreen() {
   const handleOpenAddChild = () => {
     try {
       console.log('ProfileScreen: Opening add child bottom sheet');
+      
+      // Check quota before opening
+      if (!canAddChild) {
+        console.log('ProfileScreen: Child limit reached, showing upgrade modal');
+        HapticFeedback.warning();
+        setShowUpgradeModal(true);
+        childSelectorRef.current?.dismiss();
+        return;
+      }
+      
       HapticFeedback.medium();
       childSelectorRef.current?.dismiss();
       setTimeout(() => {
@@ -421,6 +441,7 @@ export default function ProfileScreen() {
     try {
       console.log('ProfileScreen: Adding child:', name, birthDate);
       await addChild(name, birthDate);
+      await refreshUsage();
       HapticFeedback.success();
       addChildRef.current?.dismiss();
     } catch (err) {
@@ -558,7 +579,7 @@ export default function ProfileScreen() {
       const { error: updateError } = await supabase
         .from('children')
         .update({ 
-          avatar_url: uploadResult.url, // Store the storage path, not a URL
+          avatar_url: uploadResult.url,
           updated_at: new Date().toISOString()
         })
         .eq('id', selectedChild.id);
@@ -710,6 +731,8 @@ export default function ProfileScreen() {
               <Text style={styles.ageText}>{calculateAge(selectedChild.birth_date)}</Text>
             )}
           </View>
+
+          <SubscriptionStatusCard />
 
           {stats.newWordsThisWeek > 0 && (
             <View style={styles.achievementBanner}>
@@ -901,6 +924,12 @@ export default function ProfileScreen() {
           onClose={handleCloseVideoPlayer}
         />
       )}
+
+      <UpgradePromptModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        quotaType="child"
+      />
     </View>
   );
 }
@@ -1145,7 +1174,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginTop: 4,
-    textAlign: 'center',
+    textAlign: 'center,
   },
   viewMoreButton: {
     backgroundColor: colors.buttonBlue,
