@@ -97,6 +97,26 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   });
   const [offerings, setOfferings] = useState<PurchasesOffering | null>(null);
 
+  // Update subscription status based on customer info
+  // MOVED THIS BEFORE THE useEffect THAT USES IT
+  const updateSubscriptionStatus = useCallback((customerInfo: CustomerInfo) => {
+    console.log('SubscriptionContext: Updating subscription status');
+    console.log('SubscriptionContext: Active entitlements:', Object.keys(customerInfo.entitlements.active));
+
+    // Check if user has active "plus" entitlement
+    const hasPlus = customerInfo.entitlements.active['plus'] !== undefined;
+    
+    if (hasPlus) {
+      console.log('SubscriptionContext: User has active Plus subscription');
+      setTier('plus');
+    } else {
+      console.log('SubscriptionContext: User is on Free tier');
+      setTier('free');
+    }
+    
+    setIsLoading(false);
+  }, []);
+
   // Initialize RevenueCat
   useEffect(() => {
     const initializeRevenueCat = async () => {
@@ -141,25 +161,6 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
     identifyUser();
   }, [authUser?.id, updateSubscriptionStatus]);
-
-  // Update subscription status based on customer info
-  const updateSubscriptionStatus = useCallback((customerInfo: CustomerInfo) => {
-    console.log('SubscriptionContext: Updating subscription status');
-    console.log('SubscriptionContext: Active entitlements:', Object.keys(customerInfo.entitlements.active));
-
-    // Check if user has active "plus" entitlement
-    const hasPlus = customerInfo.entitlements.active['plus'] !== undefined;
-    
-    if (hasPlus) {
-      console.log('SubscriptionContext: User has active Plus subscription');
-      setTier('plus');
-    } else {
-      console.log('SubscriptionContext: User is on Free tier');
-      setTier('free');
-    }
-    
-    setIsLoading(false);
-  }, []);
 
   // Fetch offerings
   useEffect(() => {
