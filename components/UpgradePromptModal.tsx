@@ -31,15 +31,15 @@ const QUOTA_MESSAGES = {
 };
 
 export default function UpgradePromptModal({ visible, onClose, quotaType }: UpgradePromptModalProps) {
-  const { showPaywall, tier, currentUsage } = useSubscription();
+  const { showPaywall } = useSubscription();
   const message = QUOTA_MESSAGES[quotaType];
 
   const handleUpgrade = async () => {
     HapticFeedback.medium();
     onClose();
     
-    // Show Superwall paywall
-    await showPaywall('upgrade_prompt');
+    // Show RevenueCat paywall
+    await showPaywall();
   };
 
   const handleClose = () => {

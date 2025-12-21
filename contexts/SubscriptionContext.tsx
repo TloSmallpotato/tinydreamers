@@ -1,6 +1,12 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useUser, useSuperwall } from 'expo-superwall';
+import { Platform, Alert } from 'react-native';
+import Purchases, { 
+  CustomerInfo, 
+  PurchasesOffering,
+  PurchasesPackage,
+  LOG_LEVEL 
+} from 'react-native-purchases';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 
@@ -46,8 +52,9 @@ interface SubscriptionContextType {
 
   // Actions
   refreshUsage: () => Promise<void>;
-  showPaywall: (placement?: string) => Promise<void>;
+  showPaywall: () => Promise<void>;
   checkQuota: (type: 'word' | 'book' | 'child') => boolean;
+  restorePurchases: () => Promise<void>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType>({
@@ -64,6 +71,7 @@ const SubscriptionContext = createContext<SubscriptionContextType>({
   refreshUsage: async () => {},
   showPaywall: async () => {},
   checkQuota: () => true,
+  restorePurchases: async () => {},
 });
 
 export const useSubscription = () => {
@@ -74,11 +82,12 @@ export const useSubscription = () => {
   return context;
 };
 
+// RevenueCat API Keys - Replace with your actual keys
+const REVENUECAT_API_KEY_IOS = 'YOUR_IOS_API_KEY_HERE';
+const REVENUECAT_API_KEY_ANDROID = 'YOUR_ANDROID_API_KEY_HERE';
+
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const { user: authUser } = useAuth();
-  const { subscriptionStatus, user: superwallUser } = useUser();
-  const { registerPlacement } = useSuperwall();
-
   const [tier, setTier] = useState<SubscriptionTier>('free');
   const [isLoading, setIsLoading] = useState(true);
   const [currentUsage, setCurrentUsage] = useState({
@@ -86,32 +95,92 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     books: 0,
     children: 0,
   });
+  const [offerings, setOfferings] = useState<PurchasesOffering | null>(null);
 
-  // Determine subscription tier based on Superwall status
+  // Initialize RevenueCat
   useEffect(() => {
-    console.log('SubscriptionContext: Subscription status changed:', subscriptionStatus);
+    const initializeRevenueCat = async () => {
+      try {
+        console.log('SubscriptionContext: Initializing RevenueCat');
+        
+        // Set log level for debugging
+        Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+
+        // Configure RevenueCat
+        const apiKey = Platform.OS === 'ios' ? REVENUECAT_API_KEY_IOS : REVENUECAT_API_KEY_ANDROID;
+        await Purchases.configure({ apiKey });
+
+        console.log('SubscriptionContext: RevenueCat initialized successfully');
+      } catch (error) {
+        console.error('SubscriptionContext: Error initializing RevenueCat:', error);
+      }
+    };
+
+    initializeRevenueCat();
+  }, []);
+
+  // Identify user with RevenueCat
+  useEffect(() => {
+    const identifyUser = async () => {
+      if (!authUser?.id) {
+        console.log('SubscriptionContext: No auth user, skipping identification');
+        return;
+      }
+
+      try {
+        console.log('SubscriptionContext: Identifying user with RevenueCat:', authUser.id);
+        await Purchases.logIn(authUser.id);
+        
+        // Get customer info
+        const customerInfo = await Purchases.getCustomerInfo();
+        updateSubscriptionStatus(customerInfo);
+      } catch (error) {
+        console.error('SubscriptionContext: Error identifying user:', error);
+      }
+    };
+
+    identifyUser();
+  }, [authUser?.id]);
+
+  // Update subscription status based on customer info
+  const updateSubscriptionStatus = useCallback((customerInfo: CustomerInfo) => {
+    console.log('SubscriptionContext: Updating subscription status');
+    console.log('SubscriptionContext: Active entitlements:', Object.keys(customerInfo.entitlements.active));
+
+    // Check if user has active "plus" entitlement
+    const hasPlus = customerInfo.entitlements.active['plus'] !== undefined;
     
-    if (subscriptionStatus?.status === 'ACTIVE') {
-      console.log('SubscriptionContext: User has active subscription - setting tier to PLUS');
+    if (hasPlus) {
+      console.log('SubscriptionContext: User has active Plus subscription');
       setTier('plus');
     } else {
-      console.log('SubscriptionContext: User has no active subscription - setting tier to FREE');
+      console.log('SubscriptionContext: User is on Free tier');
       setTier('free');
     }
     
     setIsLoading(false);
-  }, [subscriptionStatus]);
+  }, []);
 
-  // Identify user with Superwall when auth user changes
+  // Fetch offerings
   useEffect(() => {
-    if (authUser?.id && !superwallUser) {
-      console.log('SubscriptionContext: Identifying user with Superwall:', authUser.id);
-      const { identify } = useUser();
-      identify(authUser.id).catch(err => {
-        console.error('SubscriptionContext: Error identifying user:', err);
-      });
-    }
-  }, [authUser?.id, superwallUser]);
+    const fetchOfferings = async () => {
+      try {
+        console.log('SubscriptionContext: Fetching offerings');
+        const offerings = await Purchases.getOfferings();
+        
+        if (offerings.current !== null) {
+          console.log('SubscriptionContext: Current offering:', offerings.current.identifier);
+          setOfferings(offerings.current);
+        } else {
+          console.log('SubscriptionContext: No current offering available');
+        }
+      } catch (error) {
+        console.error('SubscriptionContext: Error fetching offerings:', error);
+      }
+    };
+
+    fetchOfferings();
+  }, []);
 
   // Fetch current usage from database
   const refreshUsage = useCallback(async () => {
@@ -188,15 +257,59 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const remainingChildren = Math.max(0, limits.children - currentUsage.children);
 
   // Show paywall function
-  const showPaywall = useCallback(async (placement: string = 'upgrade_prompt') => {
-    console.log('SubscriptionContext: Showing paywall for placement:', placement);
+  const showPaywall = useCallback(async () => {
+    console.log('SubscriptionContext: Showing paywall');
     
     try {
-      await registerPlacement(placement, {}, null);
-    } catch (err) {
-      console.error('SubscriptionContext: Error showing paywall:', err);
+      if (!offerings) {
+        Alert.alert('Error', 'Unable to load subscription options. Please try again later.');
+        return;
+      }
+
+      // Get the package to purchase (assuming first package is the Plus subscription)
+      const packageToPurchase = offerings.availablePackages[0];
+      
+      if (!packageToPurchase) {
+        Alert.alert('Error', 'No subscription packages available.');
+        return;
+      }
+
+      console.log('SubscriptionContext: Purchasing package:', packageToPurchase.identifier);
+
+      // Make the purchase
+      const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
+      
+      // Update subscription status
+      updateSubscriptionStatus(customerInfo);
+      
+      Alert.alert('Success', 'Welcome to Plus! You now have unlimited access.');
+    } catch (error: any) {
+      console.error('SubscriptionContext: Error showing paywall:', error);
+      
+      if (!error.userCancelled) {
+        Alert.alert('Error', 'Unable to complete purchase. Please try again.');
+      }
     }
-  }, [registerPlacement]);
+  }, [offerings, updateSubscriptionStatus]);
+
+  // Restore purchases function
+  const restorePurchases = useCallback(async () => {
+    console.log('SubscriptionContext: Restoring purchases');
+    
+    try {
+      const customerInfo = await Purchases.restorePurchases();
+      updateSubscriptionStatus(customerInfo);
+      
+      if (customerInfo.entitlements.active['plus']) {
+        Alert.alert('Success', 'Your Plus subscription has been restored!');
+      } else {
+        Alert.alert('No Purchases Found', 'We couldn\'t find any previous purchases to restore.');
+      }
+    } catch (error) {
+      console.error('SubscriptionContext: Error restoring purchases:', error);
+      Alert.alert('Error', 'Unable to restore purchases. Please try again.');
+    }
+  }, [updateSubscriptionStatus]);
 
   // Check quota function
   const checkQuota = useCallback((type: 'word' | 'book' | 'child'): boolean => {
@@ -228,6 +341,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     refreshUsage,
     showPaywall,
     checkQuota,
+    restorePurchases,
   };
 
   return (

@@ -6,7 +6,7 @@ import { HapticFeedback } from '@/utils/haptics';
 export type QuotaType = 'word' | 'book' | 'child';
 
 export function useQuotaCheck() {
-  const { checkQuota, showPaywall } = useSubscription();
+  const { checkQuota } = useSubscription();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [quotaType, setQuotaType] = useState<QuotaType>('word');
 

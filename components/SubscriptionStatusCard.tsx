@@ -14,12 +14,18 @@ export default function SubscriptionStatusCard() {
     remainingWords, 
     remainingBooks, 
     remainingChildren,
-    showPaywall 
+    showPaywall,
+    restorePurchases 
   } = useSubscription();
 
   const handleUpgrade = async () => {
     HapticFeedback.medium();
-    await showPaywall('profile_upgrade');
+    await showPaywall();
+  };
+
+  const handleRestore = async () => {
+    HapticFeedback.medium();
+    await restorePurchases();
   };
 
   if (isSubscribed) {
@@ -173,6 +179,10 @@ export default function SubscriptionStatusCard() {
         />
         <Text style={styles.upgradeButtonText}>Upgrade to Plus</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity style={styles.restoreButton} onPress={handleRestore}>
+        <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -271,10 +281,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    marginBottom: 12,
   },
   upgradeButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.backgroundAlt,
+  },
+  restoreButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  restoreButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.buttonBlue,
   },
 });
