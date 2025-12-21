@@ -1,6 +1,6 @@
 
 import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Platform, TextInput } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -10,6 +10,7 @@ import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 import { Image } from 'expo-image';
 import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
+import * as Haptics from 'expo-haptics';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -46,6 +47,9 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
     const [isRecognised, setIsRecognised] = useState(false);
     const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
     const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [editedWord, setEditedWord] = useState('');
+    const [editedEmoji, setEditedEmoji] = useState('');
     
     const { setTargetWord, setIsRecordingFromWordDetail } = useVideoRecording();
     const { triggerCamera } = useCameraTrigger();
@@ -68,6 +72,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       } catch (error) {
         console.error('Error in updateWordStatus:', error);
         Alert.alert('Error', 'Failed to update status');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     }, [word, onRefresh]);
 
@@ -112,6 +117,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       } catch (error) {
         console.error('[WordDetail] Error in fetchMoments:', error);
         Alert.alert('Error', 'Failed to load videos');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       } finally {
         setLoading(false);
       }
@@ -121,17 +127,22 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       if (word) {
         setIsSpoken(word.is_spoken);
         setIsRecognised(word.is_recognised);
+        setEditedWord(word.word);
+        setEditedEmoji(word.emoji);
+        setIsEditMode(false);
         fetchMoments();
       }
     }, [word, fetchMoments]);
 
     const toggleSpoken = useCallback(async () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const newValue = !isSpoken;
       setIsSpoken(newValue);
       await updateWordStatus('is_spoken', newValue);
     }, [isSpoken, updateWordStatus]);
 
     const toggleRecognised = useCallback(async () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const newValue = !isRecognised;
       setIsRecognised(newValue);
       await updateWordStatus('is_recognised', newValue);
@@ -140,6 +151,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
     const handleOpenCamera = () => {
       if (!word) return;
       
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       console.log('[WordDetail] Opening camera from word detail for word:', word.id);
       
       setTargetWord(word.id);
@@ -153,6 +165,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
     };
 
     const handlePlayVideo = (moment: Moment) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       // Use signed URL if available, otherwise fall back to original URL
       const videoUrl = moment.signedVideoUrl || moment.video_url;
       console.log('[WordDetail] Playing video:', videoUrl);
@@ -166,6 +179,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
     };
 
     const handleDeleteMoment = (moment: Moment) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       Alert.alert(
         'Delete Video',
         'Are you sure you want to delete this video moment? This action cannot be undone.',
@@ -257,6 +271,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
         }
 
         console.log('[WordDetail] Moment deleted successfully');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
         await fetchMoments();
         
@@ -264,6 +279,174 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       } catch (error) {
         console.error('[WordDetail] Error in deleteMoment:', error);
         Alert.alert('Error', 'Failed to delete video');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    };
+
+    const handleToggleEditMode = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (isEditMode) {
+        // Cancel editing - reset to original values
+        setEditedWord(word?.word || '');
+        setEditedEmoji(word?.emoji || '');
+      }
+      setIsEditMode(!isEditMode);
+    };
+
+    const handleSaveEdit = async () => {
+      if (!word) return;
+
+      // Validate inputs
+      if (!editedWord.trim()) {
+        Alert.alert('Error', 'Word cannot be empty');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        return;
+      }
+
+      if (!editedEmoji.trim()) {
+        Alert.alert('Error', 'Emoji cannot be empty');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        return;
+      }
+
+      try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        console.log('[WordDetail] Saving word edit:', editedWord, editedEmoji);
+
+        const { error } = await supabase
+          .from('user_words')
+          .update({
+            custom_word: editedWord.trim(),
+            custom_emoji: editedEmoji.trim(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', word.id);
+
+        if (error) {
+          console.error('[WordDetail] Error updating word:', error);
+          throw error;
+        }
+
+        console.log('[WordDetail] Word updated successfully');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setIsEditMode(false);
+        onRefresh();
+        
+        // Close and reopen the sheet to show updated data
+        if (ref && typeof ref !== 'function' && ref.current) {
+          ref.current.dismiss();
+        }
+      } catch (error) {
+        console.error('[WordDetail] Error in handleSaveEdit:', error);
+        Alert.alert('Error', 'Failed to update word');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    };
+
+    const handleDeleteWord = () => {
+      if (!word) return;
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+      const momentCount = moments.length;
+      const warningMessage = momentCount > 0
+        ? `This will permanently delete the word "${word.word}" and all ${momentCount} video${momentCount > 1 ? 's' : ''} associated with it. This action cannot be undone.`
+        : `This will permanently delete the word "${word.word}". This action cannot be undone.`;
+
+      Alert.alert(
+        'Delete Word',
+        warningMessage,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              await deleteWord();
+            },
+          },
+        ]
+      );
+    };
+
+    const deleteWord = async () => {
+      if (!word) return;
+
+      try {
+        console.log('[WordDetail] Deleting word:', word.id);
+
+        // First, delete all associated videos from storage
+        for (const moment of moments) {
+          console.log('[WordDetail] Deleting moment:', moment.id);
+          
+          // Delete video file
+          const videoPath = moment.video_url;
+          if (videoPath.includes('/video-moments/')) {
+            const urlParts = videoPath.split('/video-moments/');
+            if (urlParts.length > 1) {
+              const filePath = urlParts[1];
+              await supabase.storage.from('video-moments').remove([filePath]);
+            }
+          } else {
+            await supabase.storage.from('video-moments').remove([videoPath]);
+          }
+
+          // Delete thumbnail file
+          if (moment.thumbnail_url) {
+            const thumbnailPath = moment.thumbnail_url;
+            if (thumbnailPath.includes('/video-moments/')) {
+              const thumbUrlParts = thumbnailPath.split('/video-moments/');
+              if (thumbUrlParts.length > 1) {
+                const thumbFilePath = thumbUrlParts[1];
+                await supabase.storage.from('video-moments').remove([thumbFilePath]);
+              }
+            } else {
+              await supabase.storage.from('video-moments').remove([thumbnailPath]);
+            }
+          }
+        }
+
+        // Delete all moments from database (cascade should handle this, but being explicit)
+        const { error: momentsError } = await supabase
+          .from('moments')
+          .delete()
+          .eq('word_id', word.id);
+
+        if (momentsError) {
+          console.error('[WordDetail] Error deleting moments:', momentsError);
+          throw momentsError;
+        }
+
+        // Delete the word from database
+        const { error: wordError } = await supabase
+          .from('user_words')
+          .delete()
+          .eq('id', word.id);
+
+        if (wordError) {
+          console.error('[WordDetail] Error deleting word:', wordError);
+          throw wordError;
+        }
+
+        console.log('[WordDetail] Word and all associated videos deleted successfully');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+        // Close the bottom sheet
+        if (ref && typeof ref !== 'function' && ref.current) {
+          ref.current.dismiss();
+        }
+
+        // Refresh the words list
+        onRefresh();
+
+        Alert.alert('Success', 'Word and all associated videos deleted successfully');
+      } catch (error) {
+        console.error('[WordDetail] Error in deleteWord:', error);
+        Alert.alert('Error', 'Failed to delete word');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     };
 
@@ -308,10 +491,67 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
             contentContainerStyle={styles.contentContainer}
           >
             <View style={[styles.wordHeader, { backgroundColor: word.color }]}>
-              <View style={styles.wordIcon}>
-                <Text style={styles.wordEmoji}>{word.emoji}</Text>
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  style={styles.headerButton}
+                  onPress={handleToggleEditMode}
+                >
+                  <IconSymbol
+                    ios_icon_name={isEditMode ? 'xmark' : 'pencil'}
+                    android_material_icon_name={isEditMode ? 'close' : 'edit'}
+                    size={20}
+                    color={colors.primary}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.headerButton, styles.deleteButton]}
+                  onPress={handleDeleteWord}
+                >
+                  <IconSymbol
+                    ios_icon_name="trash"
+                    android_material_icon_name="delete"
+                    size={20}
+                    color={colors.secondary}
+                  />
+                </TouchableOpacity>
               </View>
-              <Text style={styles.wordTitle}>{word.word}</Text>
+
+              {isEditMode ? (
+                <View style={styles.editContainer}>
+                  <View style={styles.wordIcon}>
+                    <TextInput
+                      style={styles.emojiInput}
+                      value={editedEmoji}
+                      onChangeText={setEditedEmoji}
+                      maxLength={4}
+                      placeholder="🌟"
+                      placeholderTextColor={colors.textSecondary}
+                    />
+                  </View>
+                  <TextInput
+                    style={styles.wordInput}
+                    value={editedWord}
+                    onChangeText={setEditedWord}
+                    placeholder="Enter word"
+                    placeholderTextColor={colors.textSecondary}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity
+                    style={styles.saveButton}
+                    onPress={handleSaveEdit}
+                  >
+                    <Text style={styles.saveButtonText}>Save Changes</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <View style={styles.wordIcon}>
+                    <Text style={styles.wordEmoji}>{word.emoji}</Text>
+                  </View>
+                  <Text style={styles.wordTitle}>{word.word}</Text>
+                </>
+              )}
             </View>
 
             <View style={styles.whiteContentSection}>
@@ -421,7 +661,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
                                 {new Date(moment.created_at).toLocaleDateString()}
                               </Text>
                               <TouchableOpacity
-                                style={styles.deleteButton}
+                                style={styles.deleteMomentButton}
                                 onPress={() => handleDeleteMoment(moment)}
                               >
                                 <IconSymbol
@@ -479,6 +719,28 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignSelf: 'flex-end',
+    gap: 8,
+    marginBottom: 12,
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.backgroundAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  editContainer: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 12,
+  },
   wordIcon: {
     width: 80,
     height: 80,
@@ -486,15 +748,43 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
   },
   wordEmoji: {
     fontSize: 40,
+  },
+  emojiInput: {
+    fontSize: 40,
+    textAlign: 'center',
+    color: colors.primary,
+    width: '100%',
   },
   wordTitle: {
     fontSize: 28,
     fontWeight: '700',
     color: colors.primary,
+  },
+  wordInput: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.primary,
+    backgroundColor: colors.backgroundAlt,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 16,
+    width: '100%',
+    textAlign: 'center',
+  },
+  saveButton: {
+    backgroundColor: colors.buttonBlue,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 16,
+    marginTop: 8,
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
   },
   whiteContentSection: {
     backgroundColor: colors.backgroundAlt,
@@ -613,7 +903,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     flex: 1,
   },
-  deleteButton: {
+  deleteMomentButton: {
     padding: 4,
   },
 });
