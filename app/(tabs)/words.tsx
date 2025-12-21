@@ -100,10 +100,10 @@ export default function WordsScreen() {
       setLoading(true);
       console.log('Fetching words for child:', selectedChild.id);
       
-      // Optimized query - no more join with word_library
+      // Query user_words directly - no more word_library join
       const { data, error } = await supabase
         .from('user_words')
-        .select('id, child_id, custom_word, custom_emoji, color, is_spoken, is_recognised, is_recorded, created_at, updated_at')
+        .select('*')
         .eq('child_id', selectedChild.id)
         .order('created_at', { ascending: false });
 
@@ -118,7 +118,7 @@ export default function WordsScreen() {
       const transformedWords: Word[] = (data || []).map((uw) => ({
         id: uw.id,
         child_id: uw.child_id,
-        word: uw.custom_word,
+        word: uw.custom_word || '',
         emoji: uw.custom_emoji || '⭐',
         color: uw.color,
         is_spoken: uw.is_spoken,
@@ -197,27 +197,30 @@ export default function WordsScreen() {
       console.log('Adding word:', word);
       
       // Check if user already has this word (case-insensitive)
-      const { data: existingUserWord, error: userWordCheckError } = await supabase
+      const { data: existingUserWords, error: userWordCheckError } = await supabase
         .from('user_words')
-        .select('id')
-        .eq('child_id', selectedChild.id)
-        .ilike('custom_word', word)
-        .maybeSingle();
+        .select('id, custom_word')
+        .eq('child_id', selectedChild.id);
 
       if (userWordCheckError) {
-        console.error('Error checking user word:', userWordCheckError);
+        console.error('Error checking user words:', userWordCheckError);
         throw userWordCheckError;
       }
 
-      if (existingUserWord) {
+      // Check if word already exists (case-insensitive)
+      const wordExists = existingUserWords?.some(
+        (uw) => uw.custom_word.toLowerCase() === word.toLowerCase()
+      );
+
+      if (wordExists) {
         Alert.alert('Word Already Added', 'This word is already in your list');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         addWordSheetRef.current?.dismiss();
         return;
       }
 
-      // Create user_word directly (no more word_library)
-      const { error: userWordError } = await supabase
+      // Create user_word with custom fields
+      const { error: insertError } = await supabase
         .from('user_words')
         .insert({
           child_id: selectedChild.id,
@@ -226,9 +229,9 @@ export default function WordsScreen() {
           custom_emoji: emoji,
         });
 
-      if (userWordError) {
-        console.error('Error adding user word:', userWordError);
-        throw userWordError;
+      if (insertError) {
+        console.error('Error adding user word:', insertError);
+        throw insertError;
       }
 
       console.log('Word added successfully');
