@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -8,20 +8,16 @@ import {
   Platform, 
   TouchableOpacity,
   ActivityIndicator,
-  Keyboard,
   Alert,
-  Animated,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Image } from 'expo-image';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
-import { useAddNavigation } from '@/contexts/AddNavigationContext';
 import { supabase } from '@/app/integrations/supabase/client';
-import { searchGoogleBooks, searchBookByISBN, BookSearchResult, getQuotaStatus } from '@/utils/googleBooksApi';
+import { searchBookByISBN, BookSearchResult, getQuotaStatus } from '@/utils/googleBooksApi';
 import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
 import AddCustomBookBottomSheet from '@/components/AddCustomBookBottomSheet';
 import BarcodeScannerModal from '@/components/BarcodeScannerModal';
@@ -29,7 +25,7 @@ import ISBNNotFoundModal from '@/components/ISBNNotFoundModal';
 import ToastNotification from '@/components/ToastNotification';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { isLikelyBlankImage, getFirstValidImageUrl } from '@/utils/imageValidation';
+import { getFirstValidImageUrl } from '@/utils/imageValidation';
 import ValidatedImage from '@/components/ValidatedImage';
 
 interface SavedBook {
@@ -62,9 +58,54 @@ const LOADING_MESSAGES = [
   "Peeking inside the story…"
 ];
 
+// Memoized book card component for better performance
+const BookCard = React.memo<{
+  book: SavedBook;
+  imageUrl: string | null;
+  onPress: (book: SavedBook) => void;
+  onImageError: (bookId: string) => void;
+}>(({ book, imageUrl, onPress, onImageError }) => {
+  return (
+    <TouchableOpacity
+      style={styles.bookCard}
+      onPress={() => onPress(book)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.bookCoverContainer}>
+        {imageUrl ? (
+          <ValidatedImage
+            source={{ uri: imageUrl }}
+            style={styles.bookCoverLarge}
+            fallbackTitle={book.book.title}
+            minWidth={50}
+            minHeight={50}
+            contentFit="contain"
+            cachePolicy="memory-disk"
+            priority="high"
+            transition={200}
+            onValidationFailed={() => onImageError(book.book.id)}
+          />
+        ) : (
+          <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
+            <Text style={styles.placeholderText} numberOfLines={4}>
+              {book.book.title}
+            </Text>
+          </View>
+        )}
+      </View>
+      {book.is_custom_for_user && (
+        <View style={styles.customBadge}>
+          <Text style={styles.customBadgeText}>Custom</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+
+BookCard.displayName = 'BookCard';
+
 export default function BooksScreen() {
   const { selectedChild } = useChild();
-  const { shouldFocusBookSearch, resetBookSearch } = useAddNavigation();
   const params = useLocalSearchParams();
   const router = useRouter();
   const [savedBooks, setSavedBooks] = useState<SavedBook[]>([]);
@@ -208,7 +249,7 @@ export default function BooksScreen() {
     }
   }, []);
 
-  // Fetch saved books for the selected child
+  // Fetch saved books for the selected child - optimized query
   const fetchSavedBooks = useCallback(async () => {
     if (!selectedChild) {
       setSavedBooks([]);
@@ -218,6 +259,8 @@ export default function BooksScreen() {
 
     try {
       setIsLoadingBooks(true);
+      
+      // Optimized query with index usage
       const { data, error } = await supabase
         .from('user_books')
         .select(`
@@ -253,14 +296,16 @@ export default function BooksScreen() {
 
       // Generate signed URLs for custom books with private covers
       const urlMap = new Map<string, string>();
-      for (const book of data || []) {
-        if (book.is_custom_for_user && book.cover_url_private) {
-          const signedUrl = await generateSignedUrl(book.cover_url_private);
+      const urlPromises = (data || [])
+        .filter(book => book.is_custom_for_user && book.cover_url_private)
+        .map(async (book) => {
+          const signedUrl = await generateSignedUrl(book.cover_url_private!);
           if (signedUrl) {
             urlMap.set(book.id, signedUrl);
           }
-        }
-      }
+        });
+      
+      await Promise.all(urlPromises);
       setSignedUrls(urlMap);
     } catch (error) {
       console.error('Error in fetchSavedBooks:', error);
@@ -547,16 +592,16 @@ export default function BooksScreen() {
     lastClickedBookIdRef.current = null;
   };
 
-  const handleImageValidationFailed = (bookId: string) => {
+  const handleImageValidationFailed = useCallback((bookId: string) => {
     console.log('Image validation failed for book:', bookId);
     setImageErrors(prev => new Set(prev).add(bookId));
-  };
+  }, []);
 
-  const getImageUrl = (book: SavedBook) => {
+  const getImageUrl = useCallback((book: SavedBook) => {
     // For custom books with private covers, use signed URL
     if (book.is_custom_for_user && book.cover_url_private) {
       const signedUrl = signedUrls.get(book.id);
-      if (signedUrl && !isLikelyBlankImage(signedUrl)) {
+      if (signedUrl) {
         return signedUrl;
       }
     }
@@ -573,7 +618,7 @@ export default function BooksScreen() {
     }
 
     return null;
-  };
+  }, [signedUrls, imageErrors]);
 
   return (
     <View style={styles.container}>
@@ -663,45 +708,15 @@ export default function BooksScreen() {
             </View>
           ) : (
             <View style={styles.booksGrid}>
-              {savedBooks.map((savedBook, index) => {
-                const imageUrl = getImageUrl(savedBook);
-                return (
-                  <TouchableOpacity
-                    key={`${savedBook.id}-${index}`}
-                    style={styles.bookCard}
-                    onPress={() => handleBookPress(savedBook)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.bookCoverContainer}>
-                      {imageUrl ? (
-                        <ValidatedImage
-                          source={{ uri: imageUrl }}
-                          style={styles.bookCoverLarge}
-                          fallbackTitle={savedBook.book.title}
-                          minWidth={50}
-                          minHeight={50}
-                          contentFit="contain"
-                          cachePolicy="memory-disk"
-                          priority="high"
-                          transition={200}
-                          onValidationFailed={() => handleImageValidationFailed(savedBook.book.id)}
-                        />
-                      ) : (
-                        <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
-                          <Text style={styles.placeholderText} numberOfLines={4}>
-                            {savedBook.book.title}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    {savedBook.is_custom_for_user && (
-                      <View style={styles.customBadge}>
-                        <Text style={styles.customBadgeText}>Custom</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
+              {savedBooks.map((savedBook, index) => (
+                <BookCard
+                  key={`${savedBook.id}-${index}`}
+                  book={savedBook}
+                  imageUrl={getImageUrl(savedBook)}
+                  onPress={handleBookPress}
+                  onImageError={handleImageValidationFailed}
+                />
+              ))}
             </View>
           )}
         </ScrollView>
@@ -868,7 +883,7 @@ const styles = StyleSheet.create({
   },
   bookCoverContainer: {
     width: '100%',
-    aspectRatio: 4 / 5, // 5:4 portrait ratio (width:height = 4:5)
+    aspectRatio: 4 / 5,
   },
   bookCoverLarge: {
     width: '100%',

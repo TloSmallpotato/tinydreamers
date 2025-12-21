@@ -13,24 +13,6 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
-interface UserWord {
-  id: string;
-  word_id: string;
-  child_id: string;
-  color: string;
-  is_spoken: boolean;
-  is_recognised: boolean;
-  is_recorded: boolean;
-  created_at: string;
-  updated_at: string;
-  custom_word: string | null;
-  custom_emoji: string | null;
-  word_library: {
-    word: string;
-    emoji: string;
-  };
-}
-
 interface Word {
   id: string;
   child_id: string;
@@ -118,25 +100,10 @@ export default function WordsScreen() {
       setLoading(true);
       console.log('Fetching words for child:', selectedChild.id);
       
+      // Optimized query - no more join with word_library
       const { data, error } = await supabase
         .from('user_words')
-        .select(`
-          id,
-          word_id,
-          child_id,
-          color,
-          is_spoken,
-          is_recognised,
-          is_recorded,
-          created_at,
-          updated_at,
-          custom_word,
-          custom_emoji,
-          word_library (
-            word,
-            emoji
-          )
-        `)
+        .select('id, child_id, custom_word, custom_emoji, color, is_spoken, is_recognised, is_recorded, created_at, updated_at')
         .eq('child_id', selectedChild.id)
         .order('created_at', { ascending: false });
 
@@ -148,12 +115,11 @@ export default function WordsScreen() {
       console.log('Fetched user_words:', data?.length || 0);
       
       // Transform the data to match the Word interface
-      // Use custom_word/custom_emoji if available, otherwise fall back to word_library
-      const transformedWords: Word[] = (data || []).map((uw: UserWord) => ({
+      const transformedWords: Word[] = (data || []).map((uw) => ({
         id: uw.id,
         child_id: uw.child_id,
-        word: uw.custom_word || uw.word_library.word,
-        emoji: uw.custom_emoji || uw.word_library.emoji || '⭐',
+        word: uw.custom_word,
+        emoji: uw.custom_emoji || '⭐',
         color: uw.color,
         is_spoken: uw.is_spoken,
         is_recognised: uw.is_recognised,
@@ -230,49 +196,12 @@ export default function WordsScreen() {
     try {
       console.log('Adding word:', word);
       
-      // First, check if the word exists in word_library (case-insensitive)
-      const { data: existingWords, error: searchError } = await supabase
-        .from('word_library')
-        .select('id, word, emoji')
-        .ilike('word', word);
-
-      if (searchError) {
-        console.error('Error searching word library:', searchError);
-        throw searchError;
-      }
-
-      let wordLibraryId: string;
-
-      if (existingWords && existingWords.length > 0) {
-        // Word exists in library, use it
-        console.log('Word exists in library:', existingWords[0]);
-        wordLibraryId = existingWords[0].id;
-      } else {
-        // Word doesn't exist, create it in word_library
-        console.log('Creating new word in library');
-        const { data: newWord, error: insertError } = await supabase
-          .from('word_library')
-          .insert({
-            word,
-            emoji,
-          })
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error('Error inserting word to library:', insertError);
-          throw insertError;
-        }
-
-        wordLibraryId = newWord.id;
-      }
-
-      // Check if user already has this word
+      // Check if user already has this word (case-insensitive)
       const { data: existingUserWord, error: userWordCheckError } = await supabase
         .from('user_words')
         .select('id')
-        .eq('word_id', wordLibraryId)
         .eq('child_id', selectedChild.id)
+        .ilike('custom_word', word)
         .maybeSingle();
 
       if (userWordCheckError) {
@@ -287,11 +216,10 @@ export default function WordsScreen() {
         return;
       }
 
-      // Create user_word association with custom fields
+      // Create user_word directly (no more word_library)
       const { error: userWordError } = await supabase
         .from('user_words')
         .insert({
-          word_id: wordLibraryId,
           child_id: selectedChild.id,
           color,
           custom_word: word,

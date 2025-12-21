@@ -1,7 +1,12 @@
 
 /**
- * Utility functions for validating and detecting blank/invalid images
+ * Optimized utility functions for validating and detecting blank/invalid images
  */
+
+// Cache for validated URLs to avoid redundant checks
+const validationCache = new Map<string, boolean>();
+const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+const cacheTimestamps = new Map<string, number>();
 
 /**
  * Checks if an image URL is likely to be blank or invalid based on URL patterns
@@ -12,6 +17,13 @@
  */
 export function isLikelyBlankImage(url: string | null | undefined): boolean {
   if (!url) return true;
+
+  // Check cache first
+  const cached = validationCache.get(url);
+  const timestamp = cacheTimestamps.get(url);
+  if (cached !== undefined && timestamp && Date.now() - timestamp < CACHE_EXPIRY) {
+    return cached;
+  }
 
   // Check for common blank image indicators in the URL
   const blankPatterns = [
@@ -35,17 +47,24 @@ export function isLikelyBlankImage(url: string | null | undefined): boolean {
   // Check if URL contains any blank image patterns
   for (const pattern of blankPatterns) {
     if (lowerUrl.includes(pattern)) {
-      console.log('🔍 Detected blank image pattern in URL:', pattern, url);
+      console.log('🔍 Detected blank image pattern in URL:', pattern);
+      validationCache.set(url, true);
+      cacheTimestamps.set(url, Date.now());
       return true;
     }
   }
 
   // Check for very small dimensions in URL (e.g., zoom=0, size=1)
   if (lowerUrl.includes('zoom=0') || lowerUrl.includes('size=1')) {
-    console.log('🔍 Detected suspicious dimensions in URL:', url);
+    console.log('🔍 Detected suspicious dimensions in URL');
+    validationCache.set(url, true);
+    cacheTimestamps.set(url, Date.now());
     return true;
   }
 
+  // Cache the result
+  validationCache.set(url, false);
+  cacheTimestamps.set(url, Date.now());
   return false;
 }
 
@@ -64,7 +83,7 @@ export async function validateImageUrl(url: string): Promise<boolean> {
     const response = await fetch(url, { method: 'HEAD' });
     
     if (!response.ok) {
-      console.log('🔍 Image URL returned error status:', response.status, url);
+      console.log('🔍 Image URL returned error status:', response.status);
       return false;
     }
 
@@ -73,7 +92,7 @@ export async function validateImageUrl(url: string): Promise<boolean> {
 
     // Check if content type is an image
     if (contentType && !contentType.startsWith('image/')) {
-      console.log('🔍 URL is not an image:', contentType, url);
+      console.log('🔍 URL is not an image:', contentType);
       return false;
     }
 
@@ -81,7 +100,7 @@ export async function validateImageUrl(url: string): Promise<boolean> {
     if (contentLength) {
       const size = parseInt(contentLength, 10);
       if (size < 500) {
-        console.log('🔍 Image file size too small:', size, 'bytes', url);
+        console.log('🔍 Image file size too small:', size, 'bytes');
         return false;
       }
     }
@@ -105,7 +124,7 @@ export async function validateImageDimensions(
   return new Promise((resolve) => {
     // First check for obvious blank patterns
     if (isLikelyBlankImage(url)) {
-      console.log('🔍 Image failed URL pattern check:', url);
+      console.log('🔍 Image failed URL pattern check');
       resolve({ isValid: false });
       return;
     }
@@ -115,7 +134,7 @@ export async function validateImageDimensions(
     
     // Set a timeout to prevent hanging
     const timeout = setTimeout(() => {
-      console.log('🔍 Image dimension check timed out:', url);
+      console.log('🔍 Image dimension check timed out');
       resolve({ isValid: false });
     }, 5000);
 
@@ -124,7 +143,7 @@ export async function validateImageDimensions(
       const width = img.naturalWidth || img.width;
       const height = img.naturalHeight || img.height;
       
-      console.log('🔍 Image dimensions:', width, 'x', height, url);
+      console.log('🔍 Image dimensions:', width, 'x', height);
       
       // Check if dimensions are too small (1x1 or below threshold)
       if (width <= minWidth || height <= minHeight) {
@@ -138,7 +157,7 @@ export async function validateImageDimensions(
 
     img.onerror = () => {
       clearTimeout(timeout);
-      console.log('🔍 Image failed to load:', url);
+      console.log('🔍 Image failed to load');
       resolve({ isValid: false });
     };
 
@@ -213,4 +232,22 @@ export async function getFirstValidImageUrlAsync(
   }
   
   return null;
+}
+
+/**
+ * Clear the validation cache (useful for testing or when memory is a concern)
+ */
+export function clearValidationCache(): void {
+  validationCache.clear();
+  cacheTimestamps.clear();
+}
+
+/**
+ * Get cache statistics for debugging
+ */
+export function getCacheStats(): { size: number; entries: number } {
+  return {
+    size: validationCache.size,
+    entries: cacheTimestamps.size,
+  };
 }
