@@ -1,6 +1,6 @@
 
 import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Platform, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Platform, TextInput, TouchableWithoutFeedback } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -461,6 +461,12 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       }
     };
 
+    const handleCloseDropdown = () => {
+      if (showDropdown) {
+        setShowDropdown(false);
+      }
+    };
+
     const renderBackdrop = useCallback(
       (props: any) => (
         <BottomSheetBackdrop
@@ -497,229 +503,233 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           enableContentPanningGesture={false}
           maxDynamicContentSize={screenHeight * 0.9}
         >
-          <BottomSheetScrollView 
-            style={styles.scrollView}
-            contentContainerStyle={styles.contentContainer}
-          >
-            <View style={[styles.wordHeader, { backgroundColor: word.color }]}>
-              <View style={styles.headerActions}>
-                <TouchableOpacity
-                  style={styles.menuButton}
-                  onPress={handleMenuPress}
-                >
-                  <IconSymbol
-                    ios_icon_name="ellipsis.circle"
-                    android_material_icon_name="more-vert"
-                    size={24}
-                    color={colors.primary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Dropdown Menu - Positioned absolutely above content */}
-              {showDropdown && (
-                <View style={styles.dropdownMenu}>
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={handleEditPress}
-                  >
-                    <IconSymbol
-                      ios_icon_name="pencil"
-                      android_material_icon_name="edit"
-                      size={20}
-                      color={colors.primary}
-                    />
-                    <Text style={styles.dropdownText}>Edit Word</Text>
-                  </TouchableOpacity>
-                  <View style={styles.dropdownDivider} />
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={handleDeleteWord}
-                  >
-                    <IconSymbol
-                      ios_icon_name="trash"
-                      android_material_icon_name="delete"
-                      size={20}
-                      color={colors.secondary}
-                    />
-                    <Text style={[styles.dropdownText, styles.dropdownTextDanger]}>Delete Word</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {isEditMode ? (
-                <View style={styles.editContainer}>
-                  <View style={styles.wordIcon}>
-                    <TextInput
-                      style={styles.emojiInput}
-                      value={editedEmoji}
-                      onChangeText={setEditedEmoji}
-                      maxLength={4}
-                      placeholder="🌟"
-                      placeholderTextColor={colors.textSecondary}
-                    />
-                  </View>
-                  <TextInput
-                    style={styles.wordInput}
-                    value={editedWord}
-                    onChangeText={setEditedWord}
-                    placeholder="Enter word"
-                    placeholderTextColor={colors.textSecondary}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <View style={styles.editActions}>
+          <TouchableWithoutFeedback onPress={handleCloseDropdown}>
+            <View style={styles.touchableContainer}>
+              <BottomSheetScrollView 
+                style={styles.scrollView}
+                contentContainerStyle={styles.contentContainer}
+              >
+                <View style={[styles.wordHeader, { backgroundColor: word.color }]}>
+                  <View style={styles.headerActions}>
                     <TouchableOpacity
-                      style={styles.cancelButton}
-                      onPress={handleCancelEdit}
+                      style={styles.menuButton}
+                      onPress={handleMenuPress}
                     >
-                      <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.saveButton}
-                      onPress={handleSaveEdit}
-                    >
-                      <Text style={styles.saveButtonText}>Save Changes</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : (
-                <>
-                  <View style={styles.wordIcon}>
-                    <Text style={styles.wordEmoji}>{word.emoji}</Text>
-                  </View>
-                  <Text style={styles.wordTitle}>{word.word}</Text>
-                </>
-              )}
-            </View>
-
-            <View style={styles.whiteContentSection}>
-              <View style={styles.statusSection}>
-                <Text style={styles.sectionTitle}>Status</Text>
-                <View style={styles.statusGrid}>
-                  <TouchableOpacity
-                    style={[styles.statusButton, isSpoken && styles.statusButtonActive]}
-                    onPress={toggleSpoken}
-                  >
-                    <IconSymbol
-                      ios_icon_name="speaker.wave.2"
-                      android_material_icon_name="volume-up"
-                      size={24}
-                      color={isSpoken ? colors.backgroundAlt : colors.primary}
-                    />
-                    <Text style={[styles.statusText, isSpoken && styles.statusTextActive]}>
-                      Spoken
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.statusButton, isRecognised && styles.statusButtonActive]}
-                    onPress={toggleRecognised}
-                  >
-                    <IconSymbol
-                      ios_icon_name="eye"
-                      android_material_icon_name="visibility"
-                      size={24}
-                      color={isRecognised ? colors.backgroundAlt : colors.primary}
-                    />
-                    <Text style={[styles.statusText, isRecognised && styles.statusTextActive]}>
-                      Recognised
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.momentsSection}>
-                <View style={styles.momentsHeader}>
-                  <Text style={styles.sectionTitle}>Moments ({moments.length})</Text>
-                  <TouchableOpacity style={styles.addMomentButton} onPress={handleOpenCamera}>
-                    <IconSymbol
-                      ios_icon_name="plus"
-                      android_material_icon_name="add"
-                      size={20}
-                      color={colors.backgroundAlt}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.momentsContainer}>
-                  {moments.length === 0 ? (
-                    <View style={styles.emptyState}>
                       <IconSymbol
-                        ios_icon_name="video.slash"
-                        android_material_icon_name="videocam-off"
-                        size={48}
-                        color={colors.textSecondary}
+                        ios_icon_name="ellipsis.circle"
+                        android_material_icon_name="more-vert"
+                        size={24}
+                        color={colors.primary}
                       />
-                      <Text style={styles.emptyText}>No moments yet</Text>
-                      <Text style={styles.emptySubtext}>
-                        Tap the + button to record a video
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={styles.momentsGrid}>
-                      {moments.map((moment, index) => {
-                        // Use signed thumbnail URL if available, otherwise fall back to original
-                        const thumbnailUrl = moment.signedThumbnailUrl || moment.thumbnail_url;
-                        
-                        return (
-                          <View key={index} style={[styles.momentCard, { width: columnWidth }]}>
-                            <TouchableOpacity
-                              style={[styles.momentThumbnail, { height: thumbnailHeight }]}
-                              onPress={() => handlePlayVideo(moment)}
-                              activeOpacity={0.8}
-                            >
-                              {thumbnailUrl ? (
-                                <Image
-                                  source={{ uri: thumbnailUrl }}
-                                  style={styles.thumbnailImage}
-                                  contentFit="cover"
-                                  transition={200}
-                                />
-                              ) : (
-                                <View style={styles.thumbnailPlaceholder}>
-                                  <IconSymbol
-                                    ios_icon_name="play.circle.fill"
-                                    android_material_icon_name="play-circle-filled"
-                                    size={48}
-                                    color={colors.backgroundAlt}
-                                  />
-                                </View>
-                              )}
-                              <View style={styles.playOverlay}>
-                                <IconSymbol
-                                  ios_icon_name="play.circle.fill"
-                                  android_material_icon_name="play-circle-filled"
-                                  size={48}
-                                  color={colors.backgroundAlt}
-                                />
-                              </View>
-                            </TouchableOpacity>
-                            <View style={styles.momentInfo}>
-                              <Text style={styles.momentDate}>
-                                {new Date(moment.created_at).toLocaleDateString()}
-                              </Text>
-                              <TouchableOpacity
-                                style={styles.deleteMomentButton}
-                                onPress={() => handleDeleteMoment(moment)}
-                              >
-                                <IconSymbol
-                                  ios_icon_name="trash"
-                                  android_material_icon_name="delete"
-                                  size={16}
-                                  color={colors.secondary}
-                                />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        );
-                      })}
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Dropdown Menu - Positioned absolutely above content */}
+                  {showDropdown && (
+                    <View style={styles.dropdownMenu}>
+                      <TouchableOpacity
+                        style={styles.dropdownItem}
+                        onPress={handleEditPress}
+                      >
+                        <IconSymbol
+                          ios_icon_name="pencil"
+                          android_material_icon_name="edit"
+                          size={20}
+                          color={colors.primary}
+                        />
+                        <Text style={styles.dropdownText}>Edit Word</Text>
+                      </TouchableOpacity>
+                      <View style={styles.dropdownDivider} />
+                      <TouchableOpacity
+                        style={styles.dropdownItem}
+                        onPress={handleDeleteWord}
+                      >
+                        <IconSymbol
+                          ios_icon_name="trash"
+                          android_material_icon_name="delete"
+                          size={20}
+                          color={colors.secondary}
+                        />
+                        <Text style={[styles.dropdownText, styles.dropdownTextDanger]}>Delete Word</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
+
+                  {isEditMode ? (
+                    <View style={styles.editContainer}>
+                      <View style={styles.wordIcon}>
+                        <TextInput
+                          style={styles.emojiInput}
+                          value={editedEmoji}
+                          onChangeText={setEditedEmoji}
+                          maxLength={4}
+                          placeholder="🌟"
+                          placeholderTextColor={colors.textSecondary}
+                        />
+                      </View>
+                      <TextInput
+                        style={styles.wordInput}
+                        value={editedWord}
+                        onChangeText={setEditedWord}
+                        placeholder="Enter word"
+                        placeholderTextColor={colors.textSecondary}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      <View style={styles.editActions}>
+                        <TouchableOpacity
+                          style={styles.cancelButton}
+                          onPress={handleCancelEdit}
+                        >
+                          <Text style={styles.cancelButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.saveButton}
+                          onPress={handleSaveEdit}
+                        >
+                          <Text style={styles.saveButtonText}>Save Changes</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.wordIcon}>
+                        <Text style={styles.wordEmoji}>{word.emoji}</Text>
+                      </View>
+                      <Text style={styles.wordTitle}>{word.word}</Text>
+                    </>
+                  )}
                 </View>
-              </View>
+
+                <View style={styles.whiteContentSection}>
+                  <View style={styles.statusSection}>
+                    <Text style={styles.sectionTitle}>Status</Text>
+                    <View style={styles.statusGrid}>
+                      <TouchableOpacity
+                        style={[styles.statusButton, isSpoken && styles.statusButtonActive]}
+                        onPress={toggleSpoken}
+                      >
+                        <IconSymbol
+                          ios_icon_name="speaker.wave.2"
+                          android_material_icon_name="volume-up"
+                          size={24}
+                          color={isSpoken ? colors.backgroundAlt : colors.primary}
+                        />
+                        <Text style={[styles.statusText, isSpoken && styles.statusTextActive]}>
+                          Spoken
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.statusButton, isRecognised && styles.statusButtonActive]}
+                        onPress={toggleRecognised}
+                      >
+                        <IconSymbol
+                          ios_icon_name="eye"
+                          android_material_icon_name="visibility"
+                          size={24}
+                          color={isRecognised ? colors.backgroundAlt : colors.primary}
+                        />
+                        <Text style={[styles.statusText, isRecognised && styles.statusTextActive]}>
+                          Recognised
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.momentsSection}>
+                    <View style={styles.momentsHeader}>
+                      <Text style={styles.sectionTitle}>Moments ({moments.length})</Text>
+                      <TouchableOpacity style={styles.addMomentButton} onPress={handleOpenCamera}>
+                        <IconSymbol
+                          ios_icon_name="plus"
+                          android_material_icon_name="add"
+                          size={20}
+                          color={colors.backgroundAlt}
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.momentsContainer}>
+                      {moments.length === 0 ? (
+                        <View style={styles.emptyState}>
+                          <IconSymbol
+                            ios_icon_name="video.slash"
+                            android_material_icon_name="videocam-off"
+                            size={48}
+                            color={colors.textSecondary}
+                          />
+                          <Text style={styles.emptyText}>No moments yet</Text>
+                          <Text style={styles.emptySubtext}>
+                            Tap the + button to record a video
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.momentsGrid}>
+                          {moments.map((moment, index) => {
+                            // Use signed thumbnail URL if available, otherwise fall back to original
+                            const thumbnailUrl = moment.signedThumbnailUrl || moment.thumbnail_url;
+                            
+                            return (
+                              <View key={index} style={[styles.momentCard, { width: columnWidth }]}>
+                                <TouchableOpacity
+                                  style={[styles.momentThumbnail, { height: thumbnailHeight }]}
+                                  onPress={() => handlePlayVideo(moment)}
+                                  activeOpacity={0.8}
+                                >
+                                  {thumbnailUrl ? (
+                                    <Image
+                                      source={{ uri: thumbnailUrl }}
+                                      style={styles.thumbnailImage}
+                                      contentFit="cover"
+                                      transition={200}
+                                    />
+                                  ) : (
+                                    <View style={styles.thumbnailPlaceholder}>
+                                      <IconSymbol
+                                        ios_icon_name="play.circle.fill"
+                                        android_material_icon_name="play-circle-filled"
+                                        size={48}
+                                        color={colors.backgroundAlt}
+                                      />
+                                    </View>
+                                  )}
+                                  <View style={styles.playOverlay}>
+                                    <IconSymbol
+                                      ios_icon_name="play.circle.fill"
+                                      android_material_icon_name="play-circle-filled"
+                                      size={48}
+                                      color={colors.backgroundAlt}
+                                    />
+                                  </View>
+                                </TouchableOpacity>
+                                <View style={styles.momentInfo}>
+                                  <Text style={styles.momentDate}>
+                                    {new Date(moment.created_at).toLocaleDateString()}
+                                  </Text>
+                                  <TouchableOpacity
+                                    style={styles.deleteMomentButton}
+                                    onPress={() => handleDeleteMoment(moment)}
+                                  >
+                                    <IconSymbol
+                                      ios_icon_name="trash"
+                                      android_material_icon_name="delete"
+                                      size={16}
+                                      color={colors.secondary}
+                                    />
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </View>
+              </BottomSheetScrollView>
             </View>
-          </BottomSheetScrollView>
+          </TouchableWithoutFeedback>
         </BottomSheetModal>
 
         {selectedVideoUri && (
@@ -743,6 +753,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     backgroundColor: colors.backgroundAlt,
+  },
+  touchableContainer: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,

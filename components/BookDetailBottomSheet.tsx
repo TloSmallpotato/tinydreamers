@@ -1,6 +1,6 @@
 
 import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, ScrollView, Platform, TouchableWithoutFeedback } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -242,6 +242,12 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       setShowMenu(!showMenu);
     };
 
+    const handleCloseMenu = () => {
+      if (showMenu) {
+        setShowMenu(false);
+      }
+    };
+
     const renderBackdrop = useCallback(
       (props: any) => (
         <BottomSheetBackdrop
@@ -381,202 +387,206 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         animateOnMount={true}
         enableContentPanningGesture={true}
       >
-        <BottomSheetScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={styles.contentContainer}
-        >
-          {/* Header with Menu */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Book Details</Text>
-            <TouchableOpacity
-              style={styles.menuButton}
-              onPress={handleMenuPress}
+        <TouchableWithoutFeedback onPress={handleCloseMenu}>
+          <View style={styles.touchableContainer}>
+            <BottomSheetScrollView 
+              style={styles.scrollView}
+              contentContainerStyle={styles.contentContainer}
             >
-              <IconSymbol
-                ios_icon_name="ellipsis.circle"
-                android_material_icon_name="more-vert"
-                size={28}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
-          </View>
+              {/* Header with Menu */}
+              <View style={styles.header}>
+                <Text style={styles.headerTitle}>Book Details</Text>
+                <TouchableOpacity
+                  style={styles.menuButton}
+                  onPress={handleMenuPress}
+                >
+                  <IconSymbol
+                    ios_icon_name="ellipsis.circle"
+                    android_material_icon_name="more-vert"
+                    size={28}
+                    color={colors.primary}
+                  />
+                </TouchableOpacity>
+              </View>
 
-          {/* Menu Dropdown - Positioned absolutely above content */}
-          {showMenu && (
-            <View style={styles.menuDropdown}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={handleDeleteBook}
-              >
-                <IconSymbol
-                  ios_icon_name="trash"
-                  android_material_icon_name="delete"
-                  size={20}
-                  color={colors.secondary}
-                />
-                <Text style={styles.menuItemText}>Delete Book</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Book Cover */}
-          <View style={styles.coverContainer}>
-            <View style={styles.coverWrapper}>
-              {imageUrl ? (
-                <ValidatedImage
-                  source={{ uri: imageUrl }}
-                  style={styles.bookCover}
-                  fallbackTitle={book.title}
-                  minWidth={50}
-                  minHeight={50}
-                  contentFit="contain"
-                  cachePolicy="memory-disk"
-                  priority="high"
-                  transition={200}
-                  onValidationFailed={handleImageValidationFailed}
-                  onLoad={handleImageLoad}
-                />
-              ) : (
-                <View style={[styles.bookCover, styles.placeholderCover]}>
-                  <Text style={styles.placeholderTitle} numberOfLines={4}>
-                    {book.title}
-                  </Text>
+              {/* Menu Dropdown - Positioned absolutely above content */}
+              {showMenu && (
+                <View style={styles.menuDropdown}>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={handleDeleteBook}
+                  >
+                    <IconSymbol
+                      ios_icon_name="trash"
+                      android_material_icon_name="delete"
+                      size={20}
+                      color={colors.secondary}
+                    />
+                    <Text style={styles.menuItemText}>Delete Book</Text>
+                  </TouchableOpacity>
                 </View>
               )}
-            </View>
-            
-            {/* Request Button - Always show, grey out if already requested */}
-            {showRequestButton && (
-              <TouchableOpacity
-                style={[
-                  styles.requestButton,
-                  (hasUserRequested || isCheckingRequest) && styles.requestButtonDisabled
-                ]}
-                onPress={handleRequestCover}
-                disabled={isRequesting || hasUserRequested || isCheckingRequest}
-                activeOpacity={hasUserRequested ? 1 : 0.7}
-              >
-                <Text style={[
-                  styles.requestButtonText,
-                  (hasUserRequested || isCheckingRequest) && styles.requestButtonTextDisabled
-                ]}>
-                  {isCheckingRequest 
-                    ? 'Checking...'
-                    : hasUserRequested 
-                      ? (hasNoCover ? 'Book cover requested' : 'Better image requested')
-                      : (hasNoCover ? 'Request book cover' : 'Request better image')
-                  }
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
 
-          {/* Book Info */}
-          <View style={styles.bookInfo}>
-            <Text style={styles.bookTitle}>{book.title}</Text>
-            <Text style={styles.bookAuthor}>{book.authors}</Text>
-            {book.published_date && (
-              <Text style={styles.bookMeta}>Published: {book.published_date}</Text>
-            )}
-            {book.page_count > 0 && (
-              <Text style={styles.bookMeta}>{book.page_count} pages</Text>
-            )}
-          </View>
+              {/* Book Cover */}
+              <View style={styles.coverContainer}>
+                <View style={styles.coverWrapper}>
+                  {imageUrl ? (
+                    <ValidatedImage
+                      source={{ uri: imageUrl }}
+                      style={styles.bookCover}
+                      fallbackTitle={book.title}
+                      minWidth={50}
+                      minHeight={50}
+                      contentFit="contain"
+                      cachePolicy="memory-disk"
+                      priority="high"
+                      transition={200}
+                      onValidationFailed={handleImageValidationFailed}
+                      onLoad={handleImageLoad}
+                    />
+                  ) : (
+                    <View style={[styles.bookCover, styles.placeholderCover]}>
+                      <Text style={styles.placeholderTitle} numberOfLines={4}>
+                        {book.title}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                
+                {/* Request Button - Always show, grey out if already requested */}
+                {showRequestButton && (
+                  <TouchableOpacity
+                    style={[
+                      styles.requestButton,
+                      (hasUserRequested || isCheckingRequest) && styles.requestButtonDisabled
+                    ]}
+                    onPress={handleRequestCover}
+                    disabled={isRequesting || hasUserRequested || isCheckingRequest}
+                    activeOpacity={hasUserRequested ? 1 : 0.7}
+                  >
+                    <Text style={[
+                      styles.requestButtonText,
+                      (hasUserRequested || isCheckingRequest) && styles.requestButtonTextDisabled
+                    ]}>
+                      {isCheckingRequest 
+                        ? 'Checking...'
+                        : hasUserRequested 
+                          ? (hasNoCover ? 'Book cover requested' : 'Better image requested')
+                          : (hasNoCover ? 'Request book cover' : 'Request better image')
+                      }
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
-          {/* Rating - Moved above description */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>How did your kids like it?</Text>
-            <View style={styles.ratingContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.ratingButton,
-                  rating === 'not_vibing' && styles.ratingButtonActive,
-                ]}
-                onPress={() => handleRatingPress('not_vibing')}
-              >
-                <Text style={styles.ratingEmoji}>😕</Text>
-                <Text
+              {/* Book Info */}
+              <View style={styles.bookInfo}>
+                <Text style={styles.bookTitle}>{book.title}</Text>
+                <Text style={styles.bookAuthor}>{book.authors}</Text>
+                {book.published_date && (
+                  <Text style={styles.bookMeta}>Published: {book.published_date}</Text>
+                )}
+                {book.page_count > 0 && (
+                  <Text style={styles.bookMeta}>{book.page_count} pages</Text>
+                )}
+              </View>
+
+              {/* Rating - Moved above description */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>How did your kids like it?</Text>
+                <View style={styles.ratingContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.ratingButton,
+                      rating === 'not_vibing' && styles.ratingButtonActive,
+                    ]}
+                    onPress={() => handleRatingPress('not_vibing')}
+                  >
+                    <Text style={styles.ratingEmoji}>😕</Text>
+                    <Text
+                      style={[
+                        styles.ratingText,
+                        rating === 'not_vibing' && styles.ratingTextActive,
+                      ]}
+                    >
+                      Didn&apos;t vibe
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.ratingButton,
+                      rating === 'like_it' && styles.ratingButtonActive,
+                    ]}
+                    onPress={() => handleRatingPress('like_it')}
+                  >
+                    <Text style={styles.ratingEmoji}>😊</Text>
+                    <Text
+                      style={[
+                        styles.ratingText,
+                        rating === 'like_it' && styles.ratingTextActive,
+                      ]}
+                    >
+                      Liked it
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.ratingButton,
+                      rating === 'love_it' && styles.ratingButtonActive,
+                    ]}
+                    onPress={() => handleRatingPress('love_it')}
+                  >
+                    <Text style={styles.ratingEmoji}>😍</Text>
+                    <Text
+                      style={[
+                        styles.ratingText,
+                        rating === 'love_it' && styles.ratingTextActive,
+                      ]}
+                    >
+                      Loved it
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Would Recommend - Moved above description */}
+              <View style={styles.section}>
+                <TouchableOpacity
                   style={[
-                    styles.ratingText,
-                    rating === 'not_vibing' && styles.ratingTextActive,
+                    styles.recommendButton,
+                    wouldRecommend && styles.recommendButtonActive,
                   ]}
+                  onPress={toggleRecommend}
                 >
-                  Didn&apos;t vibe
-                </Text>
-              </TouchableOpacity>
+                  <IconSymbol
+                    ios_icon_name={wouldRecommend ? 'heart.fill' : 'heart'}
+                    android_material_icon_name={wouldRecommend ? 'favorite' : 'favorite-border'}
+                    size={24}
+                    color={wouldRecommend ? colors.backgroundAlt : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.recommendText,
+                      wouldRecommend && styles.recommendTextActive,
+                    ]}
+                  >
+                    Would Recommend
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.ratingButton,
-                  rating === 'like_it' && styles.ratingButtonActive,
-                ]}
-                onPress={() => handleRatingPress('like_it')}
-              >
-                <Text style={styles.ratingEmoji}>😊</Text>
-                <Text
-                  style={[
-                    styles.ratingText,
-                    rating === 'like_it' && styles.ratingTextActive,
-                  ]}
-                >
-                  Liked it
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.ratingButton,
-                  rating === 'love_it' && styles.ratingButtonActive,
-                ]}
-                onPress={() => handleRatingPress('love_it')}
-              >
-                <Text style={styles.ratingEmoji}>😍</Text>
-                <Text
-                  style={[
-                    styles.ratingText,
-                    rating === 'love_it' && styles.ratingTextActive,
-                  ]}
-                >
-                  Loved it
-                </Text>
-              </TouchableOpacity>
-            </View>
+              {/* Description */}
+              {book.description && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Description</Text>
+                  <Text style={styles.description}>{book.description}</Text>
+                </View>
+              )}
+            </BottomSheetScrollView>
           </View>
-
-          {/* Would Recommend - Moved above description */}
-          <View style={styles.section}>
-            <TouchableOpacity
-              style={[
-                styles.recommendButton,
-                wouldRecommend && styles.recommendButtonActive,
-              ]}
-              onPress={toggleRecommend}
-            >
-              <IconSymbol
-                ios_icon_name={wouldRecommend ? 'heart.fill' : 'heart'}
-                android_material_icon_name={wouldRecommend ? 'favorite' : 'favorite-border'}
-                size={24}
-                color={wouldRecommend ? colors.backgroundAlt : colors.primary}
-              />
-              <Text
-                style={[
-                  styles.recommendText,
-                  wouldRecommend && styles.recommendTextActive,
-                ]}
-              >
-                Would Recommend
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Description */}
-          {book.description && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Description</Text>
-              <Text style={styles.description}>{book.description}</Text>
-            </View>
-          )}
-        </BottomSheetScrollView>
+        </TouchableWithoutFeedback>
       </BottomSheetModal>
     );
   }
@@ -592,6 +602,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     width: 40,
     height: 4,
+  },
+  touchableContainer: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
