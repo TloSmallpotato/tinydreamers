@@ -50,6 +50,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
     const [isEditMode, setIsEditMode] = useState(false);
     const [editedWord, setEditedWord] = useState('');
     const [editedEmoji, setEditedEmoji] = useState('');
+    const [showDropdown, setShowDropdown] = useState(false);
     
     const { setTargetWord, setIsRecordingFromWordDetail } = useVideoRecording();
     const { triggerCamera } = useCameraTrigger();
@@ -130,6 +131,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
         setEditedWord(word.word);
         setEditedEmoji(word.emoji);
         setIsEditMode(false);
+        setShowDropdown(false);
         fetchMoments();
       }
     }, [word, fetchMoments]);
@@ -283,14 +285,22 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       }
     };
 
-    const handleToggleEditMode = () => {
+    const handleMenuPress = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setShowDropdown(!showDropdown);
+    };
+
+    const handleEditPress = () => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      if (isEditMode) {
-        // Cancel editing - reset to original values
-        setEditedWord(word?.word || '');
-        setEditedEmoji(word?.emoji || '');
-      }
-      setIsEditMode(!isEditMode);
+      setShowDropdown(false);
+      setIsEditMode(true);
+    };
+
+    const handleCancelEdit = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setEditedWord(word?.word || '');
+      setEditedEmoji(word?.emoji || '');
+      setIsEditMode(false);
     };
 
     const handleSaveEdit = async () => {
@@ -347,6 +357,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       if (!word) return;
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      setShowDropdown(false);
 
       const momentCount = moments.length;
       const warningMessage = momentCount > 0
@@ -493,28 +504,48 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
             <View style={[styles.wordHeader, { backgroundColor: word.color }]}>
               <View style={styles.headerActions}>
                 <TouchableOpacity
-                  style={styles.headerButton}
-                  onPress={handleToggleEditMode}
+                  style={styles.menuButton}
+                  onPress={handleMenuPress}
                 >
                   <IconSymbol
-                    ios_icon_name={isEditMode ? 'xmark' : 'pencil'}
-                    android_material_icon_name={isEditMode ? 'close' : 'edit'}
-                    size={20}
+                    ios_icon_name="ellipsis.circle"
+                    android_material_icon_name="more-vert"
+                    size={24}
                     color={colors.primary}
                   />
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.headerButton, styles.deleteButton]}
-                  onPress={handleDeleteWord}
-                >
-                  <IconSymbol
-                    ios_icon_name="trash"
-                    android_material_icon_name="delete"
-                    size={20}
-                    color={colors.secondary}
-                  />
-                </TouchableOpacity>
               </View>
+
+              {/* Dropdown Menu - Positioned absolutely above content */}
+              {showDropdown && (
+                <View style={styles.dropdownMenu}>
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={handleEditPress}
+                  >
+                    <IconSymbol
+                      ios_icon_name="pencil"
+                      android_material_icon_name="edit"
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.dropdownText}>Edit Word</Text>
+                  </TouchableOpacity>
+                  <View style={styles.dropdownDivider} />
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={handleDeleteWord}
+                  >
+                    <IconSymbol
+                      ios_icon_name="trash"
+                      android_material_icon_name="delete"
+                      size={20}
+                      color={colors.secondary}
+                    />
+                    <Text style={[styles.dropdownText, styles.dropdownTextDanger]}>Delete Word</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {isEditMode ? (
                 <View style={styles.editContainer}>
@@ -537,12 +568,20 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
-                  <TouchableOpacity
-                    style={styles.saveButton}
-                    onPress={handleSaveEdit}
-                  >
-                    <Text style={styles.saveButtonText}>Save Changes</Text>
-                  </TouchableOpacity>
+                  <View style={styles.editActions}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={handleCancelEdit}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.saveButton}
+                      onPress={handleSaveEdit}
+                    >
+                      <Text style={styles.saveButtonText}>Save Changes</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ) : (
                 <>
@@ -722,10 +761,9 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignSelf: 'flex-end',
-    gap: 8,
     marginBottom: 12,
   },
-  headerButton: {
+  menuButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -733,8 +771,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  deleteButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  dropdownMenu: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 12,
+    minWidth: 180,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+    zIndex: 1000,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: colors.background,
+    marginHorizontal: 12,
+  },
+  dropdownText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  dropdownTextDanger: {
+    color: colors.secondary,
   },
   editContainer: {
     width: '100%',
@@ -774,12 +849,27 @@ const styles = StyleSheet.create({
     width: '100%',
     textAlign: 'center',
   },
+  editActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  cancelButton: {
+    backgroundColor: colors.background,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
+  },
   saveButton: {
     backgroundColor: colors.buttonBlue,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 16,
-    marginTop: 8,
   },
   saveButtonText: {
     fontSize: 16,

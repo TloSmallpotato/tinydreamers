@@ -1,6 +1,6 @@
 
 import React, { forwardRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, ScrollView, Platform } from 'react-native';
 import { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -401,7 +401,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
             </TouchableOpacity>
           </View>
 
-          {/* Menu Dropdown */}
+          {/* Menu Dropdown - Positioned absolutely above content */}
           {showMenu && (
             <View style={styles.menuDropdown}>
               <TouchableOpacity
@@ -616,16 +616,30 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   menuDropdown: {
-    backgroundColor: colors.background,
-    marginHorizontal: 20,
-    marginBottom: 10,
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: colors.backgroundAlt,
     borderRadius: 12,
-    overflow: 'hidden',
+    minWidth: 180,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+    zIndex: 1000,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     gap: 12,
   },
   menuItemText: {
