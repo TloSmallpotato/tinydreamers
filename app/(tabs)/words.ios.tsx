@@ -23,6 +23,8 @@ interface UserWord {
   is_recorded: boolean;
   created_at: string;
   updated_at: string;
+  custom_word: string | null;
+  custom_emoji: string | null;
   word_library: {
     word: string;
     emoji: string;
@@ -128,6 +130,8 @@ export default function WordsScreen() {
           is_recorded,
           created_at,
           updated_at,
+          custom_word,
+          custom_emoji,
           word_library (
             word,
             emoji
@@ -144,11 +148,12 @@ export default function WordsScreen() {
       console.log('[iOS] Fetched user_words:', data?.length || 0);
       
       // Transform the data to match the Word interface
+      // Use custom_word/custom_emoji if available, otherwise fall back to word_library
       const transformedWords: Word[] = (data || []).map((uw: UserWord) => ({
         id: uw.id,
         child_id: uw.child_id,
-        word: uw.word_library.word,
-        emoji: uw.word_library.emoji || '⭐',
+        word: uw.custom_word || uw.word_library.word,
+        emoji: uw.custom_emoji || uw.word_library.emoji || '⭐',
         color: uw.color,
         is_spoken: uw.is_spoken,
         is_recognised: uw.is_recognised,
@@ -226,13 +231,11 @@ export default function WordsScreen() {
       }
 
       let wordLibraryId: string;
-      let wordEmoji = emoji;
 
       if (existingWords && existingWords.length > 0) {
         // Word exists in library, use it
         console.log('[iOS] Word exists in library:', existingWords[0]);
         wordLibraryId = existingWords[0].id;
-        wordEmoji = existingWords[0].emoji || emoji;
       } else {
         // Word doesn't exist, create it in word_library
         console.log('[iOS] Creating new word in library');
@@ -272,13 +275,15 @@ export default function WordsScreen() {
         return;
       }
 
-      // Create user_word association
+      // Create user_word association with custom fields
       const { error: userWordError } = await supabase
         .from('user_words')
         .insert({
           word_id: wordLibraryId,
           child_id: selectedChild.id,
           color,
+          custom_word: word,
+          custom_emoji: emoji,
         });
 
       if (userWordError) {
