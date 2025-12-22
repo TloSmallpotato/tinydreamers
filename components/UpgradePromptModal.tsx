@@ -16,17 +16,17 @@ const QUOTA_MESSAGES = {
   word: {
     title: 'Word Limit Reached',
     message: 'You\'ve reached the free tier limit of 20 words.',
-    benefit: 'Upgrade to Plus for unlimited words!',
+    benefit: 'Upgrade to Pro for unlimited words!',
   },
   book: {
     title: 'Book Limit Reached',
     message: 'You\'ve reached the free tier limit of 10 books.',
-    benefit: 'Upgrade to Plus for unlimited books!',
+    benefit: 'Upgrade to Pro for unlimited books!',
   },
   child: {
     title: 'Child Limit Reached',
     message: 'You\'ve reached the free tier limit of 1 child.',
-    benefit: 'Upgrade to Plus to add up to 2 children!',
+    benefit: 'Upgrade to Pro to add up to 2 children!',
   },
 };
 
@@ -110,11 +110,11 @@ export default function UpgradePromptModal({ visible, onClose, quotaType }: Upgr
               </View>
             </View>
 
-            <View style={[styles.tierCard, styles.plusCard]}>
-              <View style={styles.plusBadge}>
-                <Text style={styles.plusBadgeText}>PLUS</Text>
+            <View style={[styles.tierCard, styles.proCard]}>
+              <View style={styles.proBadge}>
+                <Text style={styles.proBadgeText}>PRO</Text>
               </View>
-              <Text style={styles.tierTitle}>Plus</Text>
+              <Text style={styles.tierTitle}>Pro</Text>
               <View style={styles.tierFeature}>
                 <IconSymbol
                   ios_icon_name="checkmark.circle.fill"
@@ -146,7 +146,7 @@ export default function UpgradePromptModal({ visible, onClose, quotaType }: Upgr
           </View>
 
           <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
-            <Text style={styles.upgradeButtonText}>Upgrade to Plus</Text>
+            <Text style={styles.upgradeButtonText}>Upgrade to Pro</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
@@ -224,11 +224,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.background,
   },
-  plusCard: {
+  proCard: {
     borderColor: colors.buttonBlue,
     position: 'relative',
   },
-  plusBadge: {
+  proBadge: {
     position: 'absolute',
     top: -8,
     right: 8,
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  plusBadgeText: {
+  proBadgeText: {
     fontSize: 10,
     fontWeight: '800',
     color: colors.backgroundAlt,

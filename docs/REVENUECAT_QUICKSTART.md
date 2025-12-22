@@ -1,73 +1,90 @@
 
-# RevenueCat Quick Start Guide
+# RevenueCat Quick Start Guide - The Tiny Dreamers App
 
 Get your freemium subscription model up and running in 5 steps!
 
-## Step 1: Sign Up for RevenueCat (5 minutes)
+## Prerequisites
+
+✅ **Dependencies Installed:**
+- `react-native-purchases` (v9.6.11) - Core SDK
+- `react-native-purchases-ui` (v9.6.11) - Paywalls & Customer Center
+
+✅ **API Key Configured:**
+- Test key: `test_DYJuwnEXhPtgdogguRsibPkWMCk`
+
+## Step 1: Create RevenueCat Account (5 minutes)
 
 1. Go to [https://www.revenuecat.com](https://www.revenuecat.com)
 2. Click "Sign Up" and create an account
-3. Create a new project for your app
+3. Create a new project: "The Tiny Dreamers App"
 4. Note your project name
 
-## Step 2: Get Your API Keys (2 minutes)
+## Step 2: Configure Entitlement (3 minutes)
 
-1. In RevenueCat dashboard, go to **Settings** → **API Keys**
-2. Copy your **iOS API Key** (starts with `appl_`)
-3. Copy your **Android API Key** (starts with `goog_`)
-4. Keep these keys safe - you'll need them in the next step
+1. In RevenueCat dashboard, go to **Entitlements**
+2. Click **+ New**
+3. Create entitlement:
+   - **Identifier**: `The Tiny Dreamers App Pro` (must match exactly)
+   - **Name**: "The Tiny Dreamers App Pro"
+4. Save entitlement
 
-## Step 3: Configure Your App (3 minutes)
+⚠️ **Important**: The entitlement identifier must be exactly `The Tiny Dreamers App Pro` to match the app code.
 
-1. Open `contexts/SubscriptionContext.tsx` in your code editor
-2. Find these lines:
-
-```typescript
-const REVENUECAT_API_KEY_IOS = 'YOUR_IOS_API_KEY_HERE';
-const REVENUECAT_API_KEY_ANDROID = 'YOUR_ANDROID_API_KEY_HERE';
-```
-
-3. Replace with your actual API keys:
-
-```typescript
-const REVENUECAT_API_KEY_IOS = 'appl_YOUR_ACTUAL_IOS_KEY';
-const REVENUECAT_API_KEY_ANDROID = 'goog_YOUR_ACTUAL_ANDROID_KEY';
-```
-
-4. Save the file
-
-## Step 4: Create Your Subscription Product (15 minutes)
+## Step 3: Create Subscription Products (15 minutes)
 
 ### In App Store Connect (iOS)
 
 1. Go to [App Store Connect](https://appstoreconnect.apple.com)
 2. Select your app
 3. Go to **Features** → **In-App Purchases**
-4. Click **+** to create new subscription
-5. Fill in details:
-   - **Reference Name**: "Plus Subscription"
-   - **Product ID**: `plus_subscription`
-   - **Subscription Group**: Create new group "Natively Plus"
-   - **Duration**: 1 month
-   - **Price**: Set your price (e.g., $4.99/month)
-6. Add localized descriptions
-7. Submit for review
+4. Create two subscriptions:
+
+**Monthly Subscription:**
+- Click **+** to create new subscription
+- **Reference Name**: "Monthly Pro Subscription"
+- **Product ID**: `monthly`
+- **Subscription Group**: Create new group "The Tiny Dreamers App Pro"
+- **Duration**: 1 month
+- **Price**: $4.99/month (or your preferred price)
+- Add localized descriptions
+- Submit for review
+
+**Yearly Subscription:**
+- Click **+** to create new subscription
+- **Reference Name**: "Yearly Pro Subscription"
+- **Product ID**: `yearly`
+- **Subscription Group**: "The Tiny Dreamers App Pro"
+- **Duration**: 1 year
+- **Price**: $49.99/year (or your preferred price)
+- Add localized descriptions
+- Submit for review
 
 ### In Google Play Console (Android)
 
 1. Go to [Google Play Console](https://play.google.com/console)
 2. Select your app
 3. Go to **Monetize** → **Subscriptions**
-4. Click **Create subscription**
-5. Fill in details:
-   - **Product ID**: `plus_subscription`
-   - **Name**: "Plus Subscription"
-   - **Description**: "Unlimited words, books, and 2 children"
-   - **Billing period**: 1 month
-   - **Price**: Set your price (e.g., $4.99/month)
-6. Save and activate
+4. Create two subscriptions:
 
-## Step 5: Configure RevenueCat (10 minutes)
+**Monthly Subscription:**
+- Click **Create subscription**
+- **Product ID**: `monthly`
+- **Name**: "Monthly Pro Subscription"
+- **Description**: "Unlimited words, books, and 2 children"
+- **Billing period**: 1 month
+- **Price**: $4.99/month (or your preferred price)
+- Save and activate
+
+**Yearly Subscription:**
+- Click **Create subscription**
+- **Product ID**: `yearly`
+- **Name**: "Yearly Pro Subscription"
+- **Description**: "Unlimited words, books, and 2 children - Save 20%!"
+- **Billing period**: 1 year
+- **Price**: $49.99/year (or your preferred price)
+- Save and activate
+
+## Step 4: Configure RevenueCat (10 minutes)
 
 ### Connect App Store Connect
 
@@ -83,20 +100,14 @@ const REVENUECAT_API_KEY_ANDROID = 'goog_YOUR_ACTUAL_ANDROID_KEY';
 3. Select your app
 4. Wait for products to sync (may take a few minutes)
 
-### Create Entitlements
+### Attach Products to Entitlements
 
 1. Go to **Entitlements** in RevenueCat dashboard
-2. Click **+ New**
-3. Create entitlement:
-   - **Identifier**: `plus` (must be exactly this)
-   - **Name**: "Plus Subscription"
-4. Save entitlement
-
-### Attach Products
-
-1. In the `plus` entitlement, click **Attach Products**
-2. Select `plus_subscription` for both iOS and Android
-3. Save changes
+2. Click on `The Tiny Dreamers App Pro` entitlement
+3. Click **Attach Products**
+4. Select both `monthly` and `yearly` for iOS
+5. Select both `monthly` and `yearly` for Android
+6. Save changes
 
 ### Create Offerings
 
@@ -105,46 +116,106 @@ const REVENUECAT_API_KEY_ANDROID = 'goog_YOUR_ACTUAL_ANDROID_KEY';
 3. Create offering:
    - **Identifier**: `default`
    - **Name**: "Default Offering"
-4. Add package:
-   - **Identifier**: `monthly`
-   - **Product**: `plus_subscription`
+4. Add packages:
+   - Click **Add Package**
+   - **Package 1**: 
+     - Identifier: `monthly`
+     - Product: `monthly` (iOS and Android)
+   - **Package 2**: 
+     - Identifier: `yearly`
+     - Product: `yearly` (iOS and Android)
 5. Click **Make Current** to set as the current offering
 6. Save
+
+## Step 5: Configure Paywalls (Optional - 10 minutes)
+
+1. Go to **Paywalls** in RevenueCat dashboard
+2. Click **+ New Paywall**
+3. Design your paywall:
+   - **Title**: "Upgrade to Pro"
+   - **Subtitle**: "Unlock unlimited features for your family"
+   - **Features**:
+     - ✓ Unlimited words
+     - ✓ Unlimited books
+     - ✓ Track up to 2 children
+   - Customize colors to match your app
+   - Add your app icon/branding
+4. Attach to your `default` offering
+5. Save and publish
 
 ## Step 6: Test Your Integration (10 minutes)
 
 ### Test in Sandbox Mode
 
 1. Build and run your app
-2. Try to add 21 words (should show upgrade prompt)
-3. Click "Upgrade to Plus"
-4. Complete test purchase (won't charge real money)
-5. Verify subscription status updates
-6. Try adding more words (should work now)
+2. Navigate to Profile screen
+3. Verify subscription status card shows "Free Plan"
+4. Try to add 21 words (should show upgrade prompt)
+5. Click "Upgrade to Pro"
+6. Verify RevenueCat paywall displays
+7. Complete test purchase (won't charge real money)
+8. Verify subscription status updates to "Pro Member"
+9. Try adding more words (should work now)
+10. Click "Manage Subscription" to test Customer Center
 
 ### Test Checklist
 
 - [ ] App launches without errors
-- [ ] Profile shows subscription status
-- [ ] Can add up to 20 words (free)
+- [ ] Profile shows subscription status card
+- [ ] Can add up to 20 words (free tier)
 - [ ] Upgrade prompt appears at 21st word
-- [ ] Purchase flow displays correctly
-- [ ] Test purchase completes
-- [ ] Subscription status updates
+- [ ] RevenueCat paywall displays correctly
+- [ ] Test purchase completes successfully
+- [ ] Subscription status updates to "Pro Member"
 - [ ] Can add unlimited words after purchase
-- [ ] "Restore Purchases" button works
+- [ ] "Manage Subscription" button appears for Pro users
+- [ ] Customer Center opens and displays correctly
+- [ ] Restore purchases works on new device
+
+## Features Overview
+
+### For Free Users
+
+**Subscription Status Card:**
+- Shows current usage (words, books, children)
+- Displays progress bars for each quota
+- "Upgrade to Pro" button
+
+**Quota Enforcement:**
+- 20 words maximum
+- 10 books maximum
+- 1 child maximum
+- Upgrade prompt when limit reached
+
+### For Pro Users
+
+**Subscription Status Card:**
+- "Pro Member" badge with crown icon
+- Shows unlimited features
+- "Manage Subscription" button
+
+**Unlimited Access:**
+- Unlimited words
+- Unlimited books
+- Up to 2 children
+
+**Self-Service:**
+- Customer Center for subscription management
+- View billing information
+- Cancel/modify subscription
+- Contact support
 
 ## Troubleshooting
 
-### "Unable to load subscription options"
+### "Unable to show subscription options"
 
-**Problem**: API keys not configured or products not synced
+**Problem**: API key not configured or products not synced
 
 **Solution**:
-1. Check API keys in `SubscriptionContext.tsx`
-2. Verify products are synced in RevenueCat dashboard
+1. Verify API key in `contexts/SubscriptionContext.tsx`
+2. Check products are synced in RevenueCat dashboard
 3. Wait a few minutes for sync to complete
-4. Rebuild app after changing keys
+4. Rebuild app
 
 ### "No subscription packages available"
 
@@ -153,57 +224,124 @@ const REVENUECAT_API_KEY_ANDROID = 'goog_YOUR_ACTUAL_ANDROID_KEY';
 **Solution**:
 1. Check RevenueCat dashboard → Offerings
 2. Verify offering is marked as "Current"
-3. Ensure package is attached to offering
+3. Ensure packages are attached to offering
 4. Verify products are attached to entitlements
+
+### Paywall not displaying
+
+**Problem**: Offering not configured or not current
+
+**Solution**:
+1. Verify offering exists in RevenueCat dashboard
+2. Check offering is marked as "Current"
+3. Ensure packages are properly configured
+4. Check console logs for errors
 
 ### Purchase not working
 
 **Problem**: Product not configured correctly
 
 **Solution**:
-1. Verify product ID matches in:
+1. Verify product IDs match:
    - App Store Connect / Google Play Console
    - RevenueCat dashboard
-2. Check product is active
+2. Check products are active
 3. Wait for product to sync (can take 24 hours)
 4. Test with sandbox account
+
+### Customer Center not opening
+
+**Problem**: User not subscribed or Customer Center not enabled
+
+**Solution**:
+1. Verify user has active subscription
+2. Check RevenueCat dashboard → Customer Center settings
+3. Ensure Customer Center is enabled for your project
+
+## Production Deployment
+
+Before launching to production:
+
+### 1. Update API Key
+
+Replace the test API key with your production key in `contexts/SubscriptionContext.tsx`:
+
+```typescript
+const REVENUECAT_API_KEY = 'YOUR_PRODUCTION_API_KEY_HERE';
+```
+
+### 2. Test on Real Devices
+
+- [ ] Test on physical iOS device
+- [ ] Test on physical Android device
+- [ ] Test subscription purchase
+- [ ] Test subscription restoration
+- [ ] Test Customer Center
+- [ ] Test on different iOS/Android versions
+
+### 3. Verify Pricing
+
+- [ ] Check pricing in all regions
+- [ ] Verify currency conversions
+- [ ] Test promotional offers (if any)
+
+### 4. Legal Requirements
+
+- [ ] Add privacy policy link
+- [ ] Add terms of service link
+- [ ] Add subscription terms
+- [ ] Add auto-renewal disclosure
+
+### 5. Submit for Review
+
+- [ ] Submit iOS app for App Store review
+- [ ] Submit Android app for Google Play review
+- [ ] Include test account credentials
+- [ ] Provide subscription testing instructions
 
 ## Next Steps
 
 ### Customize Your Experience
 
 1. **Update Paywall Design**
-   - Customize the upgrade modal in `UpgradePromptModal.tsx`
-   - Add your branding and messaging
+   - Customize colors in RevenueCat dashboard
+   - Add your branding
+   - A/B test different designs
 
-2. **Add More Features**
-   - Create additional entitlements
-   - Add different subscription tiers
-   - Implement promotional offers
+2. **Add Promotional Offers**
+   - Create introductory offers
+   - Add promotional codes
+   - Implement win-back campaigns
 
 3. **Implement Analytics**
    - Track conversion rates
    - Monitor churn
    - Analyze user behavior
+   - Set up webhooks for events
 
-### Launch Checklist
+### Advanced Features
 
-Before launching to production:
+1. **Experiments**
+   - A/B test different paywalls
+   - Test pricing strategies
+   - Optimize conversion rates
 
-- [ ] Replace test API keys with production keys
-- [ ] Test on real devices
-- [ ] Test subscription restoration
-- [ ] Test on both iOS and Android
-- [ ] Verify pricing in all regions
-- [ ] Test cancellation flow
-- [ ] Add privacy policy link
-- [ ] Add terms of service link
-- [ ] Submit for App Store review
-- [ ] Submit for Google Play review
+2. **Customer Lists**
+   - Segment users by behavior
+   - Target specific user groups
+   - Send targeted campaigns
+
+3. **Webhooks**
+   - Integrate with your backend
+   - Send notifications
+   - Update user records
 
 ## Resources
 
 - **RevenueCat Docs**: https://docs.revenuecat.com
+- **Paywalls Guide**: https://www.revenuecat.com/docs/tools/paywalls
+- **Customer Center Guide**: https://www.revenuecat.com/docs/tools/customer-center
+- **React Native SDK**: https://docs.revenuecat.com/docs/reactnative
 - **App Store Connect**: https://appstoreconnect.apple.com
 - **Google Play Console**: https://play.google.com/console
 - **Full Integration Guide**: `docs/REVENUECAT_INTEGRATION.md`
@@ -219,11 +357,14 @@ Need help? Check these resources:
 
 ## Congratulations! 🎉
 
-Your freemium subscription model is now set up! Users can:
+Your RevenueCat integration is complete! Users can now:
 
 - ✅ Start with free tier (20 words, 10 books, 1 child)
-- ✅ See their usage and limits
-- ✅ Upgrade to Plus for unlimited access
+- ✅ See their usage and limits with progress bars
+- ✅ Upgrade to Pro via native paywall
+- ✅ Choose between monthly and yearly subscriptions
+- ✅ Manage subscriptions via Customer Center
 - ✅ Restore purchases on new devices
+- ✅ Get unlimited access to all features
 
 Happy monetizing! 💰

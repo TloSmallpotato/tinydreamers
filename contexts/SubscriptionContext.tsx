@@ -7,11 +7,17 @@ import Purchases, {
   PurchasesPackage,
   LOG_LEVEL 
 } from 'react-native-purchases';
+import { 
+  presentPaywall,
+  presentCustomerCenter,
+  PaywallResult,
+  CustomerCenterResult
+} from 'react-native-purchases-ui';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 
 // Subscription tiers
-export type SubscriptionTier = 'free' | 'plus';
+export type SubscriptionTier = 'free' | 'pro';
 
 // Quota limits
 export const QUOTA_LIMITS = {
@@ -20,7 +26,7 @@ export const QUOTA_LIMITS = {
     books: 10,
     children: 1,
   },
-  plus: {
+  pro: {
     words: Infinity,
     books: Infinity,
     children: 2,
@@ -53,8 +59,12 @@ interface SubscriptionContextType {
   // Actions
   refreshUsage: () => Promise<void>;
   showPaywall: () => Promise<void>;
+  showCustomerCenter: () => Promise<void>;
   checkQuota: (type: 'word' | 'book' | 'child') => boolean;
   restorePurchases: () => Promise<void>;
+  
+  // Customer info
+  customerInfo: CustomerInfo | null;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType>({
@@ -70,8 +80,10 @@ const SubscriptionContext = createContext<SubscriptionContextType>({
   remainingChildren: 0,
   refreshUsage: async () => {},
   showPaywall: async () => {},
+  showCustomerCenter: async () => {},
   checkQuota: () => true,
   restorePurchases: async () => {},
+  customerInfo: null,
 });
 
 export const useSubscription = () => {
@@ -82,9 +94,11 @@ export const useSubscription = () => {
   return context;
 };
 
-// RevenueCat API Keys - Replace with your actual keys
-const REVENUECAT_API_KEY_IOS = 'YOUR_IOS_API_KEY_HERE';
-const REVENUECAT_API_KEY_ANDROID = 'YOUR_ANDROID_API_KEY_HERE';
+// RevenueCat API Key - Using the test key provided
+const REVENUECAT_API_KEY = 'test_DYJuwnEXhPtgdogguRsibPkWMCk';
+
+// Entitlement identifier - must match RevenueCat dashboard
+const ENTITLEMENT_ID = 'The Tiny Dreamers App Pro';
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const { user: authUser } = useAuth();
@@ -96,19 +110,22 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     children: 0,
   });
   const [offerings, setOfferings] = useState<PurchasesOffering | null>(null);
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
 
   // Update subscription status based on customer info
-  // MOVED THIS BEFORE THE useEffect THAT USES IT
-  const updateSubscriptionStatus = useCallback((customerInfo: CustomerInfo) => {
+  const updateSubscriptionStatus = useCallback((info: CustomerInfo) => {
     console.log('SubscriptionContext: Updating subscription status');
-    console.log('SubscriptionContext: Active entitlements:', Object.keys(customerInfo.entitlements.active));
+    console.log('SubscriptionContext: Active entitlements:', Object.keys(info.entitlements.active));
 
-    // Check if user has active "plus" entitlement
-    const hasPlus = customerInfo.entitlements.active['plus'] !== undefined;
+    // Store customer info
+    setCustomerInfo(info);
+
+    // Check if user has active "The Tiny Dreamers App Pro" entitlement
+    const hasPro = info.entitlements.active[ENTITLEMENT_ID] !== undefined;
     
-    if (hasPlus) {
-      console.log('SubscriptionContext: User has active Plus subscription');
-      setTier('plus');
+    if (hasPro) {
+      console.log('SubscriptionContext: User has active Pro subscription');
+      setTier('pro');
     } else {
       console.log('SubscriptionContext: User is on Free tier');
       setTier('free');
@@ -126,36 +143,47 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         // Set log level for debugging
         Purchases.setLogLevel(LOG_LEVEL.DEBUG);
 
-        // Configure RevenueCat
-        const apiKey = Platform.OS === 'ios' ? REVENUECAT_API_KEY_IOS : REVENUECAT_API_KEY_ANDROID;
-        await Purchases.configure({ apiKey });
+        // Configure RevenueCat with the same API key for both platforms
+        await Purchases.configure({ 
+          apiKey: REVENUECAT_API_KEY,
+        });
 
         console.log('SubscriptionContext: RevenueCat initialized successfully');
+
+        // Set up customer info update listener
+        Purchases.addCustomerInfoUpdateListener((info) => {
+          console.log('SubscriptionContext: Customer info updated');
+          updateSubscriptionStatus(info);
+        });
       } catch (error) {
         console.error('SubscriptionContext: Error initializing RevenueCat:', error);
+        setIsLoading(false);
       }
     };
 
     initializeRevenueCat();
-  }, []);
+  }, [updateSubscriptionStatus]);
 
   // Identify user with RevenueCat
   useEffect(() => {
     const identifyUser = async () => {
       if (!authUser?.id) {
         console.log('SubscriptionContext: No auth user, skipping identification');
+        setIsLoading(false);
         return;
       }
 
       try {
         console.log('SubscriptionContext: Identifying user with RevenueCat:', authUser.id);
-        await Purchases.logIn(authUser.id);
         
-        // Get customer info
-        const customerInfo = await Purchases.getCustomerInfo();
-        updateSubscriptionStatus(customerInfo);
+        // Log in user with their Supabase user ID
+        const { customerInfo: info } = await Purchases.logIn(authUser.id);
+        
+        console.log('SubscriptionContext: User identified successfully');
+        updateSubscriptionStatus(info);
       } catch (error) {
         console.error('SubscriptionContext: Error identifying user:', error);
+        setIsLoading(false);
       }
     };
 
@@ -171,6 +199,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         
         if (offerings.current !== null) {
           console.log('SubscriptionContext: Current offering:', offerings.current.identifier);
+          console.log('SubscriptionContext: Available packages:', offerings.current.availablePackages.length);
           setOfferings(offerings.current);
         } else {
           console.log('SubscriptionContext: No current offering available');
@@ -246,7 +275,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   }, [authUser?.id, refreshUsage]);
 
   // Calculate quota availability
-  const isSubscribed = tier === 'plus';
+  const isSubscribed = tier === 'pro';
   const limits = QUOTA_LIMITS[tier];
 
   const canAddWord = currentUsage.words < limits.words;
@@ -257,52 +286,72 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const remainingBooks = Math.max(0, limits.books - currentUsage.books);
   const remainingChildren = Math.max(0, limits.children - currentUsage.children);
 
-  // Show paywall function
+  // Show RevenueCat Paywall (modern method)
   const showPaywall = useCallback(async () => {
-    console.log('SubscriptionContext: Showing paywall');
+    console.log('SubscriptionContext: Showing RevenueCat Paywall');
     
     try {
-      if (!offerings) {
-        Alert.alert('Error', 'Unable to load subscription options. Please try again later.');
-        return;
-      }
-
-      // Get the package to purchase (assuming first package is the Plus subscription)
-      const packageToPurchase = offerings.availablePackages[0];
+      // Present the paywall using RevenueCat UI
+      const result: PaywallResult = await presentPaywall();
       
-      if (!packageToPurchase) {
-        Alert.alert('Error', 'No subscription packages available.');
-        return;
-      }
-
-      console.log('SubscriptionContext: Purchasing package:', packageToPurchase.identifier);
-
-      // Make the purchase
-      const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
+      console.log('SubscriptionContext: Paywall result:', result);
       
-      // Update subscription status
-      updateSubscriptionStatus(customerInfo);
-      
-      Alert.alert('Success', 'Welcome to Plus! You now have unlimited access.');
-    } catch (error: any) {
-      console.error('SubscriptionContext: Error showing paywall:', error);
-      
-      if (!error.userCancelled) {
+      // Handle the result
+      if (result === PaywallResult.PURCHASED || result === PaywallResult.RESTORED) {
+        // Get updated customer info
+        const info = await Purchases.getCustomerInfo();
+        updateSubscriptionStatus(info);
+        
+        Alert.alert(
+          'Success! 🎉', 
+          'Welcome to The Tiny Dreamers App Pro! You now have unlimited access to all features.'
+        );
+      } else if (result === PaywallResult.CANCELLED) {
+        console.log('SubscriptionContext: User cancelled paywall');
+      } else if (result === PaywallResult.ERROR) {
+        console.error('SubscriptionContext: Paywall error');
         Alert.alert('Error', 'Unable to complete purchase. Please try again.');
       }
+    } catch (error: any) {
+      console.error('SubscriptionContext: Error showing paywall:', error);
+      Alert.alert('Error', 'Unable to show subscription options. Please try again later.');
     }
-  }, [offerings, updateSubscriptionStatus]);
+  }, [updateSubscriptionStatus]);
+
+  // Show RevenueCat Customer Center (modern method)
+  const showCustomerCenter = useCallback(async () => {
+    console.log('SubscriptionContext: Showing RevenueCat Customer Center');
+    
+    try {
+      // Present the customer center using RevenueCat UI
+      const result: CustomerCenterResult = await presentCustomerCenter();
+      
+      console.log('SubscriptionContext: Customer Center result:', result);
+      
+      // Handle the result
+      if (result === CustomerCenterResult.RESTORED) {
+        // Get updated customer info
+        const info = await Purchases.getCustomerInfo();
+        updateSubscriptionStatus(info);
+        
+        Alert.alert('Success', 'Your purchases have been restored!');
+      }
+    } catch (error: any) {
+      console.error('SubscriptionContext: Error showing customer center:', error);
+      Alert.alert('Error', 'Unable to open customer center. Please try again later.');
+    }
+  }, [updateSubscriptionStatus]);
 
   // Restore purchases function
   const restorePurchases = useCallback(async () => {
     console.log('SubscriptionContext: Restoring purchases');
     
     try {
-      const customerInfo = await Purchases.restorePurchases();
-      updateSubscriptionStatus(customerInfo);
+      const info = await Purchases.restorePurchases();
+      updateSubscriptionStatus(info);
       
-      if (customerInfo.entitlements.active['plus']) {
-        Alert.alert('Success', 'Your Plus subscription has been restored!');
+      if (info.entitlements.active[ENTITLEMENT_ID]) {
+        Alert.alert('Success', 'Your Pro subscription has been restored!');
       } else {
         Alert.alert('No Purchases Found', 'We couldn\'t find any previous purchases to restore.');
       }
@@ -341,8 +390,10 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     remainingChildren,
     refreshUsage,
     showPaywall,
+    showCustomerCenter,
     checkQuota,
     restorePurchases,
+    customerInfo,
   };
 
   return (

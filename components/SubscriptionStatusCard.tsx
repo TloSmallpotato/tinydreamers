@@ -15,7 +15,7 @@ export default function SubscriptionStatusCard() {
     remainingBooks, 
     remainingChildren,
     showPaywall,
-    restorePurchases 
+    showCustomerCenter,
   } = useSubscription();
 
   const handleUpgrade = async () => {
@@ -23,14 +23,14 @@ export default function SubscriptionStatusCard() {
     await showPaywall();
   };
 
-  const handleRestore = async () => {
+  const handleManageSubscription = async () => {
     HapticFeedback.medium();
-    await restorePurchases();
+    await showCustomerCenter();
   };
 
   if (isSubscribed) {
     return (
-      <View style={[styles.container, styles.plusContainer]}>
+      <View style={[styles.container, styles.proContainer]}>
         <View style={styles.header}>
           <View style={styles.iconContainer}>
             <IconSymbol
@@ -41,7 +41,7 @@ export default function SubscriptionStatusCard() {
             />
           </View>
           <View style={styles.headerText}>
-            <Text style={styles.title}>Plus Member</Text>
+            <Text style={styles.title}>Pro Member</Text>
             <Text style={styles.subtitle}>Unlimited access to all features</Text>
           </View>
         </View>
@@ -75,6 +75,16 @@ export default function SubscriptionStatusCard() {
             <Text style={styles.statText}>2 children</Text>
           </View>
         </View>
+
+        <TouchableOpacity style={styles.manageButton} onPress={handleManageSubscription}>
+          <IconSymbol
+            ios_icon_name="gearshape.fill"
+            android_material_icon_name="settings"
+            size={18}
+            color={colors.buttonBlue}
+          />
+          <Text style={styles.manageButtonText}>Manage Subscription</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -177,11 +187,7 @@ export default function SubscriptionStatusCard() {
           size={20}
           color={colors.backgroundAlt}
         />
-        <Text style={styles.upgradeButtonText}>Upgrade to Plus</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.restoreButton} onPress={handleRestore}>
-        <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+        <Text style={styles.upgradeButtonText}>Upgrade to Pro</Text>
       </TouchableOpacity>
     </View>
   );
@@ -196,7 +202,7 @@ const styles = StyleSheet.create({
     boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
     elevation: 3,
   },
-  plusContainer: {
+  proContainer: {
     backgroundColor: colors.cardPurple,
     borderWidth: 2,
     borderColor: colors.accent,
@@ -229,6 +235,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: colors.background,
+    marginBottom: 16,
   },
   statItem: {
     alignItems: 'center',
@@ -281,18 +288,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginBottom: 12,
   },
   upgradeButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.backgroundAlt,
   },
-  restoreButton: {
+  manageButton: {
+    backgroundColor: colors.background,
+    borderRadius: 24,
     paddingVertical: 12,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
-  restoreButtonText: {
+  manageButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.buttonBlue,
