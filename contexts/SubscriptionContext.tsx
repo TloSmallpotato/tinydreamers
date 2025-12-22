@@ -94,8 +94,8 @@ export const useSubscription = () => {
   return context;
 };
 
-// RevenueCat API Key - Using the test key provided
-const REVENUECAT_API_KEY = 'test_DYJuwnEXhPtgdogguRsibPkWMCk';
+// RevenueCat API Key - Updated to new test key
+const REVENUECAT_API_KEY = 'test_JPYZciDEShGXlnVDqcTWfLclPCZ';
 
 // Entitlement identifier - must match RevenueCat dashboard
 const ENTITLEMENT_ID = 'The Tiny Dreamers App Pro';
