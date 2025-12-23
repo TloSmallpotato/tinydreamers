@@ -61,6 +61,13 @@ const LOADING_MESSAGES = [
   "Peeking inside the story…"
 ];
 
+// Bookmark component
+const Bookmark = () => (
+  <View style={styles.bookmark}>
+    <View style={styles.bookmarkRibbon} />
+  </View>
+);
+
 export default function BooksScreen() {
   const { selectedChild } = useChild();
   const { shouldFocusBookSearch, resetBookSearch } = useAddNavigation();
@@ -668,6 +675,7 @@ export default function BooksScreen() {
                         />
                       ) : (
                         <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
+                          <Bookmark />
                           <Text style={styles.placeholderText} numberOfLines={4}>
                             {savedBook.book.title}
                           </Text>
@@ -848,7 +856,7 @@ const styles = StyleSheet.create({
   },
   bookCoverContainer: {
     width: '100%',
-    aspectRatio: 4 / 5, // 5:4 portrait ratio (width:height = 4:5)
+    aspectRatio: 4 / 5,
   },
   bookCoverLarge: {
     width: '100%',
@@ -861,6 +869,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
+    overflow: 'visible',
   },
   placeholderText: {
     fontSize: 14,
@@ -881,5 +890,25 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: colors.backgroundAlt,
+  },
+  bookmark: {
+    position: 'absolute',
+    top: 0,
+    right: 16,
+    width: 32,
+    height: 48,
+    zIndex: 10,
+  },
+  bookmarkRibbon: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#FF5722',
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 5,
   },
 });

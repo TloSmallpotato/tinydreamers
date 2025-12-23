@@ -42,6 +42,13 @@ interface BookDetailBottomSheetProps {
 
 type RatingType = 'not_vibing' | 'like_it' | 'love_it' | null;
 
+// Bookmark component
+const Bookmark = () => (
+  <View style={styles.bookmark}>
+    <View style={styles.bookmarkRibbon} />
+  </View>
+);
+
 const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheetProps>(
   ({ userBook, onClose, onRefresh }, ref) => {
     const snapPoints = useMemo(() => [screenHeight * 0.85], []);
@@ -446,6 +453,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
                     />
                   ) : (
                     <View style={[styles.bookCover, styles.placeholderCover]}>
+                      <Bookmark />
                       <Text style={styles.placeholderTitle} numberOfLines={4}>
                         {book.title}
                       </Text>
@@ -666,8 +674,8 @@ const styles = StyleSheet.create({
   },
   coverWrapper: {
     width: screenWidth * 0.5,
-    aspectRatio: 4 / 5, // 5:4 portrait ratio
-    marginBottom: 12, // Add margin between cover and button
+    aspectRatio: 4 / 5,
+    marginBottom: 12,
   },
   bookCover: {
     width: '100%',
@@ -680,6 +688,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    overflow: 'visible',
   },
   placeholderTitle: {
     fontSize: 16,
@@ -694,7 +703,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    width: screenWidth * 0.5, // Match the cover width
+    width: screenWidth * 0.5,
   },
   requestButtonDisabled: {
     backgroundColor: colors.textSecondary,
@@ -793,6 +802,26 @@ const styles = StyleSheet.create({
   },
   recommendTextActive: {
     color: colors.backgroundAlt,
+  },
+  bookmark: {
+    position: 'absolute',
+    top: 0,
+    right: 16,
+    width: 32,
+    height: 48,
+    zIndex: 10,
+  },
+  bookmarkRibbon: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#FF5722',
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 5,
   },
 });
 
