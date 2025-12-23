@@ -19,8 +19,19 @@ export default function SubscriptionStatusCard() {
   } = useSubscription();
 
   const handleUpgrade = async () => {
+    console.log('========================================');
+    console.log('SubscriptionStatusCard: Upgrade button pressed');
+    console.log('========================================');
+    
     HapticFeedback.medium();
-    await showPaywall();
+    
+    try {
+      console.log('SubscriptionStatusCard: Calling showPaywall()...');
+      await showPaywall();
+      console.log('SubscriptionStatusCard: ✓ showPaywall() completed');
+    } catch (error) {
+      console.error('SubscriptionStatusCard: ✗ Error in handleUpgrade:', error);
+    }
   };
 
   const handleManageSubscription = async () => {
@@ -180,7 +191,11 @@ export default function SubscriptionStatusCard() {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
+      <TouchableOpacity 
+        style={styles.upgradeButton} 
+        onPress={handleUpgrade}
+        activeOpacity={0.7}
+      >
         <IconSymbol
           ios_icon_name="crown.fill"
           android_material_icon_name="workspace-premium"

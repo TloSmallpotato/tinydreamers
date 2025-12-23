@@ -141,6 +141,8 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
       try {
         console.log('SubscriptionContext: Initializing RevenueCat');
+        console.log('SubscriptionContext: Platform:', Platform.OS);
+        console.log('SubscriptionContext: API Key:', REVENUECAT_API_KEY);
         
         // Set log level for debugging
         Purchases.setLogLevel(LOG_LEVEL.DEBUG);
@@ -150,7 +152,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           apiKey: REVENUECAT_API_KEY,
         });
 
-        console.log('SubscriptionContext: RevenueCat initialized successfully');
+        console.log('SubscriptionContext: ✓ RevenueCat initialized successfully');
 
         // Set up customer info update listener
         Purchases.addCustomerInfoUpdateListener((info) => {
@@ -158,7 +160,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           updateSubscriptionStatus(info);
         });
       } catch (error) {
-        console.error('SubscriptionContext: Error initializing RevenueCat:', error);
+        console.error('SubscriptionContext: ✗ Error initializing RevenueCat:', error);
         setIsLoading(false);
       }
     };
@@ -188,10 +190,10 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         // Log in user with their Supabase user ID
         const { customerInfo: info } = await Purchases.logIn(authUser.id);
         
-        console.log('SubscriptionContext: User identified successfully');
+        console.log('SubscriptionContext: ✓ User identified successfully');
         updateSubscriptionStatus(info);
       } catch (error) {
-        console.error('SubscriptionContext: Error identifying user:', error);
+        console.error('SubscriptionContext: ✗ Error identifying user:', error);
         setIsLoading(false);
       }
     };
@@ -209,18 +211,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       }
 
       try {
-        console.log('SubscriptionContext: Fetching offerings');
+        console.log('SubscriptionContext: Fetching offerings...');
         const offerings = await Purchases.getOfferings();
         
         if (offerings.current !== null) {
-          console.log('SubscriptionContext: Current offering:', offerings.current.identifier);
+          console.log('SubscriptionContext: ✓ Current offering:', offerings.current.identifier);
           console.log('SubscriptionContext: Available packages:', offerings.current.availablePackages.length);
           setOfferings(offerings.current);
         } else {
-          console.log('SubscriptionContext: No current offering available');
+          console.log('SubscriptionContext: ⚠ No current offering available');
+          console.log('SubscriptionContext: Please configure an offering in RevenueCat dashboard');
         }
       } catch (error) {
-        console.error('SubscriptionContext: Error fetching offerings:', error);
+        console.error('SubscriptionContext: ✗ Error fetching offerings:', error);
       }
     };
 
@@ -320,11 +323,14 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   // Show RevenueCat Paywall
   const showPaywall = useCallback(async () => {
-    console.log('SubscriptionContext: Showing RevenueCat Paywall');
+    console.log('========================================');
+    console.log('SubscriptionContext: showPaywall() called');
+    console.log('Platform:', Platform.OS);
+    console.log('========================================');
     
     // Check if we're on web - RevenueCat doesn't support web
     if (Platform.OS === 'web') {
-      console.warn('SubscriptionContext: RevenueCat is not supported on web');
+      console.warn('SubscriptionContext: ⚠ RevenueCat is not supported on web');
       Alert.alert(
         'Web Not Supported',
         'Subscriptions are only available on iOS and Android. Please use the mobile app to upgrade to Pro.',
@@ -334,13 +340,17 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     }
     
     try {
+      console.log('SubscriptionContext: Calling RevenueCatUI.presentPaywall()...');
+      
       // Present the paywall using RevenueCat UI
       const result: PAYWALL_RESULT = await RevenueCatUI.presentPaywall();
       
-      console.log('SubscriptionContext: Paywall result:', result);
+      console.log('SubscriptionContext: ✓ Paywall result:', result);
+      console.log('SubscriptionContext: Result type:', typeof result);
       
       // Handle the result
       if (result === PAYWALL_RESULT.PURCHASED || result === PAYWALL_RESULT.RESTORED) {
+        console.log('SubscriptionContext: Purchase successful! Refreshing customer info...');
         // Get updated customer info
         const info = await Purchases.getCustomerInfo();
         updateSubscriptionStatus(info);
@@ -352,12 +362,20 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       } else if (result === PAYWALL_RESULT.CANCELLED) {
         console.log('SubscriptionContext: User cancelled paywall');
       } else if (result === PAYWALL_RESULT.ERROR) {
-        console.error('SubscriptionContext: Paywall error');
+        console.error('SubscriptionContext: ✗ Paywall error');
         Alert.alert('Error', 'Unable to complete purchase. Please try again.');
+      } else if (result === PAYWALL_RESULT.NOT_PRESENTED) {
+        console.warn('SubscriptionContext: ⚠ Paywall not presented');
+        Alert.alert('Error', 'Unable to show paywall. Please check your RevenueCat configuration.');
       }
     } catch (error: any) {
-      console.error('SubscriptionContext: Error showing paywall:', error);
-      Alert.alert('Error', 'Unable to show subscription options. Please try again later.');
+      console.error('========================================');
+      console.error('SubscriptionContext: ✗ Error showing paywall');
+      console.error('Error:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
+      console.error('========================================');
+      Alert.alert('Error', `Unable to show subscription options: ${error?.message || 'Unknown error'}`);
     }
   }, [updateSubscriptionStatus]);
 
