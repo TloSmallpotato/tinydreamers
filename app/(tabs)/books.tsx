@@ -28,6 +28,7 @@ import * as Haptics from 'expo-haptics';
 import { getFirstValidImageUrl } from '@/utils/imageValidation';
 import ValidatedImage from '@/components/ValidatedImage';
 import PropTypes from 'prop-types';
+import Svg, { Path } from 'react-native-svg';
 
 interface SavedBook {
   id: string;
@@ -59,10 +60,16 @@ const LOADING_MESSAGES = [
   "Peeking inside the story…"
 ];
 
-// Bookmark component
+// Bookmark component with V-notch at the bottom
 const Bookmark = () => (
   <View style={styles.bookmark}>
-    <View style={styles.bookmarkRibbon} />
+    <Svg width="32" height="48" viewBox="0 0 32 48" style={styles.bookmarkSvg}>
+      <Path
+        d="M 0 0 L 32 0 L 32 48 L 16 38 L 0 48 Z"
+        fill="#FF5722"
+        stroke="none"
+      />
+    </Svg>
   </View>
 );
 
@@ -950,16 +957,7 @@ const styles = StyleSheet.create({
     height: 48,
     zIndex: 10,
   },
-  bookmarkRibbon: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#FF5722',
-    borderBottomLeftRadius: 2,
-    borderBottomRightRadius: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3,
-    elevation: 5,
+  bookmarkSvg: {
+    // Shadow removed
   },
 });
