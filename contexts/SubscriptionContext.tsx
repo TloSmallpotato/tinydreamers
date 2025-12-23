@@ -137,6 +137,13 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   // Initialize RevenueCat
   useEffect(() => {
     const initializeRevenueCat = async () => {
+      // Skip RevenueCat initialization on web
+      if (Platform.OS === 'web') {
+        console.log('SubscriptionContext: Skipping RevenueCat initialization on web');
+        setIsLoading(false);
+        return;
+      }
+
       try {
         console.log('SubscriptionContext: Initializing RevenueCat');
         
@@ -173,6 +180,13 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         return;
       }
 
+      // Skip RevenueCat identification on web
+      if (Platform.OS === 'web') {
+        console.log('SubscriptionContext: Skipping RevenueCat identification on web');
+        setIsLoading(false);
+        return;
+      }
+
       try {
         console.log('SubscriptionContext: Identifying user with RevenueCat:', authUser.id);
         
@@ -193,6 +207,12 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   // Fetch offerings
   useEffect(() => {
     const fetchOfferings = async () => {
+      // Skip fetching offerings on web
+      if (Platform.OS === 'web') {
+        console.log('SubscriptionContext: Skipping offerings fetch on web');
+        return;
+      }
+
       try {
         console.log('SubscriptionContext: Fetching offerings');
         const offerings = await Purchases.getOfferings();
@@ -290,6 +310,17 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const showPaywall = useCallback(async () => {
     console.log('SubscriptionContext: Showing RevenueCat Paywall');
     
+    // Check if we're on web - RevenueCat doesn't support web
+    if (Platform.OS === 'web') {
+      console.warn('SubscriptionContext: RevenueCat is not supported on web');
+      Alert.alert(
+        'Web Not Supported',
+        'Subscriptions are only available on iOS and Android. Please use the mobile app to upgrade to Pro.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
     try {
       // Present the paywall using RevenueCat UI
       const result: PaywallResult = await presentPaywall();
@@ -322,6 +353,17 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const showCustomerCenter = useCallback(async () => {
     console.log('SubscriptionContext: Showing RevenueCat Customer Center');
     
+    // Check if we're on web - RevenueCat doesn't support web
+    if (Platform.OS === 'web') {
+      console.warn('SubscriptionContext: RevenueCat is not supported on web');
+      Alert.alert(
+        'Web Not Supported',
+        'Subscription management is only available on iOS and Android. Please use the mobile app to manage your subscription.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
     try {
       // Present the customer center using RevenueCat UI
       const result: CustomerCenterResult = await presentCustomerCenter();
@@ -345,6 +387,17 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   // Restore purchases function
   const restorePurchases = useCallback(async () => {
     console.log('SubscriptionContext: Restoring purchases');
+    
+    // Check if we're on web - RevenueCat doesn't support web
+    if (Platform.OS === 'web') {
+      console.warn('SubscriptionContext: RevenueCat is not supported on web');
+      Alert.alert(
+        'Web Not Supported',
+        'Purchase restoration is only available on iOS and Android. Please use the mobile app to restore your purchases.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     
     try {
       const info = await Purchases.restorePurchases();

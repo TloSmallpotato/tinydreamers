@@ -14,9 +14,13 @@ import SettingsBottomSheet from '@/components/SettingsBottomSheet';
 
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 import ProfileAvatar from '@/components/ProfileAvatar';
+import SubscriptionStatusCard from '@/components/SubscriptionStatusCard';
+import UpgradePromptModal from '@/components/UpgradePromptModal';
 import { supabase } from '@/app/integrations/supabase/client';
 import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
 import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { HapticFeedback } from '@/utils/haptics';
 
 interface ProfileStats {
   totalWords: number;
@@ -52,6 +56,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { children, selectedChild, selectChild, addChild, updateChild, refreshChildren, loading: childLoading } = useChild();
   const { triggerCamera } = useCameraTrigger();
+  const { canAddChild, refreshUsage } = useSubscription();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
   const settingsRef = useRef<BottomSheetModal>(null);
@@ -72,6 +77,7 @@ export default function ProfileScreen() {
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
 
@@ -391,6 +397,17 @@ export default function ProfileScreen() {
   const handleOpenAddChild = () => {
     try {
       console.log('ProfileScreen (iOS): Opening add child bottom sheet');
+      
+      // Check quota before opening
+      if (!canAddChild) {
+        console.log('ProfileScreen (iOS): Child limit reached, showing upgrade modal');
+        HapticFeedback.warning();
+        setShowUpgradeModal(true);
+        childSelectorRef.current?.dismiss();
+        return;
+      }
+      
+      HapticFeedback.medium();
       childSelectorRef.current?.dismiss();
       setTimeout(() => {
         addChildRef.current?.present();
@@ -404,15 +421,19 @@ export default function ProfileScreen() {
     try {
       console.log('ProfileScreen (iOS): Adding child:', name, birthDate);
       await addChild(name, birthDate);
+      await refreshUsage();
+      HapticFeedback.success();
       addChildRef.current?.dismiss();
     } catch (err) {
       console.error('ProfileScreen (iOS): Error adding child:', err);
+      HapticFeedback.error();
     }
   };
 
   const handleOpenSettings = () => {
     try {
       console.log('ProfileScreen (iOS): Settings button pressed - opening settings bottom sheet');
+      HapticFeedback.medium();
       settingsRef.current?.present();
     } catch (err) {
       console.error('ProfileScreen (iOS): Error opening settings:', err);
@@ -422,6 +443,7 @@ export default function ProfileScreen() {
   const handleRecordMoment = () => {
     try {
       console.log('ProfileScreen (iOS): Record button pressed - triggering camera');
+      HapticFeedback.medium();
       triggerCamera();
     } catch (err) {
       console.error('ProfileScreen (iOS): Error triggering camera:', err);
@@ -431,6 +453,7 @@ export default function ProfileScreen() {
   const handleViewMoreMoments = () => {
     try {
       console.log('ProfileScreen (iOS): View more moments pressed - navigating to all moments page');
+      HapticFeedback.medium();
       router.push('/all-moments');
     } catch (err) {
       console.error('ProfileScreen (iOS): Error navigating to all moments page:', err);
@@ -440,6 +463,7 @@ export default function ProfileScreen() {
   const handleFindOutMore = () => {
     try {
       console.log('ProfileScreen (iOS): Find out more pressed - navigating to milestones page');
+      HapticFeedback.medium();
       router.push('/milestones');
     } catch (err) {
       console.error('ProfileScreen (iOS): Error navigating to milestones page:', err);
@@ -448,6 +472,7 @@ export default function ProfileScreen() {
 
   const handleMomentPress = (moment: Moment) => {
     console.log('ProfileScreen (iOS): Moment pressed:', moment.id);
+    HapticFeedback.medium();
     // Use signed URL if available, fallback to original URL
     const videoUrl = moment.signedVideoUrl || moment.video_url;
     setSelectedVideoUri(videoUrl);
@@ -464,6 +489,7 @@ export default function ProfileScreen() {
     if (!selectedChild) {
       console.log('ProfileScreen (iOS): No selected child for avatar change');
       Alert.alert('No Child Selected', 'Please select a child first');
+      HapticFeedback.warning();
       return;
     }
 
@@ -474,6 +500,7 @@ export default function ProfileScreen() {
 
     try {
       console.log('ProfileScreen (iOS): Starting avatar change process');
+      HapticFeedback.medium();
       
       // Step 1: Pick image
       const imageUri = await pickProfileImage();
@@ -498,6 +525,7 @@ export default function ProfileScreen() {
       if (!uploadResult.success || !uploadResult.url) {
         console.error('ProfileScreen (iOS): Upload failed:', uploadResult.error);
         Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image');
+        HapticFeedback.error();
         // Revert to old avatar URL on failure
         setLocalAvatarUrl(oldAvatarUrl || null);
         setUploadingAvatar(false);
@@ -518,6 +546,7 @@ export default function ProfileScreen() {
       if (updateError) {
         console.error('ProfileScreen (iOS): Database update failed:', updateError);
         Alert.alert('Update Failed', 'Failed to save profile photo');
+        HapticFeedback.error();
         // Revert to old avatar URL on failure
         setLocalAvatarUrl(oldAvatarUrl || null);
         setUploadingAvatar(false);
@@ -551,12 +580,14 @@ export default function ProfileScreen() {
       setUploadingAvatar(false);
       
       console.log('ProfileScreen (iOS): Avatar change complete!');
+      HapticFeedback.success();
       Alert.alert('Success', 'Profile photo updated successfully!');
     } catch (err) {
       console.error('ProfileScreen (iOS): Error changing avatar:', err);
       setUploadingAvatar(false);
       // Revert to context avatar URL on error
       setLocalAvatarUrl(selectedChild?.avatar_url || null);
+      HapticFeedback.error();
       Alert.alert('Error', 'Failed to update profile photo. Please try again.');
     }
   };
@@ -645,6 +676,8 @@ export default function ProfileScreen() {
               <Text style={styles.ageText}>{calculateAge(selectedChild.birth_date)}</Text>
             )}
           </View>
+
+          <SubscriptionStatusCard />
 
           {stats.newWordsThisWeek > 0 && (
             <View style={styles.achievementBanner}>
@@ -828,6 +861,12 @@ export default function ProfileScreen() {
           onClose={handleCloseVideoPlayer}
         />
       )}
+
+      <UpgradePromptModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        quotaType="child"
+      />
     </View>
   );
 }
