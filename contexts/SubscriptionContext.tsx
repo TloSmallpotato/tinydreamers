@@ -7,12 +7,7 @@ import Purchases, {
   PurchasesPackage,
   LOG_LEVEL 
 } from 'react-native-purchases';
-import { 
-  presentPaywall,
-  presentCustomerCenter,
-  PaywallResult,
-  CustomerCenterResult
-} from 'react-native-purchases-ui';
+import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/app/integrations/supabase/client';
 
@@ -94,7 +89,7 @@ export const useSubscription = () => {
   return context;
 };
 
-// RevenueCat API Key - Updated to new test key
+// RevenueCat API Key
 const REVENUECAT_API_KEY = 'test_JPYZciDEShGXlnVDqcTWfLclPCZ';
 
 // Entitlement identifier - must match RevenueCat dashboard
@@ -243,16 +238,33 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     try {
       console.log('SubscriptionContext: Refreshing usage for user:', authUser.id);
 
+      // First, get the child IDs for this user
+      const { data: childrenData, error: childrenError } = await supabase
+        .from('children')
+        .select('id')
+        .eq('user_id', authUser.id);
+
+      if (childrenError) {
+        console.error('SubscriptionContext: Error fetching children:', childrenError);
+        return;
+      }
+
+      const childIds = childrenData?.map(child => child.id) || [];
+      console.log('SubscriptionContext: Found child IDs:', childIds);
+
+      // If no children, set usage to 0
+      if (childIds.length === 0) {
+        console.log('SubscriptionContext: No children found, setting usage to 0');
+        setCurrentUsage({ words: 0, books: 0, children: 0 });
+        return;
+      }
+
+      // Fetch counts for words, books, and children
       const [wordsResult, booksResult, childrenResult] = await Promise.allSettled([
         supabase
           .from('user_words')
           .select('*', { count: 'exact', head: true })
-          .in('child_id', 
-            supabase
-              .from('children')
-              .select('id')
-              .eq('user_id', authUser.id)
-          ),
+          .in('child_id', childIds),
         supabase
           .from('user_books')
           .select('*', { count: 'exact', head: true })
@@ -306,7 +318,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const remainingBooks = Math.max(0, limits.books - currentUsage.books);
   const remainingChildren = Math.max(0, limits.children - currentUsage.children);
 
-  // Show RevenueCat Paywall (modern method)
+  // Show RevenueCat Paywall
   const showPaywall = useCallback(async () => {
     console.log('SubscriptionContext: Showing RevenueCat Paywall');
     
@@ -323,12 +335,12 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     
     try {
       // Present the paywall using RevenueCat UI
-      const result: PaywallResult = await presentPaywall();
+      const result: PAYWALL_RESULT = await RevenueCatUI.presentPaywall();
       
       console.log('SubscriptionContext: Paywall result:', result);
       
       // Handle the result
-      if (result === PaywallResult.PURCHASED || result === PaywallResult.RESTORED) {
+      if (result === PAYWALL_RESULT.PURCHASED || result === PAYWALL_RESULT.RESTORED) {
         // Get updated customer info
         const info = await Purchases.getCustomerInfo();
         updateSubscriptionStatus(info);
@@ -337,9 +349,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           'Success! 🎉', 
           'Welcome to The Tiny Dreamers App Pro! You now have unlimited access to all features.'
         );
-      } else if (result === PaywallResult.CANCELLED) {
+      } else if (result === PAYWALL_RESULT.CANCELLED) {
         console.log('SubscriptionContext: User cancelled paywall');
-      } else if (result === PaywallResult.ERROR) {
+      } else if (result === PAYWALL_RESULT.ERROR) {
         console.error('SubscriptionContext: Paywall error');
         Alert.alert('Error', 'Unable to complete purchase. Please try again.');
       }
@@ -349,7 +361,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     }
   }, [updateSubscriptionStatus]);
 
-  // Show RevenueCat Customer Center (modern method)
+  // Show RevenueCat Customer Center
   const showCustomerCenter = useCallback(async () => {
     console.log('SubscriptionContext: Showing RevenueCat Customer Center');
     
@@ -366,18 +378,13 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     
     try {
       // Present the customer center using RevenueCat UI
-      const result: CustomerCenterResult = await presentCustomerCenter();
+      await RevenueCatUI.presentCustomerCenter();
       
-      console.log('SubscriptionContext: Customer Center result:', result);
+      console.log('SubscriptionContext: Customer Center dismissed');
       
-      // Handle the result
-      if (result === CustomerCenterResult.RESTORED) {
-        // Get updated customer info
-        const info = await Purchases.getCustomerInfo();
-        updateSubscriptionStatus(info);
-        
-        Alert.alert('Success', 'Your purchases have been restored!');
-      }
+      // Refresh customer info after customer center is dismissed
+      const info = await Purchases.getCustomerInfo();
+      updateSubscriptionStatus(info);
     } catch (error: any) {
       console.error('SubscriptionContext: Error showing customer center:', error);
       Alert.alert('Error', 'Unable to open customer center. Please try again later.');
