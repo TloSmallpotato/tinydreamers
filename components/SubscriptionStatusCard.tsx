@@ -5,6 +5,9 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 import { HapticFeedback } from '@/utils/haptics';
 import { useSubscription, QUOTA_LIMITS } from '@/contexts/SubscriptionContext';
+import Constants from 'expo-constants';
+
+const isExpoGo = Constants.appOwnership === 'expo';
 
 export default function SubscriptionStatusCard() {
   const { 
@@ -21,6 +24,7 @@ export default function SubscriptionStatusCard() {
   const handleUpgrade = async () => {
     console.log('========================================');
     console.log('SubscriptionStatusCard: Upgrade button pressed');
+    console.log('Is Expo Go:', isExpoGo);
     console.log('========================================');
     
     HapticFeedback.medium();
@@ -109,6 +113,20 @@ export default function SubscriptionStatusCard() {
         </View>
       </View>
 
+      {isExpoGo && (
+        <View style={styles.expoGoWarning}>
+          <IconSymbol
+            ios_icon_name="exclamationmark.triangle.fill"
+            android_material_icon_name="warning"
+            size={20}
+            color={colors.secondary}
+          />
+          <Text style={styles.expoGoWarningText}>
+            Subscriptions don't work in Expo Go. Create a development build to test.
+          </Text>
+        </View>
+      )}
+
       <View style={styles.quotaContainer}>
         <View style={styles.quotaItem}>
           <View style={styles.quotaHeader}>
@@ -192,7 +210,7 @@ export default function SubscriptionStatusCard() {
       </View>
 
       <TouchableOpacity 
-        style={styles.upgradeButton} 
+        style={[styles.upgradeButton, isExpoGo && styles.upgradeButtonDisabled]} 
         onPress={handleUpgrade}
         activeOpacity={0.7}
       >
@@ -202,7 +220,9 @@ export default function SubscriptionStatusCard() {
           size={20}
           color={colors.backgroundAlt}
         />
-        <Text style={styles.upgradeButtonText}>Upgrade to Pro</Text>
+        <Text style={styles.upgradeButtonText}>
+          {isExpoGo ? 'Upgrade (Dev Build Required)' : 'Upgrade to Pro'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -243,6 +263,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: colors.textSecondary,
+  },
+  expoGoWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.cardPink,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  expoGoWarningText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    lineHeight: 16,
   },
   statsRow: {
     flexDirection: 'row',
@@ -303,6 +339,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  upgradeButtonDisabled: {
+    opacity: 0.7,
   },
   upgradeButtonText: {
     fontSize: 16,
