@@ -74,6 +74,10 @@ interface GoogleCustomSearchResult {
 const coverUrlCache = new Map<string, { coverUrl: string; thumbnailUrl: string; source: string; timestamp: number }>();
 const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 
+// Search results cache for faster dropdown performance
+const searchResultsCache = new Map<string, { results: BookSearchResult[]; timestamp: number }>();
+const SEARCH_CACHE_DURATION = 1000 * 60 * 5; // 5 minutes
+
 // AsyncStorage keys
 const QUOTA_EXCEEDED_KEY = '@google_custom_search_quota_exceeded';
 const QUOTA_EXCEEDED_TIMESTAMP_KEY = '@google_custom_search_quota_timestamp';
@@ -698,11 +702,11 @@ function extractISBN(volumeInfo: GoogleBook['volumeInfo']): string | undefined {
 /**
  * Searches OpenLibrary API for books
  */
-async function searchOpenLibrary(query: string): Promise<BookSearchResult[]> {
+async function searchOpenLibrary(query: string, limit: number = 5): Promise<BookSearchResult[]> {
   try {
     const encodedQuery = encodeURIComponent(query.trim());
     const response = await withTimeout(
-      fetch(`https://openlibrary.org/search.json?q=${encodedQuery}&limit=10`),
+      fetch(`https://openlibrary.org/search.json?q=${encodedQuery}&limit=${limit}`),
       API_TIMEOUT
     );
 
@@ -814,30 +818,38 @@ async function searchOpenLibraryByISBN(isbn: string): Promise<BookSearchResult |
 }
 
 /**
- * Searches for books by text query
+ * Searches for books by text query - OPTIMIZED FOR DROPDOWN SPEED
  * Uses Google Books API first, falls back to OpenLibrary if no results
- * Uses Google Custom Search API for cover images with fallback to OpenLibrary and Google Books
+ * 
+ * OPTIMIZATIONS:
+ * - Caches search results for 5 minutes
+ * - Limits results to 5 items by default for faster rendering
+ * - Skips cover image fetching for dropdown (only fetches when book is selected)
  * 
  * FLOW:
- * 1. Search Google Books API for book metadata (free)
- * 2. For each book, call getBestCoverUrl() which:
- *    - Checks cache first (free)
- *    - Checks database (free)
- *    - Tries Google Custom Search API ONCE ($0.005 per call) - ONLY if quota not exceeded
- *    - Falls back to OpenLibrary API (free)
- *    - Falls back to Google Books API (free)
- * 3. Return results with cover URLs
+ * 1. Check search results cache (free, instant)
+ * 2. Search Google Books API for book metadata (free)
+ * 3. Return results WITHOUT fetching cover images (for speed)
+ * 4. Cover images are fetched only when a book is selected
  */
-export async function searchGoogleBooks(query: string): Promise<BookSearchResult[]> {
+export async function searchGoogleBooks(query: string, limit: number = 5): Promise<BookSearchResult[]> {
   if (!query || query.trim().length < 2) {
     return [];
   }
 
+  // Check cache first
+  const cacheKey = `${query.trim().toLowerCase()}-${limit}`;
+  const cached = searchResultsCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < SEARCH_CACHE_DURATION) {
+    console.log('✅ Using cached search results');
+    return cached.results;
+  }
+
   try {
     const encodedQuery = encodeURIComponent(query.trim());
-    // Request full projection to get all available image sizes
+    // Request lite projection for faster response (no need for full data in dropdown)
     const response = await withTimeout(
-      fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=10&printType=books&projection=full`),
+      fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodedQuery}&maxResults=${limit}&printType=books&projection=lite`),
       API_TIMEOUT
     );
 
@@ -845,7 +857,10 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
       console.error('Google Books API error:', response.status);
       // Fallback to OpenLibrary
       console.log('Falling back to OpenLibrary API');
-      return await searchOpenLibrary(query);
+      const results = await searchOpenLibrary(query, limit);
+      // Cache the results
+      searchResultsCache.set(cacheKey, { results, timestamp: Date.now() });
+      return results;
     }
 
     const data = await response.json();
@@ -853,51 +868,40 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
     if (!data.items || data.items.length === 0) {
       console.log('No results from Google Books, trying OpenLibrary');
       // Fallback to OpenLibrary
-      return await searchOpenLibrary(query);
+      const results = await searchOpenLibrary(query, limit);
+      // Cache the results
+      searchResultsCache.set(cacheKey, { results, timestamp: Date.now() });
+      return results;
     }
 
-    const googleResults = await Promise.all(
-      data.items.map(async (item: GoogleBook) => {
-        const isbn = extractISBN(item.volumeInfo);
-        const title = item.volumeInfo.title || 'Unknown Title';
-        const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
-        
-        // This will check cache, database, then try Google Custom Search ONCE (if quota not exceeded), then OpenLibrary, then Google Books
-        const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
-          isbn,
-          title,
-          authors,
-          item.volumeInfo,
-          item.id
-        );
-        
-        // Log for debugging
-        if (!coverUrl) {
-          console.log('No image found for book:', title);
-        } else {
-          console.log('Book image URLs:', {
-            title,
-            coverUrl,
-            thumbnailUrl,
-            source,
-          });
-        }
-        
-        return {
-          googleBooksId: item.id,
-          title,
-          authors,
-          coverUrl,
-          thumbnailUrl,
-          description: item.volumeInfo.description || '',
-          publishedDate: item.volumeInfo.publishedDate || '',
-          pageCount: item.volumeInfo.pageCount || 0,
-          source: source as 'google' | 'openlibrary' | 'googlecustomsearch',
-        };
-      })
-    );
+    // Map results WITHOUT fetching cover images (for speed)
+    const googleResults = data.items.map((item: GoogleBook) => {
+      const title = item.volumeInfo.title || 'Unknown Title';
+      const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
+      
+      // Use basic thumbnail from Google Books API (no additional API calls)
+      const imageLinks = item.volumeInfo.imageLinks;
+      const basicThumbnail = imageLinks?.thumbnail || imageLinks?.smallThumbnail || '';
+      
+      return {
+        googleBooksId: item.id,
+        title,
+        authors,
+        coverUrl: basicThumbnail,
+        thumbnailUrl: basicThumbnail,
+        description: item.volumeInfo.description || '',
+        publishedDate: item.volumeInfo.publishedDate || '',
+        pageCount: item.volumeInfo.pageCount || 0,
+        source: 'google' as const,
+      };
+    });
 
-    return googleResults.filter((book: BookSearchResult) => book.title && book.authors);
+    const results = googleResults.filter((book: BookSearchResult) => book.title && book.authors);
+    
+    // Cache the results
+    searchResultsCache.set(cacheKey, { results, timestamp: Date.now() });
+    
+    return results;
   } catch (error) {
     if (error instanceof Error && error.message === 'Request timeout') {
       console.error('Google Books search timed out');
@@ -906,7 +910,84 @@ export async function searchGoogleBooks(query: string): Promise<BookSearchResult
     }
     // Fallback to OpenLibrary
     console.log('Error occurred, falling back to OpenLibrary API');
-    return await searchOpenLibrary(query);
+    const results = await searchOpenLibrary(query, limit);
+    // Cache the results
+    searchResultsCache.set(cacheKey, { results, timestamp: Date.now() });
+    return results;
+  }
+}
+
+/**
+ * Fetches detailed book information with high-quality cover image
+ * This is called AFTER a book is selected from the dropdown
+ * 
+ * @param googleBooksId - The Google Books ID
+ * @returns Promise<BookSearchResult | null> - Detailed book info with high-quality cover
+ */
+export async function getBookDetails(googleBooksId: string): Promise<BookSearchResult | null> {
+  try {
+    console.log('📚 Fetching detailed book info for:', googleBooksId);
+    
+    // Check if it's an OpenLibrary book
+    if (googleBooksId.startsWith('openlibrary-')) {
+      // For OpenLibrary books, we need to fetch from OpenLibrary API
+      const bookId = googleBooksId.replace('openlibrary-', '');
+      // This is a simplified version - you may need to implement full OpenLibrary details fetching
+      return null;
+    }
+    
+    // Fetch from Google Books API with full projection
+    const response = await withTimeout(
+      fetch(`https://www.googleapis.com/books/v1/volumes/${googleBooksId}?projection=full`),
+      API_TIMEOUT
+    );
+
+    if (!response.ok) {
+      console.error('Google Books API error:', response.status);
+      return null;
+    }
+
+    const item: GoogleBook = await response.json();
+    const isbn = extractISBN(item.volumeInfo);
+    const title = item.volumeInfo.title || 'Unknown Title';
+    const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
+    
+    console.log('Fetching high-quality cover image...');
+    
+    // Fetch high-quality cover image
+    const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
+      isbn,
+      title,
+      authors,
+      item.volumeInfo,
+      item.id
+    );
+
+    console.log('Book details fetched:', {
+      title,
+      coverUrl,
+      thumbnailUrl,
+      source,
+    });
+
+    return {
+      googleBooksId: item.id,
+      title,
+      authors,
+      coverUrl,
+      thumbnailUrl,
+      description: item.volumeInfo.description || '',
+      publishedDate: item.volumeInfo.publishedDate || '',
+      pageCount: item.volumeInfo.pageCount || 0,
+      source: source as 'google' | 'openlibrary' | 'googlecustomsearch',
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Request timeout') {
+      console.error('Book details fetch timed out');
+    } else {
+      console.error('Error fetching book details:', error);
+    }
+    return null;
   }
 }
 

@@ -18,7 +18,7 @@ import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { supabase } from '@/app/integrations/supabase/client';
-import { searchGoogleBooks, BookSearchResult } from '@/utils/googleBooksApi';
+import { searchGoogleBooks, getBookDetails, BookSearchResult } from '@/utils/googleBooksApi';
 import ToastNotification from '@/components/ToastNotification';
 import { useRouter } from 'expo-router';
 import { getFirstValidImageUrl } from '@/utils/imageValidation';
@@ -32,6 +32,7 @@ export default function SearchBookScreen() {
   const [searchResults, setSearchResults] = useState<BookSearchResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [isAddingBook, setIsAddingBook] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -76,12 +77,13 @@ export default function SearchBookScreen() {
     };
   }, []);
 
-  // Debounced search
+  // Debounced search - OPTIMIZED: Reduced from 500ms to 300ms
   useEffect(() => {
     const timer = setTimeout(async () => {
       if (searchQuery.trim().length >= 2) {
         setIsSearching(true);
-        const results = await searchGoogleBooks(searchQuery);
+        // OPTIMIZED: Limit to 5 results for faster rendering
+        const results = await searchGoogleBooks(searchQuery, 5);
         console.log('[iOS] Search results:', results.length, 'books found');
         setSearchResults(results);
         setShowDropdown(results.length > 0);
@@ -90,16 +92,33 @@ export default function SearchBookScreen() {
         setSearchResults([]);
         setShowDropdown(false);
       }
-    }, 500);
+    }, 300); // OPTIMIZED: Reduced debounce time from 500ms to 300ms
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const handleSelectBook = (book: BookSearchResult) => {
+  const handleSelectBook = async (book: BookSearchResult) => {
     console.log('[iOS] Book selected:', book.title);
-    setSelectedBook(book);
     setShowDropdown(false);
     Keyboard.dismiss();
+    
+    // OPTIMIZED: Fetch detailed book info with high-quality cover AFTER selection
+    setIsLoadingDetails(true);
+    try {
+      const detailedBook = await getBookDetails(book.googleBooksId);
+      if (detailedBook) {
+        setSelectedBook(detailedBook);
+      } else {
+        // Fallback to the basic book info if details fetch fails
+        setSelectedBook(book);
+      }
+    } catch (error) {
+      console.error('[iOS] Error fetching book details:', error);
+      // Fallback to the basic book info
+      setSelectedBook(book);
+    } finally {
+      setIsLoadingDetails(false);
+    }
   };
 
   const handleAddToLibrary = async () => {
@@ -365,8 +384,16 @@ export default function SearchBookScreen() {
 
         <TouchableWithoutFeedback onPress={handleTapOutside}>
           <View style={styles.contentArea}>
+            {/* Loading Details State */}
+            {isLoadingDetails && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingText}>Loading book details...</Text>
+              </View>
+            )}
+
             {/* Selected Book Details */}
-            {selectedBook && (
+            {!isLoadingDetails && selectedBook && (
               <ScrollView 
                 style={styles.selectedBookContainer}
                 showsVerticalScrollIndicator={false}
@@ -463,8 +490,8 @@ export default function SearchBookScreen() {
               </ScrollView>
             )}
 
-            {/* Search Results Dropdown */}
-            {!selectedBook && showDropdown && searchResults.length > 0 && (
+            {/* Search Results Dropdown - OPTIMIZED: Only shows title and author */}
+            {!isLoadingDetails && !selectedBook && showDropdown && searchResults.length > 0 && (
               <ScrollView 
                 style={styles.dropdown}
                 keyboardShouldPersistTaps="handled"
@@ -491,7 +518,7 @@ export default function SearchBookScreen() {
             )}
 
             {/* Empty States */}
-            {!selectedBook && !showDropdown && searchQuery.length === 0 && (
+            {!isLoadingDetails && !selectedBook && !showDropdown && searchQuery.length === 0 && (
               <View style={styles.emptyState}>
                 <IconSymbol
                   ios_icon_name="magnifyingglass"
@@ -506,7 +533,7 @@ export default function SearchBookScreen() {
               </View>
             )}
 
-            {!selectedBook && !showDropdown && searchQuery.length > 0 && !isSearching && searchResults.length === 0 && (
+            {!isLoadingDetails && !selectedBook && !showDropdown && searchQuery.length > 0 && !isSearching && searchResults.length === 0 && (
               <View style={styles.emptyState}>
                 <IconSymbol
                   ios_icon_name="book.closed"
@@ -620,6 +647,17 @@ const styles = StyleSheet.create({
   },
   contentArea: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 16,
   },
   dropdown: {
     flex: 1,
