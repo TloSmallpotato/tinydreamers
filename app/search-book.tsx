@@ -37,6 +37,7 @@ export default function SearchBookScreen() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [selectedBook, setSelectedBook] = useState<BookSearchResult | null>(null);
   
   const searchInputRef = useRef<TextInput>(null);
   const addBookTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -94,7 +95,19 @@ export default function SearchBookScreen() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const handleSelectBook = async (book: BookSearchResult) => {
+  const handleSelectBook = (book: BookSearchResult) => {
+    console.log('Book selected:', book.title);
+    setSelectedBook(book);
+    setShowDropdown(false);
+    Keyboard.dismiss();
+  };
+
+  const handleAddToLibrary = async () => {
+    if (!selectedBook) {
+      console.log('No book selected');
+      return;
+    }
+
     // Prevent duplicate additions
     if (isAddingBook) {
       console.log('Already adding a book - ignoring duplicate request');
@@ -111,15 +124,15 @@ export default function SearchBookScreen() {
       // Set flag to prevent duplicate additions
       setIsAddingBook(true);
       console.log('=== ADDING BOOK PROCESS STARTED ===');
-      console.log('Book title:', book.title);
-      console.log('Google Books ID:', book.googleBooksId);
+      console.log('Book title:', selectedBook.title);
+      console.log('Google Books ID:', selectedBook.googleBooksId);
 
       // STEP 1: Check if book exists in books_library database
       console.log('STEP 1: Checking if book exists in database...');
       let { data: existingBook, error: fetchError } = await supabase
         .from('books_library')
         .select('id, cover_url, thumbnail_url')
-        .eq('google_books_id', book.googleBooksId)
+        .eq('google_books_id', selectedBook.googleBooksId)
         .single();
 
       let bookId: string;
@@ -127,21 +140,21 @@ export default function SearchBookScreen() {
       if (fetchError && fetchError.code === 'PGRST116') {
         // STEP 2: Book not found in database - create new entry
         console.log('STEP 2: Book NOT found in database. Creating new entry...');
-        console.log('Cover URL:', book.coverUrl);
-        console.log('Thumbnail URL:', book.thumbnailUrl);
-        console.log('Source:', book.source);
+        console.log('Cover URL:', selectedBook.coverUrl);
+        console.log('Thumbnail URL:', selectedBook.thumbnailUrl);
+        console.log('Source:', selectedBook.source);
         
         const { data: newBook, error: insertError } = await supabase
           .from('books_library')
           .insert({
-            google_books_id: book.googleBooksId,
-            title: book.title,
-            authors: book.authors,
-            cover_url: book.coverUrl,
-            thumbnail_url: book.thumbnailUrl,
-            description: book.description,
-            published_date: book.publishedDate,
-            page_count: book.pageCount,
+            google_books_id: selectedBook.googleBooksId,
+            title: selectedBook.title,
+            authors: selectedBook.authors,
+            cover_url: selectedBook.coverUrl,
+            thumbnail_url: selectedBook.thumbnailUrl,
+            description: selectedBook.description,
+            published_date: selectedBook.publishedDate,
+            page_count: selectedBook.pageCount,
             source: 'google_books',
           })
           .select('id')
@@ -179,9 +192,7 @@ export default function SearchBookScreen() {
       if (existingUserBook) {
         console.log('User already has this book in their library');
         showToast('This book is already in your library.', 'info');
-        setSearchQuery('');
-        setShowDropdown(false);
-        Keyboard.dismiss();
+        setSelectedBook(null);
         setIsAddingBook(false);
         
         // Navigate back to books screen after a short delay
@@ -212,11 +223,6 @@ export default function SearchBookScreen() {
       console.log('Book added to user library successfully');
       console.log('=== ADDING BOOK PROCESS COMPLETED ===');
 
-      // Clear search
-      setSearchQuery('');
-      setShowDropdown(false);
-      Keyboard.dismiss();
-
       // Show success message
       showToast('Book added to your library!', 'success');
       
@@ -225,7 +231,7 @@ export default function SearchBookScreen() {
         router.back();
       }, 1500);
     } catch (error) {
-      console.error('Error in handleSelectBook:', error);
+      console.error('Error in handleAddToLibrary:', error);
       showToast('An unexpected error occurred. Please try again.', 'error');
     } finally {
       // Reset the flag after a short delay to prevent rapid re-additions
@@ -234,6 +240,15 @@ export default function SearchBookScreen() {
         setIsAddingBook(false);
       }, 2000);
     }
+  };
+
+  const handleSearchAgain = () => {
+    console.log('Search again clicked');
+    setSelectedBook(null);
+    setShowDropdown(searchResults.length > 0);
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 100);
   };
 
   const handleClearSearch = () => {
@@ -350,55 +365,133 @@ export default function SearchBookScreen() {
 
         <TouchableWithoutFeedback onPress={handleTapOutside}>
           <View style={styles.contentArea}>
-            {showDropdown && searchResults.length > 0 && (
+            {/* Selected Book Details */}
+            {selectedBook && (
+              <ScrollView 
+                style={styles.selectedBookContainer}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.selectedBookContent}
+              >
+                <View style={styles.selectedBookCard}>
+                  {/* Book Cover */}
+                  <View style={styles.selectedBookCoverContainer}>
+                    {selectedBook.coverUrl || selectedBook.thumbnailUrl ? (
+                      <Image
+                        source={{ uri: getFirstValidImageUrl([selectedBook.coverUrl, selectedBook.thumbnailUrl]) }}
+                        style={styles.selectedBookCover}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        priority="high"
+                        transition={300}
+                        onError={() => console.log('Selected book image error:', selectedBook.title)}
+                      />
+                    ) : (
+                      <View style={[styles.selectedBookCover, styles.selectedPlaceholderCover]}>
+                        <Text style={styles.selectedPlaceholderText} numberOfLines={3}>
+                          {selectedBook.title}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Book Info */}
+                  <View style={styles.selectedBookInfo}>
+                    <Text style={styles.selectedBookTitle}>{selectedBook.title}</Text>
+                    <Text style={styles.selectedBookAuthor}>{selectedBook.authors}</Text>
+                    
+                    {selectedBook.publishedDate && (
+                      <Text style={styles.selectedBookMeta}>
+                        Published: {selectedBook.publishedDate}
+                      </Text>
+                    )}
+                    
+                    {selectedBook.pageCount > 0 && (
+                      <Text style={styles.selectedBookMeta}>
+                        Pages: {selectedBook.pageCount}
+                      </Text>
+                    )}
+
+                    {selectedBook.description && (
+                      <View style={styles.descriptionContainer}>
+                        <Text style={styles.descriptionLabel}>Description:</Text>
+                        <Text style={styles.selectedBookDescription}>
+                          {selectedBook.description}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Action Buttons */}
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.addButton]}
+                      onPress={handleAddToLibrary}
+                      disabled={isAddingBook}
+                      activeOpacity={0.7}
+                    >
+                      {isAddingBook ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <IconSymbol
+                            ios_icon_name="plus.circle.fill"
+                            android_material_icon_name="add-circle"
+                            size={20}
+                            color="#FFFFFF"
+                          />
+                          <Text style={styles.addButtonText}>Add to Library</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.searchAgainButton]}
+                      onPress={handleSearchAgain}
+                      disabled={isAddingBook}
+                      activeOpacity={0.7}
+                    >
+                      <IconSymbol
+                        ios_icon_name="magnifyingglass"
+                        android_material_icon_name="search"
+                        size={20}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.searchAgainButtonText}>Search Again</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </ScrollView>
+            )}
+
+            {/* Search Results Dropdown */}
+            {!selectedBook && showDropdown && searchResults.length > 0 && (
               <ScrollView 
                 style={styles.dropdown}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
-                {searchResults.map((book, index) => {
-                  const imageUrl = getFirstValidImageUrl([book.thumbnailUrl, book.coverUrl]);
-                  return (
-                    <TouchableOpacity
-                      key={`${book.googleBooksId}-${index}`}
-                      style={styles.dropdownItem}
-                      onPress={() => handleSelectBook(book)}
-                      disabled={isAddingBook}
-                    >
-                      <View style={styles.bookCoverContainer}>
-                        {imageUrl ? (
-                          <Image
-                            source={{ uri: imageUrl }}
-                            style={styles.bookCoverSmall}
-                            contentFit="cover"
-                            cachePolicy="memory-disk"
-                            priority="high"
-                            transition={200}
-                            onError={() => console.log('Dropdown image error:', book.title)}
-                          />
-                        ) : (
-                          <View style={[styles.bookCoverSmall, styles.placeholderCover]}>
-                            <Text style={styles.placeholderText} numberOfLines={2}>
-                              {book.title}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      <View style={styles.bookInfo}>
-                        <Text style={styles.bookTitle} numberOfLines={2}>
-                          {book.title}
-                        </Text>
-                        <Text style={styles.bookAuthor} numberOfLines={1}>
-                          {book.authors}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
+                {searchResults.map((book, index) => (
+                  <TouchableOpacity
+                    key={`${book.googleBooksId}-${index}`}
+                    style={styles.dropdownItem}
+                    onPress={() => handleSelectBook(book)}
+                    disabled={isAddingBook}
+                  >
+                    <View style={styles.bookInfo}>
+                      <Text style={styles.bookTitle} numberOfLines={2}>
+                        {book.title}
+                      </Text>
+                      <Text style={styles.bookAuthor} numberOfLines={1}>
+                        {book.authors}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
               </ScrollView>
             )}
 
-            {!showDropdown && searchQuery.length === 0 && (
+            {/* Empty States */}
+            {!selectedBook && !showDropdown && searchQuery.length === 0 && (
               <View style={styles.emptyState}>
                 <IconSymbol
                   ios_icon_name="magnifyingglass"
@@ -413,7 +506,7 @@ export default function SearchBookScreen() {
               </View>
             )}
 
-            {!showDropdown && searchQuery.length > 0 && !isSearching && searchResults.length === 0 && (
+            {!selectedBook && !showDropdown && searchQuery.length > 0 && !isSearching && searchResults.length === 0 && (
               <View style={styles.emptyState}>
                 <IconSymbol
                   ios_icon_name="book.closed"
@@ -533,37 +626,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   dropdownItem: {
-    flexDirection: 'row',
-    padding: 12,
+    padding: 16,
     backgroundColor: colors.backgroundAlt,
     borderRadius: 16,
     marginBottom: 12,
-    alignItems: 'center',
-  },
-  bookCoverContainer: {
-    marginRight: 12,
-    backgroundColor: colors.background,
-    borderTopRightRadius: 16,
-    borderBottomRightRadius: 16,
-    overflow: 'hidden',
-  },
-  bookCoverSmall: {
-    width: 50,
-    height: 75,
-    borderTopRightRadius: 16,
-    borderBottomRightRadius: 16,
-  },
-  placeholderCover: {
-    backgroundColor: '#EDEDFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 4,
-  },
-  placeholderText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.primary,
-    textAlign: 'center',
   },
   bookInfo: {
     flex: 1,
@@ -577,6 +643,116 @@ const styles = StyleSheet.create({
   bookAuthor: {
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  selectedBookContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  selectedBookContent: {
+    paddingBottom: 40,
+  },
+  selectedBookCard: {
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+  },
+  selectedBookCoverContainer: {
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  selectedBookCover: {
+    width: 200,
+    height: 300,
+    borderRadius: 12,
+  },
+  selectedPlaceholderCover: {
+    backgroundColor: '#EDEDFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  selectedPlaceholderText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.primary,
+    textAlign: 'center',
+  },
+  selectedBookInfo: {
+    width: '100%',
+    marginBottom: 24,
+  },
+  selectedBookTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  selectedBookAuthor: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  selectedBookMeta: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  descriptionContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.background,
+  },
+  descriptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  selectedBookDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  actionButtons: {
+    width: '100%',
+    gap: 12,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    gap: 8,
+  },
+  addButton: {
+    backgroundColor: colors.primary,
+  },
+  addButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  searchAgainButton: {
+    backgroundColor: colors.background,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  searchAgainButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
   },
   emptyState: {
     flex: 1,
