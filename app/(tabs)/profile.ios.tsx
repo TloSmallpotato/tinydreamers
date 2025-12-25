@@ -11,6 +11,7 @@ import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
 import SettingsBottomSheet from '@/components/SettingsBottomSheet';
+import RevenueCatDiagnostics from '@/components/RevenueCatDiagnostics';
 
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 import ProfileAvatar from '@/components/ProfileAvatar';
@@ -61,7 +62,7 @@ export default function ProfileScreen() {
   const addChildRef = useRef<BottomSheetModal>(null);
   const settingsRef = useRef<BottomSheetModal>(null);
 
-
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [stats, setStats] = useState<ProfileStats>({
     totalWords: 0,
     totalBooks: 0,
@@ -679,6 +680,27 @@ export default function ProfileScreen() {
 
           <SubscriptionStatusCard />
 
+          {/* RevenueCat Diagnostics - Toggle visibility */}
+          <TouchableOpacity 
+            style={styles.diagnosticsToggle}
+            onPress={() => {
+              HapticFeedback.light();
+              setShowDiagnostics(!showDiagnostics);
+            }}
+          >
+            <IconSymbol
+              ios_icon_name={showDiagnostics ? "chevron.up" : "chevron.down"}
+              android_material_icon_name={showDiagnostics ? "expand-less" : "expand-more"}
+              size={20}
+              color={colors.buttonBlue}
+            />
+            <Text style={styles.diagnosticsToggleText}>
+              {showDiagnostics ? 'Hide' : 'Show'} RevenueCat Diagnostics
+            </Text>
+          </TouchableOpacity>
+
+          {showDiagnostics && <RevenueCatDiagnostics />}
+
           {stats.newWordsThisWeek > 0 && (
             <View style={styles.achievementBanner}>
               <IconSymbol 
@@ -978,6 +1000,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
     marginTop: 4,
+  },
+  diagnosticsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  diagnosticsToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.buttonBlue,
   },
   achievementBanner: {
     backgroundColor: colors.cardPurple,
