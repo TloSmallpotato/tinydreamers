@@ -47,6 +47,12 @@ const DAILY_REMINDER_MESSAGES = [
  */
 export async function requestNotificationPermissions(): Promise<boolean> {
   try {
+    // Skip on web
+    if (Platform.OS === 'web') {
+      console.log('Notifications are not supported on web');
+      return false;
+    }
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
@@ -69,6 +75,14 @@ export async function requestNotificationPermissions(): Promise<boolean> {
         sound: 'default',
         description: 'Daily reminders to log your child\'s moments',
       });
+
+      // Create a default channel as well
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Default',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        vibrationPattern: [0, 250, 250, 250],
+        sound: 'default',
+      });
     }
 
     console.log('Notification permissions granted');
@@ -85,6 +99,12 @@ export async function requestNotificationPermissions(): Promise<boolean> {
  */
 export async function registerForPushNotifications(): Promise<string | null> {
   try {
+    // Skip on web
+    if (Platform.OS === 'web') {
+      console.log('Push notifications are not supported on web');
+      return null;
+    }
+
     if (!Device.isDevice) {
       console.log('Push notifications require a physical device');
       return null;
@@ -93,6 +113,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
     // Request permissions first
     const hasPermission = await requestNotificationPermissions();
     if (!hasPermission) {
+      console.log('Cannot register for push notifications without permissions');
       return null;
     }
 
@@ -100,8 +121,9 @@ export async function registerForPushNotifications(): Promise<string | null> {
     const projectId = Constants?.expoConfig?.extra?.eas?.projectId;
     
     if (!projectId) {
-      console.warn('EAS Project ID not found. Add it to app.json under expo.extra.eas.projectId');
-      console.warn('You can find your project ID at: https://expo.dev/accounts/[account]/projects/[project]/settings');
+      console.warn('⚠️ EAS Project ID not found!');
+      console.warn('Add it to app.json under expo.extra.eas.projectId');
+      console.warn('You can find your project ID at: https://expo.dev');
       return null;
     }
 
@@ -110,10 +132,10 @@ export async function registerForPushNotifications(): Promise<string | null> {
       projectId,
     });
 
-    console.log('Expo Push Token:', tokenData.data);
+    console.log('✅ Expo Push Token obtained:', tokenData.data);
     return tokenData.data;
   } catch (error) {
-    console.error('Error registering for push notifications:', error);
+    console.error('❌ Error registering for push notifications:', error);
     return null;
   }
 }
@@ -125,6 +147,12 @@ export async function registerForPushNotifications(): Promise<string | null> {
  */
 export async function scheduleDailyReminder(hour: number = 9, minute: number = 0): Promise<string | null> {
   try {
+    // Skip on web
+    if (Platform.OS === 'web') {
+      console.log('Notifications are not supported on web');
+      return null;
+    }
+
     // Cancel any existing daily reminders first
     await cancelDailyReminder();
 
@@ -145,6 +173,9 @@ export async function scheduleDailyReminder(hour: number = 9, minute: number = 0
         body: message.body,
         sound: 'default',
         data: { type: 'daily-reminder' },
+        ...(Platform.OS === 'android' && {
+          channelId: 'daily-reminders',
+        }),
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
@@ -154,12 +185,12 @@ export async function scheduleDailyReminder(hour: number = 9, minute: number = 0
       },
     });
 
-    console.log(`Daily reminder scheduled for ${hour}:${minute.toString().padStart(2, '0')}`);
+    console.log(`✅ Daily reminder scheduled for ${hour}:${minute.toString().padStart(2, '0')}`);
     console.log('Notification identifier:', identifier);
     
     return identifier;
   } catch (error) {
-    console.error('Error scheduling daily reminder:', error);
+    console.error('❌ Error scheduling daily reminder:', error);
     return null;
   }
 }
@@ -169,6 +200,11 @@ export async function scheduleDailyReminder(hour: number = 9, minute: number = 0
  */
 export async function cancelDailyReminder(): Promise<void> {
   try {
+    // Skip on web
+    if (Platform.OS === 'web') {
+      return;
+    }
+
     // Get all scheduled notifications
     const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
     
@@ -176,11 +212,11 @@ export async function cancelDailyReminder(): Promise<void> {
     for (const notification of scheduledNotifications) {
       if (notification.content.data?.type === 'daily-reminder') {
         await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-        console.log('Cancelled daily reminder:', notification.identifier);
+        console.log('✅ Cancelled daily reminder:', notification.identifier);
       }
     }
   } catch (error) {
-    console.error('Error cancelling daily reminder:', error);
+    console.error('❌ Error cancelling daily reminder:', error);
   }
 }
 
@@ -189,12 +225,17 @@ export async function cancelDailyReminder(): Promise<void> {
  */
 export async function isDailyReminderScheduled(): Promise<boolean> {
   try {
+    // Skip on web
+    if (Platform.OS === 'web') {
+      return false;
+    }
+
     const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
     return scheduledNotifications.some(
       notification => notification.content.data?.type === 'daily-reminder'
     );
   } catch (error) {
-    console.error('Error checking daily reminder status:', error);
+    console.error('❌ Error checking daily reminder status:', error);
     return false;
   }
 }
@@ -204,6 +245,11 @@ export async function isDailyReminderScheduled(): Promise<boolean> {
  */
 export async function getNextReminderTime(): Promise<Date | null> {
   try {
+    // Skip on web
+    if (Platform.OS === 'web') {
+      return null;
+    }
+
     const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
     const dailyReminder = scheduledNotifications.find(
       notification => notification.content.data?.type === 'daily-reminder'
@@ -228,7 +274,7 @@ export async function getNextReminderTime(): Promise<Date | null> {
 
     return null;
   } catch (error) {
-    console.error('Error getting next reminder time:', error);
+    console.error('❌ Error getting next reminder time:', error);
     return null;
   }
 }
@@ -238,6 +284,12 @@ export async function getNextReminderTime(): Promise<Date | null> {
  */
 export async function sendTestNotification(): Promise<void> {
   try {
+    // Skip on web
+    if (Platform.OS === 'web') {
+      console.log('Notifications are not supported on web');
+      return;
+    }
+
     const hasPermission = await requestNotificationPermissions();
     if (!hasPermission) {
       console.log('Cannot send test notification without permissions');
@@ -248,16 +300,58 @@ export async function sendTestNotification(): Promise<void> {
 
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: message.title,
+        title: '🧪 Test Notification',
         body: message.body,
         sound: 'default',
         data: { type: 'test' },
+        ...(Platform.OS === 'android' && {
+          channelId: 'default',
+        }),
       },
       trigger: null, // null means send immediately
     });
 
-    console.log('Test notification sent');
+    console.log('✅ Test notification sent');
   } catch (error) {
-    console.error('Error sending test notification:', error);
+    console.error('❌ Error sending test notification:', error);
+  }
+}
+
+/**
+ * Get all scheduled notifications (for debugging)
+ */
+export async function getAllScheduledNotifications(): Promise<Notifications.NotificationRequest[]> {
+  try {
+    // Skip on web
+    if (Platform.OS === 'web') {
+      return [];
+    }
+
+    const notifications = await Notifications.getAllScheduledNotificationsAsync();
+    console.log('📋 Scheduled notifications:', notifications.length);
+    notifications.forEach((notif, index) => {
+      console.log(`  ${index + 1}. ${notif.content.title} - ${notif.identifier}`);
+    });
+    return notifications;
+  } catch (error) {
+    console.error('❌ Error getting scheduled notifications:', error);
+    return [];
+  }
+}
+
+/**
+ * Cancel all scheduled notifications
+ */
+export async function cancelAllNotifications(): Promise<void> {
+  try {
+    // Skip on web
+    if (Platform.OS === 'web') {
+      return;
+    }
+
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    console.log('✅ All notifications cancelled');
+  } catch (error) {
+    console.error('❌ Error cancelling all notifications:', error);
   }
 }
