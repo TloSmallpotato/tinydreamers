@@ -38,9 +38,9 @@ const tabs: TabItem[] = [
   {
     name: 'books',
     label: 'Books',
-    iosIcon: 'book.fill',
-    androidIcon: 'menu-book',
-    materialIcon: 'menu-book',
+    iosIcon: 'bookmark.fill',
+    androidIcon: 'bookmark',
+    materialIcon: 'bookmark',
     iconDefault: require('@/assets/images/40292f0c-5084-4da7-ab7e-20e42bbb8555.png'),
     iconSelected: require('@/assets/images/58340aa2-f3e0-47ef-8440-bd682c04475d.png'),
   },
