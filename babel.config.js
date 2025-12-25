@@ -1,9 +1,15 @@
+
 module.exports = function (api) {
   api.cache(true);
 
+  // Disable editable components on web to prevent hot reload loops
+  const platform = process.env.EXPO_PLATFORM || process.env.PLATFORM;
+  const isWeb = platform === 'web';
+  
   const EDITABLE_COMPONENTS =
     process.env.EXPO_PUBLIC_ENABLE_EDIT_MODE === "TRUE" &&
-    process.env.NODE_ENV === "development"
+    process.env.NODE_ENV === "development" &&
+    !isWeb // Disable on web to prevent reload loops
       ? [
           ["./babel-plugins/editable-elements.js", {}],
           ["./babel-plugins/inject-source-location.js", {}],
