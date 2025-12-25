@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "TinyDreamers",
@@ -80,7 +81,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "YOUR_EAS_PROJECT_ID_HERE"
+        "projectId": "3e6ce51d-1a8a-4662-a934-565586a23105"
       }
     }
   },
