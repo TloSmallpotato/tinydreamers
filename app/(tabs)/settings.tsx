@@ -1,22 +1,19 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChild } from '@/contexts/ChildContext';
 import { HapticFeedback } from '@/utils/haptics';
-import NotificationSettingsBottomSheet from '@/components/NotificationSettingsBottomSheet';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
   const { selectedChild, updateChild } = useChild();
-  const notificationSheetRef = useRef<BottomSheetModal>(null);
 
   const [childName, setChildName] = useState('');
   const [birthDate, setBirthDate] = useState(new Date());
@@ -50,11 +47,6 @@ export default function SettingsScreen() {
       HapticFeedback.error();
       Alert.alert('Error', 'Failed to update child information');
     }
-  };
-
-  const handleNotificationSettings = () => {
-    HapticFeedback.medium();
-    notificationSheetRef.current?.present();
   };
 
   const handleExportData = async () => {
@@ -229,28 +221,6 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Preferences</Text>
-
-            <TouchableOpacity style={styles.menuItem} onPress={handleNotificationSettings}>
-              <View style={styles.menuItemLeft}>
-                <IconSymbol
-                  ios_icon_name="bell.fill"
-                  android_material_icon_name="notifications"
-                  size={20}
-                  color={colors.primary}
-                />
-                <Text style={styles.menuItemText}>Notifications</Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron-right"
-                size={20}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.section}>
             <Text style={styles.sectionTitle}>Data & Privacy</Text>
 
             <TouchableOpacity style={styles.menuItem} onPress={handleExportData}>
@@ -321,8 +291,6 @@ export default function SettingsScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
-
-      <NotificationSettingsBottomSheet bottomSheetRef={notificationSheetRef} />
     </View>
   );
 }

@@ -1,4 +1,3 @@
-
 {
   "expo": {
     "name": "TinyDreamers",
@@ -31,8 +30,7 @@
       "package": "com.anonymous.Natively",
       "permissions": [
         "CAMERA",
-        "RECORD_AUDIO",
-        "POST_NOTIFICATIONS"
+        "RECORD_AUDIO"
       ]
     },
     "web": {
@@ -64,15 +62,6 @@
         {
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos and videos to upload moments."
         }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/3e1ea99a-f17a-42c3-b801-1361ce0bce92.png",
-          "color": "#E8B4D9",
-          "defaultChannel": "default",
-          "sounds": []
-        }
       ]
     ],
     "scheme": "natively",
@@ -80,10 +69,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "your-eas-project-id"
-      }
+      "router": {}
     }
   },
   "scheme": "TinyDreamers"
