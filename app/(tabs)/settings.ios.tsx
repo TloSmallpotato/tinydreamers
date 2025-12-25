@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
@@ -9,11 +9,14 @@ import { HapticFeedback } from '@/utils/haptics';
 import SubscriptionStatusCard from '@/components/SubscriptionStatusCard';
 import RevenueCatDiagnostics from '@/components/RevenueCatDiagnostics';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import NotificationSettingsBottomSheet from '@/components/NotificationSettingsBottomSheet';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
   const { restorePurchases } = useSubscription();
+  const notificationBottomSheetRef = useRef<BottomSheetModal>(null);
 
   const handleSignOut = async () => {
     HapticFeedback.medium();
@@ -47,6 +50,11 @@ export default function SettingsScreen() {
     await restorePurchases();
   };
 
+  const handleOpenNotifications = () => {
+    HapticFeedback.light();
+    notificationBottomSheetRef.current?.present();
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -59,6 +67,28 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <SubscriptionStatusCard />
+
+        <TouchableOpacity 
+          style={styles.menuItem} 
+          onPress={handleOpenNotifications}
+          activeOpacity={0.7}
+        >
+          <View style={styles.menuItemLeft}>
+            <IconSymbol
+              ios_icon_name="bell.fill"
+              android_material_icon_name="notifications"
+              size={24}
+              color={colors.buttonBlue}
+            />
+            <Text style={styles.menuItemText}>Daily Reminders</Text>
+          </View>
+          <IconSymbol
+            ios_icon_name="chevron.right"
+            android_material_icon_name="chevron-right"
+            size={20}
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
 
         <TouchableOpacity 
           style={styles.menuItem} 
@@ -100,6 +130,8 @@ export default function SettingsScreen() {
           </View>
         </TouchableOpacity>
       </ScrollView>
+
+      <NotificationSettingsBottomSheet bottomSheetRef={notificationBottomSheetRef} />
     </View>
   );
 }
