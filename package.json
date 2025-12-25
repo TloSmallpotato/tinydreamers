@@ -1,10 +1,9 @@
-
 {
   "name": "Natively",
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "dev": "EXPO_NO_TELEMETRY=1 expo start",
+    "dev": "EXPO_NO_TELEMETRY=1 expo start --tunnel",
     "android": "EXPO_NO_TELEMETRY=1 expo start --android",
     "ios": "EXPO_NO_TELEMETRY=1 expo start --ios",
     "web": "EXPO_NO_TELEMETRY=1 expo start --web",
@@ -31,6 +30,7 @@
     "@types/difflib": "^0.2.7",
     "base64-arraybuffer": "^1.0.2",
     "difflib": "^0.2.4",
+    "eas": "^0.1.0",
     "expo": "~54.0.1",
     "expo-av": "^16.0.7",
     "expo-blur": "^15.0.6",

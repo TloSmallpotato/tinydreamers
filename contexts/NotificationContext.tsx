@@ -2,7 +2,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
-import { Platform } from 'react-native';
 import {
   requestNotificationPermissions,
   registerForPushNotifications,
@@ -44,12 +43,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   // Set up notification listeners
   useEffect(() => {
-    // Only set up notification listeners on native platforms
-    if (Platform.OS === 'web') {
-      console.log('Notifications are not supported on web');
-      return;
-    }
-
     // Listen for notifications received while app is in foreground
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       console.log('Notification received:', notification);
@@ -68,19 +61,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     });
 
     // Check if app was opened from a notification
-    // Only call this on native platforms
-    if (Notifications.getLastNotificationResponseAsync) {
-      Notifications.getLastNotificationResponseAsync().then(response => {
-        if (response?.notification) {
-          const data = response.notification.request.content.data;
-          if (data?.type === 'daily-reminder') {
-            router.push('/(tabs)/(home)');
-          }
+    Notifications.getLastNotificationResponseAsync().then(response => {
+      if (response?.notification) {
+        const data = response.notification.request.content.data;
+        if (data?.type === 'daily-reminder') {
+          router.push('/(tabs)/(home)');
         }
-      }).catch(error => {
-        console.error('Error getting last notification response:', error);
-      });
-    }
+      }
+    });
 
     return () => {
       if (notificationListener.current) {
@@ -93,11 +81,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const checkPermissionStatus = async () => {
-    // Skip on web
-    if (Platform.OS === 'web') {
-      return;
-    }
-
     try {
       const { status } = await Notifications.getPermissionsAsync();
       setHasPermission(status === 'granted');
@@ -107,11 +90,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   };
 
   const checkReminderStatus = async () => {
-    // Skip on web
-    if (Platform.OS === 'web') {
-      return;
-    }
-
     try {
       const isScheduled = await isDailyReminderScheduled();
       setIsReminderScheduled(isScheduled);
@@ -128,12 +106,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   };
 
   const requestPermissions = async (): Promise<boolean> => {
-    // Skip on web
-    if (Platform.OS === 'web') {
-      console.log('Notifications are not supported on web');
-      return false;
-    }
-
     const granted = await requestNotificationPermissions();
     setHasPermission(granted);
     
@@ -147,12 +119,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   };
 
   const scheduleReminder = async (hour: number, minute: number): Promise<boolean> => {
-    // Skip on web
-    if (Platform.OS === 'web') {
-      console.log('Notifications are not supported on web');
-      return false;
-    }
-
     const identifier = await scheduleDailyReminder(hour, minute);
     const success = identifier !== null;
     
@@ -164,31 +130,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   };
 
   const cancelReminder = async (): Promise<void> => {
-    // Skip on web
-    if (Platform.OS === 'web') {
-      return;
-    }
-
     await cancelDailyReminder();
     await checkReminderStatus();
   };
 
   const sendTest = async (): Promise<void> => {
-    // Skip on web
-    if (Platform.OS === 'web') {
-      console.log('Notifications are not supported on web');
-      return;
-    }
-
     await sendTestNotification();
   };
 
   const refreshReminderStatus = async (): Promise<void> => {
-    // Skip on web
-    if (Platform.OS === 'web') {
-      return;
-    }
-
     await checkReminderStatus();
   };
 
