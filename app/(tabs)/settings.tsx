@@ -1,22 +1,96 @@
 
-import React, { useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Linking } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
+import { useChild } from '@/contexts/ChildContext';
 import { HapticFeedback } from '@/utils/haptics';
-import SubscriptionStatusCard from '@/components/SubscriptionStatusCard';
-import RevenueCatDiagnostics from '@/components/RevenueCatDiagnostics';
-import { useSubscription } from '@/contexts/SubscriptionContext';
-import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import NotificationSettingsBottomSheet from '@/components/NotificationSettingsBottomSheet';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { signOut } = useAuth();
-  const { restorePurchases } = useSubscription();
-  const notificationBottomSheetRef = useRef<BottomSheetModal>(null);
+  const { user, signOut } = useAuth();
+  const { selectedChild, updateChild } = useChild();
+
+  const [childName, setChildName] = useState('');
+  const [birthDate, setBirthDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    console.log('Settings screen mounted');
+    if (selectedChild) {
+      setChildName(selectedChild.name);
+      setBirthDate(new Date(selectedChild.birth_date));
+    }
+    if (user?.email) {
+      setEmail(user.email);
+    }
+  }, [selectedChild, user]);
+
+  const handleSave = async () => {
+    if (!selectedChild) return;
+
+    HapticFeedback.medium();
+    try {
+      await updateChild(selectedChild.id, {
+        name: childName,
+        birth_date: birthDate.toISOString().split('T')[0],
+      });
+      HapticFeedback.success();
+      Alert.alert('Success', 'Child information updated successfully');
+    } catch (error) {
+      console.error('Error updating child:', error);
+      HapticFeedback.error();
+      Alert.alert('Error', 'Failed to update child information');
+    }
+  };
+
+  const handleExportData = async () => {
+    HapticFeedback.medium();
+    Alert.alert(
+      'Export Data',
+      'This feature will export all your data including books, words, and moments. Coming soon!',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handlePrivacyPolicy = () => {
+    HapticFeedback.medium();
+    Alert.alert(
+      'Privacy Policy',
+      'Opening Privacy Policy...',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Open',
+          onPress: () => {
+            Linking.openURL('https://example.com/privacy-policy');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleTermsAndConditions = () => {
+    HapticFeedback.medium();
+    Alert.alert(
+      'Terms & Conditions',
+      'Opening Terms & Conditions...',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Open',
+          onPress: () => {
+            Linking.openURL('https://example.com/terms-and-conditions');
+          },
+        },
+      ]
+    );
+  };
 
   const handleSignOut = async () => {
     HapticFeedback.medium();
@@ -24,120 +98,199 @@ export default function SettingsScreen() {
       'Sign Out',
       'Are you sure you want to sign out?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
-            try {
-              await signOut();
-              router.replace('/(auth)/login');
-            } catch (error) {
-              console.error('Error signing out:', error);
-              Alert.alert('Error', 'Failed to sign out. Please try again.');
-            }
+            HapticFeedback.medium();
+            await signOut();
+            router.replace('/(auth)/login');
           },
         },
       ]
     );
   };
 
-  const handleRestorePurchases = async () => {
-    HapticFeedback.medium();
-    await restorePurchases();
-  };
-
-  const handleOpenNotifications = () => {
-    HapticFeedback.light();
-    notificationBottomSheetRef.current?.present();
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
-      </View>
-
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <SubscriptionStatusCard />
-
-        {Platform.OS !== 'web' && (
-          <>
-            <TouchableOpacity 
-              style={styles.menuItem} 
-              onPress={handleOpenNotifications}
-              activeOpacity={0.7}
-            >
-              <View style={styles.menuItemLeft}>
-                <IconSymbol
-                  ios_icon_name="bell.fill"
-                  android_material_icon_name="notifications"
-                  size={24}
-                  color={colors.buttonBlue}
-                />
-                <Text style={styles.menuItemText}>Daily Reminders</Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron-right"
-                size={20}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.menuItem} 
-              onPress={handleRestorePurchases}
-              activeOpacity={0.7}
-            >
-              <View style={styles.menuItemLeft}>
-                <IconSymbol
-                  ios_icon_name="arrow.clockwise.circle.fill"
-                  android_material_icon_name="restore"
-                  size={24}
-                  color={colors.buttonBlue}
-                />
-                <Text style={styles.menuItemText}>Restore Purchases</Text>
-              </View>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron-right"
-                size={20}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
-          </>
-        )}
-
-        <RevenueCatDiagnostics />
-
-        <TouchableOpacity 
-          style={[styles.menuItem, styles.signOutButton]} 
-          onPress={handleSignOut}
-          activeOpacity={0.7}
-        >
-          <View style={styles.menuItemLeft}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            onPress={() => {
+              HapticFeedback.light();
+              router.back();
+            }} 
+            style={styles.backButton}
+          >
             <IconSymbol
-              ios_icon_name="rectangle.portrait.and.arrow.right"
-              android_material_icon_name="logout"
+              ios_icon_name="chevron.left"
+              android_material_icon_name="arrow-back"
               size={24}
-              color={colors.secondary}
+              color={colors.primary}
             />
-            <Text style={[styles.menuItemText, styles.signOutText]}>Sign Out</Text>
-          </View>
-        </TouchableOpacity>
-      </ScrollView>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <View style={styles.placeholder} />
+        </View>
 
-      {Platform.OS !== 'web' && (
-        <NotificationSettingsBottomSheet bottomSheetRef={notificationBottomSheetRef} />
-      )}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {selectedChild && (
+            <>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Child Information</Text>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={childName}
+                    onChangeText={setChildName}
+                    placeholder="Enter child's name"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Birth Date</Text>
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    onPress={() => {
+                      HapticFeedback.light();
+                      setShowDatePicker(true);
+                    }}
+                  >
+                    <Text style={styles.dateButtonText}>{formatDate(birthDate)}</Text>
+                    <IconSymbol
+                      ios_icon_name="calendar"
+                      android_material_icon_name="calendar-today"
+                      size={20}
+                      color={colors.primary}
+                    />
+                  </TouchableOpacity>
+
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={birthDate}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={(event, selectedDate) => {
+                        setShowDatePicker(Platform.OS === 'ios');
+                        if (selectedDate) {
+                          HapticFeedback.selection();
+                          setBirthDate(selectedDate);
+                        }
+                      }}
+                      maximumDate={new Date()}
+                    />
+                  )}
+                </View>
+
+                <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Account Information</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={[styles.input, styles.inputDisabled]}
+                value={email}
+                editable={false}
+                placeholderTextColor={colors.textSecondary}
+              />
+              <Text style={styles.helperText}>Email cannot be changed</Text>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Data & Privacy</Text>
+
+            <TouchableOpacity style={styles.menuItem} onPress={handleExportData}>
+              <View style={styles.menuItemLeft}>
+                <IconSymbol
+                  ios_icon_name="square.and.arrow.up"
+                  android_material_icon_name="file-download"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.menuItemText}>Export Data</Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={handlePrivacyPolicy}>
+              <View style={styles.menuItemLeft}>
+                <IconSymbol
+                  ios_icon_name="lock.shield"
+                  android_material_icon_name="privacy-tip"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.menuItemText}>Privacy Policy</Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={handleTermsAndConditions}>
+              <View style={styles.menuItemLeft}>
+                <IconSymbol
+                  ios_icon_name="doc.text"
+                  android_material_icon_name="description"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.menuItemText}>Terms & Conditions</Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.section}>
+            <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+              <IconSymbol
+                ios_icon_name="arrow.right.square"
+                android_material_icon_name="logout"
+                size={20}
+                color={colors.backgroundAlt}
+              />
+              <Text style={styles.signOutButtonText}>Sign Out</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </View>
   );
 }
@@ -147,34 +300,110 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-    backgroundColor: colors.background,
+  safeArea: {
+    flex: 1,
   },
-  title: {
-    fontSize: 34,
-    fontWeight: '800',
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: colors.backgroundAlt,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.background,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
     color: colors.primary,
+  },
+  placeholder: {
+    width: 40,
   },
   scrollView: {
     flex: 1,
   },
-  scrollContent: {
+  contentContainer: {
     padding: 20,
-    paddingBottom: 120,
+    paddingTop: Platform.OS === 'android' ? 48 : 20,
+    paddingBottom: 40,
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.primary,
+    marginBottom: 16,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.background,
+  },
+  inputDisabled: {
+    opacity: 0.6,
+  },
+  helperText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  dateButton: {
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.background,
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: colors.primary,
+  },
+  saveButton: {
+    backgroundColor: colors.buttonBlue,
+    borderRadius: 24,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
   },
   menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: colors.backgroundAlt,
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)',
-    elevation: 2,
   },
   menuItemLeft: {
     flexDirection: 'row',
@@ -187,9 +416,17 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   signOutButton: {
-    marginTop: 24,
+    backgroundColor: colors.secondary,
+    borderRadius: 24,
+    paddingVertical: 16,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
-  signOutText: {
-    color: colors.secondary,
+  signOutButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
   },
 });

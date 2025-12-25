@@ -62,15 +62,6 @@
         {
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos and videos to upload moments."
         }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/3e1ea99a-f17a-42c3-b801-1361ce0bce92.png",
-          "color": "#E8B4D9",
-          "sounds": [],
-          "enableBackgroundRemoteNotifications": false
-        }
       ]
     ],
     "scheme": "natively",
@@ -78,10 +69,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "3e6ce51d-1a8a-4662-a934-565586a23105"
-      }
+      "router": {}
     }
   },
   "scheme": "TinyDreamers"
