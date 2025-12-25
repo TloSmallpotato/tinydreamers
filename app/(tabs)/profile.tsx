@@ -248,7 +248,7 @@ export default function ProfileScreen() {
       });
       setMoments([]);
     }
-  }, [selectedChild?.id, childLoading, fetchProfileData]);
+  }, [selectedChild, childLoading, fetchProfileData]);
 
   // Pull to refresh handler
   const onRefresh = useCallback(async () => {
