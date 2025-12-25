@@ -21,7 +21,6 @@ import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/ut
 import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { HapticFeedback } from '@/utils/haptics';
-import * as Notifications from 'expo-notifications';
 
 interface ProfileStats {
   totalWords: number;
@@ -593,79 +592,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleSendInstantNotification = async () => {
-    try {
-      console.log('ProfileScreen (iOS): Sending instant test notification...');
-      HapticFeedback.medium();
-
-      // Request permissions first
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please enable notifications to test this feature');
-        return;
-      }
-
-      // Send instant notification
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '🧪 Instant Test Notification',
-          body: 'This notification was sent instantly!',
-          sound: 'default',
-          data: { type: 'test-instant' },
-        },
-        trigger: null, // null means send immediately
-      });
-
-      console.log('ProfileScreen (iOS): ✅ Instant notification sent');
-      HapticFeedback.success();
-      Alert.alert('Success', 'Instant notification sent! Check your notification tray.');
-    } catch (err) {
-      console.error('ProfileScreen (iOS): Error sending instant notification:', err);
-      HapticFeedback.error();
-      Alert.alert('Error', 'Failed to send notification. Please try again.');
-    }
-  };
-
-  const handleSendDelayedNotification = async () => {
-    try {
-      console.log('ProfileScreen (iOS): Scheduling notification for 5 seconds...');
-      HapticFeedback.medium();
-
-      // Request permissions first
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please enable notifications to test this feature');
-        return;
-      }
-
-      // Schedule notification for 5 seconds from now
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '⏰ Delayed Test Notification',
-          body: 'This notification was scheduled 5 seconds ago! Close the app to test background delivery.',
-          sound: 'default',
-          data: { type: 'test-delayed' },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: 5,
-        },
-      });
-
-      console.log('ProfileScreen (iOS): ✅ Notification scheduled for 5 seconds');
-      HapticFeedback.success();
-      Alert.alert(
-        'Scheduled!',
-        'Notification will arrive in 5 seconds. You can close or minimize the app to test background delivery.',
-        [{ text: 'OK' }]
-      );
-    } catch (err) {
-      console.error('ProfileScreen (iOS): Error scheduling delayed notification:', err);
-      HapticFeedback.error();
-      Alert.alert('Error', 'Failed to schedule notification. Please try again.');
-    }
-  };
-
   if (childLoading || loading) {
     return (
       <View style={styles.container}>
@@ -752,37 +678,6 @@ export default function ProfileScreen() {
           </View>
 
           <SubscriptionStatusCard />
-
-          <View style={styles.notificationTestSection}>
-            <Text style={styles.sectionTitle}>Push Notification Tests</Text>
-            <TouchableOpacity 
-              style={styles.notificationButton} 
-              onPress={handleSendInstantNotification}
-            >
-              <IconSymbol 
-                ios_icon_name="bell.fill" 
-                android_material_icon_name="notifications" 
-                size={20} 
-                color={colors.backgroundAlt} 
-              />
-              <Text style={styles.notificationButtonText}>Send Instant Notification</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.notificationButton, styles.notificationButtonSecondary]} 
-              onPress={handleSendDelayedNotification}
-            >
-              <IconSymbol 
-                ios_icon_name="clock.fill" 
-                android_material_icon_name="schedule" 
-                size={20} 
-                color={colors.backgroundAlt} 
-              />
-              <Text style={styles.notificationButtonText}>Send in 5 Seconds</Text>
-            </TouchableOpacity>
-            <Text style={styles.notificationHint}>
-              Use the 5-second delay to test notifications when the app is closed or in the background.
-            </Text>
-          </View>
 
           {stats.newWordsThisWeek > 0 && (
             <View style={styles.achievementBanner}>
@@ -1083,40 +978,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
     marginTop: 4,
-  },
-  notificationTestSection: {
-    marginBottom: 24,
-  },
-  notificationButton: {
-    backgroundColor: colors.buttonBlue,
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  notificationButtonSecondary: {
-    backgroundColor: colors.secondary,
-  },
-  notificationButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.backgroundAlt,
-  },
-  notificationHint: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 16,
   },
   achievementBanner: {
     backgroundColor: colors.cardPurple,
