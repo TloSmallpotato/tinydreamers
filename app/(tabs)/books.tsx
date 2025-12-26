@@ -347,12 +347,26 @@ export default function BooksScreen() {
     }
   }, [selectedChild, generateSignedUrl]);
 
-  // Refresh books list when screen comes into focus
+  // Initial load only - fetch books when component mounts or child changes
+  useEffect(() => {
+    console.log('📚 Initial load - fetching books for child:', selectedChild?.id);
+    fetchSavedBooks();
+  }, [selectedChild?.id]);
+
+  // Handle bookAdded parameter - ONLY refresh when coming back from adding a book
   useFocusEffect(
     useCallback(() => {
-      console.log('📚 Books screen focused - refreshing books list');
-      fetchSavedBooks();
-    }, [fetchSavedBooks])
+      const bookAdded = params.bookAdded;
+      console.log('📚 useFocusEffect - bookAdded:', bookAdded);
+      
+      if (bookAdded === 'true') {
+        console.log('📚 Book was added - refreshing books list');
+        // Clear the parameter
+        router.replace('/(tabs)/books');
+        // Refresh the books list
+        fetchSavedBooks();
+      }
+    }, [params.bookAdded, router, fetchSavedBooks])
   );
 
   // Pull to refresh handler

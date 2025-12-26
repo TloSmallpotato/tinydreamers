@@ -154,12 +154,11 @@ export default function WordsScreen() {
     }
   }, [selectedChild]);
 
-  useFocusEffect(
-    useCallback(() => {
-      console.log('📝 Words screen focused - refreshing words list');
-      fetchWords();
-    }, [fetchWords])
-  );
+  // Initial load only - fetch words when component mounts or child changes
+  useEffect(() => {
+    console.log('📝 Initial load - fetching words for child:', selectedChild?.id);
+    fetchWords();
+  }, [selectedChild?.id]);
 
   // Pull to refresh handler
   const onRefresh = useCallback(async () => {
