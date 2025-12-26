@@ -11,6 +11,7 @@ import {
   Keyboard,
   Alert,
   Animated,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -19,6 +20,8 @@ import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useAddNavigation } from '@/contexts/AddNavigationContext';
+import { useStats } from '@/contexts/StatsContext';
+import { useProfileStats } from '@/contexts/ProfileStatsContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { searchGoogleBooks, searchBookByISBN, BookSearchResult, getQuotaStatus } from '@/utils/googleBooksApi';
 import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
@@ -75,6 +78,8 @@ const Bookmark = () => (
 export default function BooksScreen() {
   const { selectedChild } = useChild();
   const { shouldFocusBookSearch, resetBookSearch } = useAddNavigation();
+  const { refreshStats } = useStats();
+  const { fetchProfileStats } = useProfileStats();
   const params = useLocalSearchParams();
   const router = useRouter();
   const [savedBooks, setSavedBooks] = useState<SavedBook[]>([]);
@@ -93,6 +98,7 @@ export default function BooksScreen() {
   const [notFoundISBN, setNotFoundISBN] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   
   const bookDetailRef = useRef<BottomSheetModal>(null);
   const addCustomBookRef = useRef<BottomSheetModal>(null);
@@ -278,8 +284,22 @@ export default function BooksScreen() {
     }
   }, [selectedChild, generateSignedUrl]);
 
-  useEffect(() => {
-    fetchSavedBooks();
+  // Refresh books list when screen comes into focus - THIS IS THE FIX!
+  useFocusEffect(
+    useCallback(() => {
+      console.log('📚 [iOS] Books screen focused - refreshing books list');
+      fetchSavedBooks();
+    }, [fetchSavedBooks])
+  );
+
+  // Pull to refresh handler
+  const onRefresh = useCallback(async () => {
+    console.log('🔵 [iOS] Pull to refresh triggered');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setRefreshing(true);
+    await fetchSavedBooks();
+    setRefreshing(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [fetchSavedBooks]);
 
   const handleSelectBook = async (book: BookSearchResult) => {
@@ -391,6 +411,13 @@ export default function BooksScreen() {
       console.log('=== ADDING BOOK PROCESS COMPLETED ===');
 
       await fetchSavedBooks();
+
+      // Silently refresh profile stats in the background (now awaited)
+      console.log('📊 Silently refreshing profile stats after book addition');
+      await Promise.all([
+        refreshStats(),
+        fetchProfileStats(),
+      ]);
 
       showToast('Book added to your library!', 'success');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -574,6 +601,15 @@ export default function BooksScreen() {
     return null;
   };
 
+  const handleCustomBookAdded = useCallback(async () => {
+    console.log('📚 [iOS] Custom book added - refreshing books list and stats');
+    await fetchSavedBooks();
+    await Promise.all([
+      refreshStats(),
+      fetchProfileStats(),
+    ]);
+  }, [fetchSavedBooks, refreshStats, fetchProfileStats]);
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -582,6 +618,14 @@ export default function BooksScreen() {
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
         >
           <View style={styles.header}>
             <View style={styles.headerRow}>
@@ -714,7 +758,7 @@ export default function BooksScreen() {
           console.log('Custom book bottom sheet closed');
           setNotFoundISBN('');
         }}
-        onBookAdded={fetchSavedBooks}
+        onBookAdded={handleCustomBookAdded}
         childId={selectedChild?.id || ''}
         userId={currentUserId || ''}
       />
