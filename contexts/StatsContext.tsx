@@ -151,8 +151,11 @@ export function StatsProvider({ children }: { children: React.ReactNode }) {
   }, [fetchStats]);
 
   // Silent refresh function - fetches stats without showing loader
+  // Added small delay to ensure database consistency
   const refreshStats = useCallback(async () => {
     console.log('StatsContext: Silent refresh triggered');
+    // Add a small delay to ensure database has committed changes
+    await new Promise(resolve => setTimeout(resolve, 100));
     await fetchStats(false);
   }, [fetchStats]);
 

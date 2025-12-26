@@ -241,9 +241,9 @@ export default function WordsScreen() {
       addWordSheetRef.current?.dismiss();
       await fetchWords();
       
-      // Silently refresh profile stats in the background
+      // Silently refresh profile stats in the background (now awaited)
       console.log('📊 Silently refreshing profile stats after word addition');
-      refreshStats();
+      await refreshStats();
     } catch (error) {
       console.error('Error in handleAddWord:', error);
       Alert.alert('Error', 'Failed to add word');

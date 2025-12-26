@@ -459,9 +459,9 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
         // Refresh the words list
         onRefresh();
 
-        // Silently refresh profile stats in the background
+        // Silently refresh profile stats in the background (now awaited)
         console.log('📊 Silently refreshing profile stats after word deletion');
-        refreshStats();
+        await refreshStats();
 
         Alert.alert('Success', 'Word and all associated videos deleted successfully');
       } catch (error) {

@@ -221,9 +221,9 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
         onRefresh();
         
-        // Silently refresh profile stats in the background
+        // Silently refresh profile stats in the background (now awaited)
         console.log('📊 Silently refreshing profile stats after book deletion');
-        refreshStats();
+        await refreshStats();
         
         Alert.alert('Success', 'Book removed from library');
       } catch (error) {

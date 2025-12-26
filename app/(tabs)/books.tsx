@@ -469,9 +469,9 @@ export default function BooksScreen() {
 
       await fetchSavedBooks();
 
-      // Silently refresh profile stats in the background
+      // Silently refresh profile stats in the background (now awaited)
       console.log('📊 Silently refreshing profile stats after book addition');
-      refreshStats();
+      await refreshStats();
 
       showToast('Book added to your library!', 'success');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

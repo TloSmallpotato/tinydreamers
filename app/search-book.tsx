@@ -247,9 +247,9 @@ export default function SearchBookScreen() {
       console.log('Book added to user library successfully');
       console.log('=== ADDING BOOK PROCESS COMPLETED ===');
 
-      // Silently refresh profile stats in the background
+      // Silently refresh profile stats in the background (now awaited)
       console.log('📊 Silently refreshing profile stats after book addition');
-      refreshStats();
+      await refreshStats();
 
       // Show success message
       showToast('Book added to your library!', 'success');
