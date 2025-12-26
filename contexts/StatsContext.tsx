@@ -10,6 +10,7 @@ interface StatsContextType {
   decrementBookCount: () => void;
   incrementMomentCount: () => void;
   decrementMomentCount: () => void;
+  refreshStats: () => Promise<void>;
   stats: {
     totalWords: number;
     totalBooks: number;
@@ -43,104 +44,117 @@ export function StatsProvider({ children }: { children: React.ReactNode }) {
   });
   const [isLoading, setIsLoading] = useState(true);
 
+  // Fetch stats from database
+  const fetchStats = useCallback(async (showLoading = true) => {
+    if (!selectedChild) {
+      console.log('StatsContext: No child selected, resetting stats');
+      setStats({
+        totalWords: 0,
+        totalBooks: 0,
+        wordsThisWeek: 0,
+        booksThisWeek: 0,
+        momentsThisWeek: 0,
+      });
+      if (showLoading) {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    try {
+      console.log('StatsContext: Fetching stats for child:', selectedChild.id);
+      if (showLoading) {
+        setIsLoading(true);
+      }
+      const startOfWeek = getStartOfWeek();
+      const startOfWeekISO = startOfWeek.toISOString();
+
+      const [
+        totalWordsResult,
+        wordsThisWeekResult,
+        totalBooksResult,
+        booksThisWeekResult,
+        momentsThisWeekResult,
+      ] = await Promise.allSettled([
+        supabase
+          .from('user_words')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id),
+        supabase
+          .from('user_words')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id)
+          .gte('created_at', startOfWeekISO),
+        supabase
+          .from('user_books')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id),
+        supabase
+          .from('user_books')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id)
+          .gte('created_at', startOfWeekISO),
+        supabase
+          .from('moments')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id)
+          .gte('created_at', startOfWeekISO),
+      ]);
+
+      const totalWordsCount = totalWordsResult.status === 'fulfilled' && !totalWordsResult.value.error
+        ? totalWordsResult.value.count || 0
+        : 0;
+
+      const wordsThisWeekCount = wordsThisWeekResult.status === 'fulfilled' && !wordsThisWeekResult.value.error
+        ? wordsThisWeekResult.value.count || 0
+        : 0;
+
+      const totalBooksCount = totalBooksResult.status === 'fulfilled' && !totalBooksResult.value.error
+        ? totalBooksResult.value.count || 0
+        : 0;
+
+      const booksThisWeekCount = booksThisWeekResult.status === 'fulfilled' && !booksThisWeekResult.value.error
+        ? booksThisWeekResult.value.count || 0
+        : 0;
+
+      const momentsThisWeekCount = momentsThisWeekResult.status === 'fulfilled' && !momentsThisWeekResult.value.error
+        ? momentsThisWeekResult.value.count || 0
+        : 0;
+
+      console.log('StatsContext: Stats loaded -', {
+        totalWords: totalWordsCount,
+        wordsThisWeek: wordsThisWeekCount,
+        totalBooks: totalBooksCount,
+        booksThisWeek: booksThisWeekCount,
+        momentsThisWeek: momentsThisWeekCount,
+      });
+
+      setStats({
+        totalWords: totalWordsCount,
+        totalBooks: totalBooksCount,
+        wordsThisWeek: wordsThisWeekCount,
+        booksThisWeek: booksThisWeekCount,
+        momentsThisWeek: momentsThisWeekCount,
+      });
+    } catch (error) {
+      console.error('StatsContext: Error fetching stats:', error);
+    } finally {
+      if (showLoading) {
+        setIsLoading(false);
+      }
+    }
+  }, [selectedChild]);
+
   // Fetch initial stats when selected child changes
   useEffect(() => {
-    const fetchInitialStats = async () => {
-      if (!selectedChild) {
-        console.log('StatsContext: No child selected, resetting stats');
-        setStats({
-          totalWords: 0,
-          totalBooks: 0,
-          wordsThisWeek: 0,
-          booksThisWeek: 0,
-          momentsThisWeek: 0,
-        });
-        setIsLoading(false);
-        return;
-      }
+    fetchStats(true);
+  }, [fetchStats]);
 
-      try {
-        console.log('StatsContext: Fetching initial stats for child:', selectedChild.id);
-        setIsLoading(true);
-        const startOfWeek = getStartOfWeek();
-        const startOfWeekISO = startOfWeek.toISOString();
-
-        const [
-          totalWordsResult,
-          wordsThisWeekResult,
-          totalBooksResult,
-          booksThisWeekResult,
-          momentsThisWeekResult,
-        ] = await Promise.allSettled([
-          supabase
-            .from('user_words')
-            .select('*', { count: 'exact', head: true })
-            .eq('child_id', selectedChild.id),
-          supabase
-            .from('user_words')
-            .select('*', { count: 'exact', head: true })
-            .eq('child_id', selectedChild.id)
-            .gte('created_at', startOfWeekISO),
-          supabase
-            .from('user_books')
-            .select('*', { count: 'exact', head: true })
-            .eq('child_id', selectedChild.id),
-          supabase
-            .from('user_books')
-            .select('*', { count: 'exact', head: true })
-            .eq('child_id', selectedChild.id)
-            .gte('created_at', startOfWeekISO),
-          supabase
-            .from('moments')
-            .select('*', { count: 'exact', head: true })
-            .eq('child_id', selectedChild.id)
-            .gte('created_at', startOfWeekISO),
-        ]);
-
-        const totalWordsCount = totalWordsResult.status === 'fulfilled' && !totalWordsResult.value.error
-          ? totalWordsResult.value.count || 0
-          : 0;
-
-        const wordsThisWeekCount = wordsThisWeekResult.status === 'fulfilled' && !wordsThisWeekResult.value.error
-          ? wordsThisWeekResult.value.count || 0
-          : 0;
-
-        const totalBooksCount = totalBooksResult.status === 'fulfilled' && !totalBooksResult.value.error
-          ? totalBooksResult.value.count || 0
-          : 0;
-
-        const booksThisWeekCount = booksThisWeekResult.status === 'fulfilled' && !booksThisWeekResult.value.error
-          ? booksThisWeekResult.value.count || 0
-          : 0;
-
-        const momentsThisWeekCount = momentsThisWeekResult.status === 'fulfilled' && !momentsThisWeekResult.value.error
-          ? momentsThisWeekResult.value.count || 0
-          : 0;
-
-        console.log('StatsContext: Initial stats loaded -', {
-          totalWords: totalWordsCount,
-          wordsThisWeek: wordsThisWeekCount,
-          totalBooks: totalBooksCount,
-          booksThisWeek: booksThisWeekCount,
-          momentsThisWeek: momentsThisWeekCount,
-        });
-
-        setStats({
-          totalWords: totalWordsCount,
-          totalBooks: totalBooksCount,
-          wordsThisWeek: wordsThisWeekCount,
-          booksThisWeek: booksThisWeekCount,
-          momentsThisWeek: momentsThisWeekCount,
-        });
-      } catch (error) {
-        console.error('StatsContext: Error fetching initial stats:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchInitialStats();
-  }, [selectedChild]);
+  // Silent refresh function - fetches stats without showing loader
+  const refreshStats = useCallback(async () => {
+    console.log('StatsContext: Silent refresh triggered');
+    await fetchStats(false);
+  }, [fetchStats]);
 
   const incrementWordCount = useCallback(() => {
     console.log('StatsContext: Incrementing word count');
@@ -203,6 +217,7 @@ export function StatsProvider({ children }: { children: React.ReactNode }) {
         decrementBookCount,
         incrementMomentCount,
         decrementMomentCount,
+        refreshStats,
         stats,
         isLoading,
       }}

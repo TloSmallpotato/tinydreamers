@@ -6,6 +6,7 @@ import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useWordNavigation } from '@/contexts/WordNavigationContext';
+import { useStats } from '@/contexts/StatsContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
@@ -33,6 +34,7 @@ interface GroupedWords {
 export default function WordsScreen() {
   const { selectedChild } = useChild();
   const { targetWordIdToOpen, clearTargetWordIdToOpen } = useWordNavigation();
+  const { refreshStats } = useStats();
   const params = useLocalSearchParams();
   const router = useRouter();
   const [words, setWords] = useState<Word[]>([]);
@@ -238,6 +240,10 @@ export default function WordsScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       addWordSheetRef.current?.dismiss();
       await fetchWords();
+      
+      // Silently refresh profile stats in the background
+      console.log('📊 Silently refreshing profile stats after word addition');
+      refreshStats();
     } catch (error) {
       console.error('Error in handleAddWord:', error);
       Alert.alert('Error', 'Failed to add word');

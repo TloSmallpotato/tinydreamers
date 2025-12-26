@@ -16,6 +16,7 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
+import { useStats } from '@/contexts/StatsContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { searchBookByISBN, BookSearchResult, getQuotaStatus } from '@/utils/googleBooksApi';
 import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
@@ -135,6 +136,7 @@ BookCard.propTypes = {
 
 export default function BooksScreen() {
   const { selectedChild } = useChild();
+  const { refreshStats } = useStats();
   const params = useLocalSearchParams();
   const router = useRouter();
   const [savedBooks, setSavedBooks] = useState<SavedBook[]>([]);
@@ -466,6 +468,10 @@ export default function BooksScreen() {
       console.log('=== ADDING BOOK PROCESS COMPLETED ===');
 
       await fetchSavedBooks();
+
+      // Silently refresh profile stats in the background
+      console.log('📊 Silently refreshing profile stats after book addition');
+      refreshStats();
 
       showToast('Book added to your library!', 'success');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

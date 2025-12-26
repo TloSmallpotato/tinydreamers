@@ -7,6 +7,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useVideoRecording } from '@/contexts/VideoRecordingContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
+import { useStats } from '@/contexts/StatsContext';
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 import { Image } from 'expo-image';
 import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
@@ -41,6 +42,7 @@ interface WordDetailBottomSheetProps {
 
 const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheetProps>(
   ({ word, onClose, onRefresh }, ref) => {
+    const { refreshStats } = useStats();
     const [moments, setMoments] = useState<Moment[]>([]);
     const [loading, setLoading] = useState(false);
     const [isSpoken, setIsSpoken] = useState(false);
@@ -277,6 +279,10 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
         
         await fetchMoments();
         
+        // Silently refresh profile stats in the background
+        console.log('📊 Silently refreshing profile stats after moment deletion');
+        refreshStats();
+        
         Alert.alert('Success', 'Video deleted successfully');
       } catch (error) {
         console.error('[WordDetail] Error in deleteMoment:', error);
@@ -452,6 +458,10 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
 
         // Refresh the words list
         onRefresh();
+
+        // Silently refresh profile stats in the background
+        console.log('📊 Silently refreshing profile stats after word deletion');
+        refreshStats();
 
         Alert.alert('Success', 'Word and all associated videos deleted successfully');
       } catch (error) {

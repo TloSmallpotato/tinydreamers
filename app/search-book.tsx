@@ -17,6 +17,7 @@ import { Image } from 'expo-image';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
+import { useStats } from '@/contexts/StatsContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { searchGoogleBooks, getBookDetails, BookSearchResult } from '@/utils/googleBooksApi';
 import ToastNotification from '@/components/ToastNotification';
@@ -27,6 +28,7 @@ import AddCustomBookBottomSheet from '@/components/AddCustomBookBottomSheet';
 
 export default function SearchBookScreen() {
   const { selectedChild } = useChild();
+  const { refreshStats } = useStats();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<BookSearchResult[]>([]);
@@ -244,6 +246,10 @@ export default function SearchBookScreen() {
 
       console.log('Book added to user library successfully');
       console.log('=== ADDING BOOK PROCESS COMPLETED ===');
+
+      // Silently refresh profile stats in the background
+      console.log('📊 Silently refreshing profile stats after book addition');
+      refreshStats();
 
       // Show success message
       showToast('Book added to your library!', 'success');
