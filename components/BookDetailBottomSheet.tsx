@@ -42,10 +42,14 @@ interface BookDetailBottomSheetProps {
 
 type RatingType = 'not_vibing' | 'like_it' | 'love_it' | null;
 
-// Bookmark component
+// Bookmark component with PNG image
 const Bookmark = () => (
   <View style={styles.bookmark}>
-    <View style={styles.bookmarkRibbon} />
+    <Image
+      source={require('@/assets/images/bb1d0280-280e-49da-964e-cc8dac050425.png')}
+      style={styles.bookmarkImage}
+      contentFit="contain"
+    />
   </View>
 );
 
@@ -811,13 +815,9 @@ const styles = StyleSheet.create({
     height: 48,
     zIndex: 10,
   },
-  bookmarkRibbon: {
+  bookmarkImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#FF5722',
-    borderBottomLeftRadius: 2,
-    borderBottomRightRadius: 2,
-    // Shadow removed
   },
 });
 
