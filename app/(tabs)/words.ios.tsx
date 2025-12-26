@@ -1,11 +1,13 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Alert, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Alert, Animated, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useWordNavigation } from '@/contexts/WordNavigationContext';
+import { useStats } from '@/contexts/StatsContext';
+import { useProfileStats } from '@/contexts/ProfileStatsContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
@@ -33,12 +35,16 @@ interface GroupedWords {
 export default function WordsScreen() {
   const { selectedChild } = useChild();
   const { targetWordIdToOpen, clearTargetWordIdToOpen } = useWordNavigation();
+  const { refreshStats } = useStats();
+  const { fetchProfileStats } = useProfileStats();
   const params = useLocalSearchParams();
   const router = useRouter();
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const isFetchingRef = useRef(false);
 
   const addWordSheetRef = useRef<BottomSheetModal>(null);
   const wordDetailSheetRef = useRef<BottomSheetModal>(null);
@@ -90,6 +96,12 @@ export default function WordsScreen() {
   );
 
   const fetchWords = useCallback(async () => {
+    // EXPO GO FIX: Prevent concurrent fetches
+    if (isFetchingRef.current) {
+      console.log('[iOS] Words fetch already in progress, skipping...');
+      return;
+    }
+
     if (!selectedChild) {
       setWords([]);
       setLoading(false);
@@ -97,6 +109,7 @@ export default function WordsScreen() {
     }
 
     try {
+      isFetchingRef.current = true;
       setLoading(true);
       console.log('[iOS] Fetching words for child:', selectedChild.id);
       
@@ -135,8 +148,10 @@ export default function WordsScreen() {
     } catch (error) {
       console.error('[iOS] Error in fetchWords:', error);
       Alert.alert('Error', 'Failed to load words');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   }, [selectedChild]);
 
@@ -145,6 +160,16 @@ export default function WordsScreen() {
     console.log('📝 [iOS] Initial load - fetching words for child:', selectedChild?.id);
     fetchWords();
   }, [selectedChild?.id]);
+
+  // Pull to refresh handler
+  const onRefresh = useCallback(async () => {
+    console.log('🔵 [iOS] Pull to refresh triggered');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setRefreshing(true);
+    await fetchWords();
+    setRefreshing(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [fetchWords]);
 
   // Handle opening a specific word detail when navigating from toast
   useEffect(() => {
@@ -179,6 +204,7 @@ export default function WordsScreen() {
   const handleAddWord = async (word: string, emoji: string, color: string) => {
     if (!selectedChild) {
       Alert.alert('Error', 'Please select a child first');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
 
@@ -203,6 +229,7 @@ export default function WordsScreen() {
 
       if (wordExists) {
         Alert.alert('Word Already Added', 'This word is already in your list');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         addWordSheetRef.current?.dismiss();
         return;
       }
@@ -223,11 +250,23 @@ export default function WordsScreen() {
       }
 
       console.log('[iOS] Word added successfully');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       addWordSheetRef.current?.dismiss();
+      
+      // EXPO GO FIX: Add delay before refreshing to ensure database consistency
+      await new Promise(resolve => setTimeout(resolve, 300));
       await fetchWords();
+      
+      // Silently refresh profile stats in the background (now awaited)
+      console.log('📊 [iOS] Silently refreshing profile stats after word addition');
+      await Promise.all([
+        refreshStats(),
+        fetchProfileStats(),
+      ]);
     } catch (error) {
       console.error('[iOS] Error in handleAddWord:', error);
       Alert.alert('Error', 'Failed to add word');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
@@ -275,6 +314,14 @@ export default function WordsScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
         >
           <View style={styles.header}>
             <View style={styles.headerRow}>
