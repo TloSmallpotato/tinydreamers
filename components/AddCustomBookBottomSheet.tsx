@@ -7,6 +7,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { useStats } from '@/contexts/StatsContext';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -21,6 +22,7 @@ interface AddCustomBookBottomSheetProps {
 
 const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBottomSheetProps>(
   ({ prefillTitle = '', prefillISBN = '', onClose, onBookAdded, childId, userId }, ref) => {
+    const { refreshStats } = useStats();
     const snapPoints = useMemo(() => [screenHeight * 0.85], []);
     const [title, setTitle] = useState('');
     const [isbn, setISBN] = useState('');
@@ -201,6 +203,10 @@ const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBotto
         console.log('Custom book added successfully!');
         console.log('=== CUSTOM BOOK ADDITION COMPLETE ===');
 
+        // Silently refresh profile stats in the background
+        console.log('📊 Silently refreshing profile stats after custom book addition');
+        await refreshStats();
+
         // Close the bottom sheet
         if (ref && typeof ref !== 'function' && ref.current) {
           ref.current.dismiss();
@@ -222,7 +228,7 @@ const AddCustomBookBottomSheet = forwardRef<BottomSheetModal, AddCustomBookBotto
       } finally {
         setIsSaving(false);
       }
-    }, [title, isbn, description, coverImage, childId, userId, ref, onBookAdded, uploadCoverImage]);
+    }, [title, isbn, description, coverImage, childId, userId, ref, onBookAdded, uploadCoverImage, refreshStats]);
 
     const renderBackdrop = useCallback(
       (props: any) => (

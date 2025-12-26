@@ -345,9 +345,13 @@ export default function BooksScreen() {
     }
   }, [selectedChild, generateSignedUrl]);
 
-  useEffect(() => {
-    fetchSavedBooks();
-  }, [fetchSavedBooks]);
+  // Refresh books list when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('📚 Books screen focused - refreshing books list');
+      fetchSavedBooks();
+    }, [fetchSavedBooks])
+  );
 
   // Pull to refresh handler
   const onRefresh = useCallback(async () => {
@@ -655,6 +659,12 @@ export default function BooksScreen() {
     return null;
   }, [signedUrls, imageErrors]);
 
+  const handleCustomBookAdded = useCallback(async () => {
+    console.log('📚 Custom book added - refreshing books list and stats');
+    await fetchSavedBooks();
+    await refreshStats();
+  }, [fetchSavedBooks, refreshStats]);
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -772,7 +782,7 @@ export default function BooksScreen() {
           console.log('Custom book bottom sheet closed');
           setNotFoundISBN('');
         }}
-        onBookAdded={fetchSavedBooks}
+        onBookAdded={handleCustomBookAdded}
         childId={selectedChild?.id || ''}
         userId={currentUserId || ''}
       />
