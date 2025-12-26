@@ -264,8 +264,10 @@ export default function SearchBookScreen() {
       showToast('Book added to your library!', 'success');
       
       // EXPO GO FIX: Longer delay before navigating back to allow stats to update
+      // IMPORTANT: Pass bookAdded parameter to trigger refresh on Books page
       setTimeout(() => {
-        router.back();
+        console.log('🔄 Navigating back to Books page with bookAdded=true parameter');
+        router.push('/(tabs)/books?bookAdded=true');
       }, 2000);
     } catch (error) {
       console.error('Error in handleAddToLibrary:', error);
@@ -318,7 +320,8 @@ export default function SearchBookScreen() {
   const handleCustomBookAdded = () => {
     showToast('Custom book added successfully!', 'success');
     setTimeout(() => {
-      router.back();
+      console.log('🔄 Navigating back to Books page with bookAdded=true parameter');
+      router.push('/(tabs)/books?bookAdded=true');
     }, 1500);
   };
 
