@@ -61,6 +61,13 @@ const LOADING_MESSAGES = [
   "Peeking inside the story…"
 ];
 
+// Bookmark component
+const Bookmark = () => (
+  <View style={styles.bookmark}>
+    <View style={styles.bookmarkRibbon} />
+  </View>
+);
+
 export default function BooksScreen() {
   const { selectedChild } = useChild();
   const { shouldFocusBookSearch, resetBookSearch } = useAddNavigation();
@@ -187,14 +194,6 @@ export default function BooksScreen() {
     }, [params.autoScan, router])
   );
 
-  // Refresh books when screen comes into focus (e.g., after adding a book)
-  useFocusEffect(
-    useCallback(() => {
-      console.log('🔵 [iOS] Books screen focused - refreshing books');
-      fetchSavedBooks();
-    }, [selectedChild])
-  );
-
   // Generate signed URLs for private covers
   const generateSignedUrl = useCallback(async (path: string): Promise<string | null> => {
     try {
@@ -274,6 +273,10 @@ export default function BooksScreen() {
       setIsLoadingBooks(false);
     }
   }, [selectedChild, generateSignedUrl]);
+
+  useEffect(() => {
+    fetchSavedBooks();
+  }, [fetchSavedBooks]);
 
   const handleSelectBook = async (book: BookSearchResult) => {
     if (isAddingBook) {
@@ -672,11 +675,7 @@ export default function BooksScreen() {
                         />
                       ) : (
                         <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
-                          <Image
-                            source={require('@/assets/images/9a501b37-3b8d-4309-b89f-a0f0a8a510bb.png')}
-                            style={styles.bookmarkImage}
-                            contentFit="contain"
-                          />
+                          <Bookmark />
                           <Text style={styles.placeholderText} numberOfLines={4}>
                             {savedBook.book.title}
                           </Text>
@@ -871,15 +870,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     overflow: 'visible',
-    position: 'relative',
-  },
-  bookmarkImage: {
-    position: 'absolute',
-    top: 0,
-    right: 16,
-    width: 32,
-    height: 48,
-    zIndex: 10,
   },
   placeholderText: {
     fontSize: 14,
@@ -900,5 +890,21 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: colors.backgroundAlt,
+  },
+  bookmark: {
+    position: 'absolute',
+    top: 0,
+    right: 16,
+    width: 32,
+    height: 48,
+    zIndex: 10,
+  },
+  bookmarkRibbon: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#FF5722',
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+    // Shadow removed
   },
 });

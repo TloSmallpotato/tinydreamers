@@ -32,6 +32,7 @@ export default function SearchBookScreen() {
   const [searchResults, setSearchResults] = useState<BookSearchResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [isAddingBook, setIsAddingBook] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -101,19 +102,22 @@ export default function SearchBookScreen() {
     setShowDropdown(false);
     Keyboard.dismiss();
     
-    // OPTIMIZED: Show book immediately with basic info, fetch details in background
-    setSelectedBook(book);
-    
-    // Fetch detailed book info in background (for better cover quality)
+    // OPTIMIZED: Fetch detailed book info with high-quality cover AFTER selection
+    setIsLoadingDetails(true);
     try {
       const detailedBook = await getBookDetails(book.googleBooksId);
       if (detailedBook) {
-        console.log('Detailed book info loaded');
         setSelectedBook(detailedBook);
+      } else {
+        // Fallback to the basic book info if details fetch fails
+        setSelectedBook(book);
       }
     } catch (error) {
       console.error('Error fetching book details:', error);
-      // Keep the basic book info if details fetch fails
+      // Fallback to the basic book info
+      setSelectedBook(book);
+    } finally {
+      setIsLoadingDetails(false);
     }
   };
 
@@ -210,8 +214,10 @@ export default function SearchBookScreen() {
         setSelectedBook(null);
         setIsAddingBook(false);
         
-        // Navigate back to books screen immediately
-        router.back();
+        // Navigate back to books screen after a short delay
+        setTimeout(() => {
+          router.back();
+        }, 1500);
         return;
       }
 
@@ -239,8 +245,10 @@ export default function SearchBookScreen() {
       // Show success message
       showToast('Book added to your library!', 'success');
       
-      // Navigate back to books screen immediately - the books screen will refresh automatically
-      router.back();
+      // Navigate back to books screen after a short delay
+      setTimeout(() => {
+        router.back();
+      }, 1500);
     } catch (error) {
       console.error('Error in handleAddToLibrary:', error);
       showToast('An unexpected error occurred. Please try again.', 'error');
@@ -263,11 +271,9 @@ export default function SearchBookScreen() {
   };
 
   const handleClearSearch = () => {
-    console.log('Clear search clicked');
     setSearchQuery('');
     setSearchResults([]);
     setShowDropdown(false);
-    setSelectedBook(null); // Clear selected book
     searchInputRef.current?.focus();
   };
 
@@ -292,7 +298,9 @@ export default function SearchBookScreen() {
 
   const handleCustomBookAdded = () => {
     showToast('Custom book added successfully!', 'success');
-    router.back();
+    setTimeout(() => {
+      router.back();
+    }, 1500);
   };
 
   return (
@@ -376,8 +384,16 @@ export default function SearchBookScreen() {
 
         <TouchableWithoutFeedback onPress={handleTapOutside}>
           <View style={styles.contentArea}>
-            {/* Selected Book Details - WITH COVER */}
-            {selectedBook && (
+            {/* Loading Details State */}
+            {isLoadingDetails && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingText}>Loading book details...</Text>
+              </View>
+            )}
+
+            {/* Selected Book Details */}
+            {!isLoadingDetails && selectedBook && (
               <ScrollView 
                 style={styles.selectedBookContainer}
                 showsVerticalScrollIndicator={false}
@@ -398,11 +414,6 @@ export default function SearchBookScreen() {
                       />
                     ) : (
                       <View style={[styles.selectedBookCover, styles.selectedPlaceholderCover]}>
-                        <Image
-                          source={require('@/assets/images/9a501b37-3b8d-4309-b89f-a0f0a8a510bb.png')}
-                          style={styles.bookmarkImage}
-                          contentFit="contain"
-                        />
                         <Text style={styles.selectedPlaceholderText} numberOfLines={3}>
                           {selectedBook.title}
                         </Text>
@@ -410,7 +421,7 @@ export default function SearchBookScreen() {
                     )}
                   </View>
 
-                  {/* Book Info - NO DESCRIPTION */}
+                  {/* Book Info */}
                   <View style={styles.selectedBookInfo}>
                     <Text style={styles.selectedBookTitle}>{selectedBook.title}</Text>
                     <Text style={styles.selectedBookAuthor}>{selectedBook.authors}</Text>
@@ -425,6 +436,15 @@ export default function SearchBookScreen() {
                       <Text style={styles.selectedBookMeta}>
                         Pages: {selectedBook.pageCount}
                       </Text>
+                    )}
+
+                    {selectedBook.description && (
+                      <View style={styles.descriptionContainer}>
+                        <Text style={styles.descriptionLabel}>Description:</Text>
+                        <Text style={styles.selectedBookDescription}>
+                          {selectedBook.description}
+                        </Text>
+                      </View>
                     )}
                   </View>
 
@@ -471,7 +491,7 @@ export default function SearchBookScreen() {
             )}
 
             {/* Search Results Dropdown - OPTIMIZED: Only shows title and author */}
-            {!selectedBook && showDropdown && searchResults.length > 0 && (
+            {!isLoadingDetails && !selectedBook && showDropdown && searchResults.length > 0 && (
               <ScrollView 
                 style={styles.dropdown}
                 keyboardShouldPersistTaps="handled"
@@ -498,7 +518,7 @@ export default function SearchBookScreen() {
             )}
 
             {/* Empty States */}
-            {!selectedBook && !showDropdown && searchQuery.length === 0 && (
+            {!isLoadingDetails && !selectedBook && !showDropdown && searchQuery.length === 0 && (
               <View style={styles.emptyState}>
                 <IconSymbol
                   ios_icon_name="magnifyingglass"
@@ -513,7 +533,7 @@ export default function SearchBookScreen() {
               </View>
             )}
 
-            {!selectedBook && !showDropdown && searchQuery.length > 0 && !isSearching && searchResults.length === 0 && (
+            {!isLoadingDetails && !selectedBook && !showDropdown && searchQuery.length > 0 && !isSearching && searchResults.length === 0 && (
               <View style={styles.emptyState}>
                 <IconSymbol
                   ios_icon_name="book.closed"
@@ -628,6 +648,17 @@ const styles = StyleSheet.create({
   contentArea: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 16,
+  },
   dropdown: {
     flex: 1,
     paddingHorizontal: 20,
@@ -682,15 +713,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    position: 'relative',
-  },
-  bookmarkImage: {
-    position: 'absolute',
-    top: 0,
-    right: 16,
-    width: 32,
-    height: 48,
-    zIndex: 10,
   },
   selectedPlaceholderText: {
     fontSize: 18,
@@ -721,6 +743,23 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 4,
     textAlign: 'center',
+  },
+  descriptionContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.background,
+  },
+  descriptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  selectedBookDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
   actionButtons: {
     width: '100%',

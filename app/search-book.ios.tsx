@@ -214,8 +214,10 @@ export default function SearchBookScreen() {
         setSelectedBook(null);
         setIsAddingBook(false);
         
-        // Navigate back to books screen immediately
-        router.back();
+        // Navigate back to books screen after a short delay
+        setTimeout(() => {
+          router.back();
+        }, 1500);
         return;
       }
 
@@ -243,8 +245,10 @@ export default function SearchBookScreen() {
       // Show success message
       showToast('Book added to your library!', 'success');
       
-      // Navigate back to books screen immediately - the books screen will refresh automatically
-      router.back();
+      // Navigate back to books screen after a short delay
+      setTimeout(() => {
+        router.back();
+      }, 1500);
     } catch (error) {
       console.error('[iOS] Error in handleAddToLibrary:', error);
       showToast('An unexpected error occurred. Please try again.', 'error');
@@ -267,11 +271,9 @@ export default function SearchBookScreen() {
   };
 
   const handleClearSearch = () => {
-    console.log('[iOS] Clear search clicked');
     setSearchQuery('');
     setSearchResults([]);
     setShowDropdown(false);
-    setSelectedBook(null); // Clear selected book
     searchInputRef.current?.focus();
   };
 
@@ -296,7 +298,9 @@ export default function SearchBookScreen() {
 
   const handleCustomBookAdded = () => {
     showToast('Custom book added successfully!', 'success');
-    router.back();
+    setTimeout(() => {
+      router.back();
+    }, 1500);
   };
 
   return (
@@ -388,7 +392,7 @@ export default function SearchBookScreen() {
               </View>
             )}
 
-            {/* Selected Book Details - WITHOUT DESCRIPTION */}
+            {/* Selected Book Details */}
             {!isLoadingDetails && selectedBook && (
               <ScrollView 
                 style={styles.selectedBookContainer}
@@ -410,11 +414,6 @@ export default function SearchBookScreen() {
                       />
                     ) : (
                       <View style={[styles.selectedBookCover, styles.selectedPlaceholderCover]}>
-                        <Image
-                          source={require('@/assets/images/9a501b37-3b8d-4309-b89f-a0f0a8a510bb.png')}
-                          style={styles.bookmarkImage}
-                          contentFit="contain"
-                        />
                         <Text style={styles.selectedPlaceholderText} numberOfLines={3}>
                           {selectedBook.title}
                         </Text>
@@ -422,7 +421,7 @@ export default function SearchBookScreen() {
                     )}
                   </View>
 
-                  {/* Book Info - NO DESCRIPTION */}
+                  {/* Book Info */}
                   <View style={styles.selectedBookInfo}>
                     <Text style={styles.selectedBookTitle}>{selectedBook.title}</Text>
                     <Text style={styles.selectedBookAuthor}>{selectedBook.authors}</Text>
@@ -437,6 +436,15 @@ export default function SearchBookScreen() {
                       <Text style={styles.selectedBookMeta}>
                         Pages: {selectedBook.pageCount}
                       </Text>
+                    )}
+
+                    {selectedBook.description && (
+                      <View style={styles.descriptionContainer}>
+                        <Text style={styles.descriptionLabel}>Description:</Text>
+                        <Text style={styles.selectedBookDescription}>
+                          {selectedBook.description}
+                        </Text>
+                      </View>
                     )}
                   </View>
 
@@ -705,15 +713,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    position: 'relative',
-  },
-  bookmarkImage: {
-    position: 'absolute',
-    top: 0,
-    right: 16,
-    width: 32,
-    height: 48,
-    zIndex: 10,
   },
   selectedPlaceholderText: {
     fontSize: 18,
@@ -744,6 +743,23 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 4,
     textAlign: 'center',
+  },
+  descriptionContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.background,
+  },
+  descriptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  selectedBookDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
   actionButtons: {
     width: '100%',
