@@ -7,6 +7,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
 import { Image } from 'expo-image';
 import { useStats } from '@/contexts/StatsContext';
+import { useProfileStats } from '@/contexts/ProfileStatsContext';
 import * as Haptics from 'expo-haptics';
 import { isLikelyBlankImage, getFirstValidImageUrl } from '@/utils/imageValidation';
 import ValidatedImage from '@/components/ValidatedImage';
@@ -57,6 +58,7 @@ const Bookmark = () => (
 const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheetProps>(
   ({ userBook, onClose, onRefresh }, ref) => {
     const { refreshStats } = useStats();
+    const { fetchProfileStats } = useProfileStats();
     const snapPoints = useMemo(() => [screenHeight * 0.85], []);
     const [rating, setRating] = useState<RatingType>(null);
     const [wouldRecommend, setWouldRecommend] = useState(false);
@@ -223,7 +225,10 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         
         // Silently refresh profile stats in the background (now awaited)
         console.log('📊 Silently refreshing profile stats after book deletion');
-        await refreshStats();
+        await Promise.all([
+          refreshStats(),
+          fetchProfileStats(),
+        ]);
         
         Alert.alert('Success', 'Book removed from library');
       } catch (error) {

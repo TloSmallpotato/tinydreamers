@@ -17,6 +17,7 @@ import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useStats } from '@/contexts/StatsContext';
+import { useProfileStats } from '@/contexts/ProfileStatsContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { searchBookByISBN, BookSearchResult, getQuotaStatus } from '@/utils/googleBooksApi';
 import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
@@ -137,6 +138,7 @@ BookCard.propTypes = {
 export default function BooksScreen() {
   const { selectedChild } = useChild();
   const { refreshStats } = useStats();
+  const { fetchProfileStats } = useProfileStats();
   const params = useLocalSearchParams();
   const router = useRouter();
   const [savedBooks, setSavedBooks] = useState<SavedBook[]>([]);
@@ -475,7 +477,10 @@ export default function BooksScreen() {
 
       // Silently refresh profile stats in the background (now awaited)
       console.log('📊 Silently refreshing profile stats after book addition');
-      await refreshStats();
+      await Promise.all([
+        refreshStats(),
+        fetchProfileStats(),
+      ]);
 
       showToast('Book added to your library!', 'success');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -662,8 +667,11 @@ export default function BooksScreen() {
   const handleCustomBookAdded = useCallback(async () => {
     console.log('📚 Custom book added - refreshing books list and stats');
     await fetchSavedBooks();
-    await refreshStats();
-  }, [fetchSavedBooks, refreshStats]);
+    await Promise.all([
+      refreshStats(),
+      fetchProfileStats(),
+    ]);
+  }, [fetchSavedBooks, refreshStats, fetchProfileStats]);
 
   return (
     <View style={styles.container}>

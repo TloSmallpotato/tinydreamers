@@ -8,6 +8,7 @@ import { WordNavigationProvider } from '@/contexts/WordNavigationContext';
 import { AddNavigationProvider } from '@/contexts/AddNavigationContext';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
 import { StatsProvider } from '@/contexts/StatsContext';
+import { ProfileStatsProvider } from '@/contexts/ProfileStatsContext';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -20,43 +21,45 @@ export default function RootLayout() {
           <SubscriptionProvider>
             <ChildProvider>
               <StatsProvider>
-                <VideoRecordingProvider>
-                  <CameraTriggerProvider>
-                    <WordNavigationProvider>
-                      <AddNavigationProvider>
-                        <BottomSheetModalProvider>
-                          <Stack screenOptions={{ headerShown: false }}>
-                            <Stack.Screen name="index" options={{ headerShown: false }} />
-                            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-                            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                            <Stack.Screen
-                              name="modal"
-                              options={{
-                                presentation: 'modal',
-                                headerShown: false,
-                              }}
-                            />
-                            <Stack.Screen
-                              name="formsheet"
-                              options={{
-                                presentation: 'formSheet',
-                                headerShown: false,
-                              }}
-                            />
-                            <Stack.Screen
-                              name="transparent-modal"
-                              options={{
-                                presentation: 'transparentModal',
-                                headerShown: false,
-                                animation: 'fade',
-                              }}
-                            />
-                          </Stack>
-                        </BottomSheetModalProvider>
-                      </AddNavigationProvider>
-                    </WordNavigationProvider>
-                  </CameraTriggerProvider>
-                </VideoRecordingProvider>
+                <ProfileStatsProvider>
+                  <VideoRecordingProvider>
+                    <CameraTriggerProvider>
+                      <WordNavigationProvider>
+                        <AddNavigationProvider>
+                          <BottomSheetModalProvider>
+                            <Stack screenOptions={{ headerShown: false }}>
+                              <Stack.Screen name="index" options={{ headerShown: false }} />
+                              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                              <Stack.Screen
+                                name="modal"
+                                options={{
+                                  presentation: 'modal',
+                                  headerShown: false,
+                                }}
+                              />
+                              <Stack.Screen
+                                name="formsheet"
+                                options={{
+                                  presentation: 'formSheet',
+                                  headerShown: false,
+                                }}
+                              />
+                              <Stack.Screen
+                                name="transparent-modal"
+                                options={{
+                                  presentation: 'transparentModal',
+                                  headerShown: false,
+                                  animation: 'fade',
+                                }}
+                              />
+                            </Stack>
+                          </BottomSheetModalProvider>
+                        </AddNavigationProvider>
+                      </WordNavigationProvider>
+                    </CameraTriggerProvider>
+                  </VideoRecordingProvider>
+                </ProfileStatsProvider>
               </StatsProvider>
             </ChildProvider>
           </SubscriptionProvider>

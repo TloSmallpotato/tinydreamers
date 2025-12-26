@@ -7,6 +7,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useWordNavigation } from '@/contexts/WordNavigationContext';
 import { useStats } from '@/contexts/StatsContext';
+import { useProfileStats } from '@/contexts/ProfileStatsContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import AddWordBottomSheet from '@/components/AddWordBottomSheet';
 import WordDetailBottomSheet from '@/components/WordDetailBottomSheet';
@@ -35,6 +36,7 @@ export default function WordsScreen() {
   const { selectedChild } = useChild();
   const { targetWordIdToOpen, clearTargetWordIdToOpen } = useWordNavigation();
   const { refreshStats } = useStats();
+  const { fetchProfileStats } = useProfileStats();
   const params = useLocalSearchParams();
   const router = useRouter();
   const [words, setWords] = useState<Word[]>([]);
@@ -256,7 +258,10 @@ export default function WordsScreen() {
       
       // Silently refresh profile stats in the background (now awaited)
       console.log('📊 Silently refreshing profile stats after word addition');
-      await refreshStats();
+      await Promise.all([
+        refreshStats(),
+        fetchProfileStats(),
+      ]);
     } catch (error) {
       console.error('Error in handleAddWord:', error);
       Alert.alert('Error', 'Failed to add word');

@@ -8,6 +8,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { useVideoRecording } from '@/contexts/VideoRecordingContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import { useStats } from '@/contexts/StatsContext';
+import { useProfileStats } from '@/contexts/ProfileStatsContext';
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 import { Image } from 'expo-image';
 import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
@@ -43,6 +44,7 @@ interface WordDetailBottomSheetProps {
 const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheetProps>(
   ({ word, onClose, onRefresh }, ref) => {
     const { refreshStats } = useStats();
+    const { fetchProfileStats } = useProfileStats();
     const [moments, setMoments] = useState<Moment[]>([]);
     const [loading, setLoading] = useState(false);
     const [isSpoken, setIsSpoken] = useState(false);
@@ -461,7 +463,10 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
 
         // Silently refresh profile stats in the background (now awaited)
         console.log('📊 Silently refreshing profile stats after word deletion');
-        await refreshStats();
+        await Promise.all([
+          refreshStats(),
+          fetchProfileStats(),
+        ]);
 
         Alert.alert('Success', 'Word and all associated videos deleted successfully');
       } catch (error) {

@@ -9,6 +9,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useProfileStats } from '@/contexts/ProfileStatsContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
 import SettingsBottomSheet from '@/components/SettingsBottomSheet';
@@ -56,13 +57,14 @@ export default function ProfileScreen() {
   const { children, selectedChild, selectChild, addChild, updateChild, refreshChildren, loading: childLoading } = useChild();
   const { triggerCamera } = useCameraTrigger();
   const { canAddChild, refreshUsage } = useSubscription();
+  const { stats: profileStats, fetchProfileStats } = useProfileStats();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
   const settingsRef = useRef<BottomSheetModal>(null);
 
   const [stats, setStats] = useState<ProfileStats>({
-    totalWords: 0,
-    totalBooks: 0,
+    totalWords: profileStats.words,
+    totalBooks: profileStats.books,
     wordsThisWeek: 0,
     booksThisWeek: 0,
     momentsThisWeek: 0,
@@ -117,9 +119,7 @@ export default function ProfileScreen() {
       console.log('ProfileScreen: Start of week (Monday):', startOfWeekISO);
 
       const [
-        totalWordsResult,
         wordsThisWeekResult,
-        totalBooksResult,
         booksThisWeekResult,
         momentsThisWeekResult,
         momentsDataResult,
@@ -127,16 +127,8 @@ export default function ProfileScreen() {
         supabase
           .from('user_words')
           .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id),
-        supabase
-          .from('user_words')
-          .select('*', { count: 'exact', head: true })
           .eq('child_id', selectedChild.id)
           .gte('created_at', startOfWeekISO),
-        supabase
-          .from('user_books')
-          .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id),
         supabase
           .from('user_books')
           .select('*', { count: 'exact', head: true })
@@ -155,16 +147,8 @@ export default function ProfileScreen() {
           .limit(5),
       ]);
 
-      const totalWordsCount = totalWordsResult.status === 'fulfilled' && !totalWordsResult.value.error
-        ? totalWordsResult.value.count || 0
-        : 0;
-
       const wordsThisWeekCount = wordsThisWeekResult.status === 'fulfilled' && !wordsThisWeekResult.value.error
         ? wordsThisWeekResult.value.count || 0
-        : 0;
-
-      const totalBooksCount = totalBooksResult.status === 'fulfilled' && !totalBooksResult.value.error
-        ? totalBooksResult.value.count || 0
         : 0;
 
       const booksThisWeekCount = booksThisWeekResult.status === 'fulfilled' && !booksThisWeekResult.value.error
@@ -179,14 +163,8 @@ export default function ProfileScreen() {
         ? momentsDataResult.value.data || []
         : [];
 
-      if (totalWordsResult.status === 'rejected') {
-        console.error('ProfileScreen: Error fetching total words:', totalWordsResult.reason);
-      }
       if (wordsThisWeekResult.status === 'rejected') {
         console.error('ProfileScreen: Error fetching words this week:', wordsThisWeekResult.reason);
-      }
-      if (totalBooksResult.status === 'rejected') {
-        console.error('ProfileScreen: Error fetching total books:', totalBooksResult.reason);
       }
       if (booksThisWeekResult.status === 'rejected') {
         console.error('ProfileScreen: Error fetching books this week:', booksThisWeekResult.reason);
@@ -199,11 +177,11 @@ export default function ProfileScreen() {
       }
 
       console.log('ProfileScreen: Profile data fetched successfully');
-      console.log('ProfileScreen: Stats - Total Words:', totalWordsCount, 'Words This Week:', wordsThisWeekCount, 'Total Books:', totalBooksCount, 'Books This Week:', booksThisWeekCount, 'Moments:', momentsThisWeekCount);
+      console.log('ProfileScreen: Stats - Total Words:', profileStats.words, 'Words This Week:', wordsThisWeekCount, 'Total Books:', profileStats.books, 'Books This Week:', booksThisWeekCount, 'Moments:', momentsThisWeekCount);
 
       setStats({
-        totalWords: totalWordsCount,
-        totalBooks: totalBooksCount,
+        totalWords: profileStats.words,
+        totalBooks: profileStats.books,
         wordsThisWeek: wordsThisWeekCount,
         booksThisWeek: booksThisWeekCount,
         momentsThisWeek: momentsThisWeekCount,
@@ -239,8 +217,8 @@ export default function ProfileScreen() {
     } else if (!childLoading && !selectedChild) {
       setLoading(false);
       setStats({
-        totalWords: 0,
-        totalBooks: 0,
+        totalWords: profileStats.words,
+        totalBooks: profileStats.books,
         wordsThisWeek: 0,
         booksThisWeek: 0,
         momentsThisWeek: 0,
@@ -248,7 +226,7 @@ export default function ProfileScreen() {
       });
       setMoments([]);
     }
-  }, [selectedChild, childLoading, fetchProfileData]);
+  }, [selectedChild, childLoading, fetchProfileData, profileStats]);
 
   // Pull to refresh handler
   const onRefresh = useCallback(async () => {
@@ -256,11 +234,12 @@ export default function ProfileScreen() {
     setRefreshing(true);
     await Promise.all([
       fetchProfileData(true),
+      fetchProfileStats(),
       refreshUsage(),
     ]);
     setRefreshing(false);
     HapticFeedback.success();
-  }, [fetchProfileData, refreshUsage]);
+  }, [fetchProfileData, fetchProfileStats, refreshUsage]);
 
   // Debounced fetch function to prevent excessive API calls
   const debouncedFetchProfileData = useCallback(() => {
@@ -299,6 +278,7 @@ export default function ProfileScreen() {
         (payload) => {
           console.log('ProfileScreen: user_words change detected:', payload.eventType, payload);
           debouncedFetchProfileData();
+          fetchProfileStats();
           refreshUsage();
         }
       )
@@ -323,6 +303,7 @@ export default function ProfileScreen() {
         (payload) => {
           console.log('ProfileScreen: user_books change detected:', payload.eventType, payload);
           debouncedFetchProfileData();
+          fetchProfileStats();
           refreshUsage();
         }
       )
@@ -371,7 +352,7 @@ export default function ProfileScreen() {
       supabase.removeChannel(booksChannel);
       supabase.removeChannel(momentsChannel);
     };
-  }, [selectedChild, debouncedFetchProfileData, refreshUsage]);
+  }, [selectedChild, debouncedFetchProfileData, fetchProfileStats, refreshUsage]);
 
   const calculateAge = (birthDate: string) => {
     try {
