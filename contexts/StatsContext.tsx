@@ -151,11 +151,11 @@ export function StatsProvider({ children }: { children: React.ReactNode }) {
   }, [fetchStats]);
 
   // Silent refresh function - fetches stats without showing loader
-  // Added small delay to ensure database consistency
+  // EXPO GO FIX: Increased delay from 100ms to 500ms for better database consistency
   const refreshStats = useCallback(async () => {
     console.log('StatsContext: Silent refresh triggered');
-    // Add a small delay to ensure database has committed changes
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // EXPO GO FIX: Longer delay to ensure database has committed changes in Expo Go environment
+    await new Promise(resolve => setTimeout(resolve, 500));
     await fetchStats(false);
   }, [fetchStats]);
 

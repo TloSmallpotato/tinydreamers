@@ -42,6 +42,7 @@ export default function WordsScreen() {
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const isFetchingRef = useRef(false);
 
   const addWordSheetRef = useRef<BottomSheetModal>(null);
   const wordDetailSheetRef = useRef<BottomSheetModal>(null);
@@ -92,6 +93,12 @@ export default function WordsScreen() {
   );
 
   const fetchWords = useCallback(async () => {
+    // EXPO GO FIX: Prevent concurrent fetches
+    if (isFetchingRef.current) {
+      console.log('Words fetch already in progress, skipping...');
+      return;
+    }
+
     if (!selectedChild) {
       setWords([]);
       setLoading(false);
@@ -99,6 +106,7 @@ export default function WordsScreen() {
     }
 
     try {
+      isFetchingRef.current = true;
       setLoading(true);
       console.log('Fetching words for child:', selectedChild.id);
       
@@ -140,11 +148,13 @@ export default function WordsScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   }, [selectedChild]);
 
   useFocusEffect(
     useCallback(() => {
+      console.log('📝 Words screen focused - refreshing words list');
       fetchWords();
     }, [fetchWords])
   );
@@ -239,6 +249,9 @@ export default function WordsScreen() {
       console.log('Word added successfully');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       addWordSheetRef.current?.dismiss();
+      
+      // EXPO GO FIX: Add delay before refreshing to ensure database consistency
+      await new Promise(resolve => setTimeout(resolve, 300));
       await fetchWords();
       
       // Silently refresh profile stats in the background (now awaited)

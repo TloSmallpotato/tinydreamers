@@ -247,6 +247,10 @@ export default function SearchBookScreen() {
       console.log('Book added to user library successfully');
       console.log('=== ADDING BOOK PROCESS COMPLETED ===');
 
+      // EXPO GO FIX: Add delay before refreshing stats to ensure database consistency
+      console.log('📊 Waiting for database to commit changes...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Silently refresh profile stats in the background (now awaited)
       console.log('📊 Silently refreshing profile stats after book addition');
       await refreshStats();
@@ -254,10 +258,10 @@ export default function SearchBookScreen() {
       // Show success message
       showToast('Book added to your library!', 'success');
       
-      // Navigate back to books screen after a short delay
+      // EXPO GO FIX: Longer delay before navigating back to allow stats to update
       setTimeout(() => {
         router.back();
-      }, 1500);
+      }, 2000);
     } catch (error) {
       console.error('Error in handleAddToLibrary:', error);
       showToast('An unexpected error occurred. Please try again.', 'error');
