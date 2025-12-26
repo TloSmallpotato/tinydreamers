@@ -32,7 +32,6 @@ export default function SearchBookScreen() {
   const [searchResults, setSearchResults] = useState<BookSearchResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [isAddingBook, setIsAddingBook] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -102,22 +101,19 @@ export default function SearchBookScreen() {
     setShowDropdown(false);
     Keyboard.dismiss();
     
-    // OPTIMIZED: Fetch detailed book info with high-quality cover AFTER selection
-    setIsLoadingDetails(true);
+    // OPTIMIZED: Show book immediately with basic info, fetch details in background
+    setSelectedBook(book);
+    
+    // Fetch detailed book info in background (for better cover quality)
     try {
       const detailedBook = await getBookDetails(book.googleBooksId);
       if (detailedBook) {
+        console.log('Detailed book info loaded');
         setSelectedBook(detailedBook);
-      } else {
-        // Fallback to the basic book info if details fetch fails
-        setSelectedBook(book);
       }
     } catch (error) {
       console.error('Error fetching book details:', error);
-      // Fallback to the basic book info
-      setSelectedBook(book);
-    } finally {
-      setIsLoadingDetails(false);
+      // Keep the basic book info if details fetch fails
     }
   };
 
@@ -380,16 +376,8 @@ export default function SearchBookScreen() {
 
         <TouchableWithoutFeedback onPress={handleTapOutside}>
           <View style={styles.contentArea}>
-            {/* Loading Details State */}
-            {isLoadingDetails && (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={styles.loadingText}>Loading book details...</Text>
-              </View>
-            )}
-
-            {/* Selected Book Details - WITHOUT DESCRIPTION */}
-            {!isLoadingDetails && selectedBook && (
+            {/* Selected Book Details - WITH COVER */}
+            {selectedBook && (
               <ScrollView 
                 style={styles.selectedBookContainer}
                 showsVerticalScrollIndicator={false}
@@ -483,7 +471,7 @@ export default function SearchBookScreen() {
             )}
 
             {/* Search Results Dropdown - OPTIMIZED: Only shows title and author */}
-            {!isLoadingDetails && !selectedBook && showDropdown && searchResults.length > 0 && (
+            {!selectedBook && showDropdown && searchResults.length > 0 && (
               <ScrollView 
                 style={styles.dropdown}
                 keyboardShouldPersistTaps="handled"
@@ -510,7 +498,7 @@ export default function SearchBookScreen() {
             )}
 
             {/* Empty States */}
-            {!isLoadingDetails && !selectedBook && !showDropdown && searchQuery.length === 0 && (
+            {!selectedBook && !showDropdown && searchQuery.length === 0 && (
               <View style={styles.emptyState}>
                 <IconSymbol
                   ios_icon_name="magnifyingglass"
@@ -525,7 +513,7 @@ export default function SearchBookScreen() {
               </View>
             )}
 
-            {!isLoadingDetails && !selectedBook && !showDropdown && searchQuery.length > 0 && !isSearching && searchResults.length === 0 && (
+            {!selectedBook && !showDropdown && searchQuery.length > 0 && !isSearching && searchResults.length === 0 && (
               <View style={styles.emptyState}>
                 <IconSymbol
                   ios_icon_name="book.closed"
@@ -639,17 +627,6 @@ const styles = StyleSheet.create({
   },
   contentArea: {
     flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginTop: 16,
   },
   dropdown: {
     flex: 1,

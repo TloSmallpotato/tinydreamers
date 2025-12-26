@@ -2,7 +2,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Image, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -78,8 +78,6 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [thumbnailErrors, setThumbnailErrors] = useState<Set<string>>(new Set());
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const lastFetchTimeRef = useRef<number>(0);
 
   // Update local avatar URL when selectedChild changes
   useEffect(() => {
@@ -91,21 +89,12 @@ export default function ProfileScreen() {
     }
   }, [selectedChild?.avatar_url]);
 
-  // Fetch profile data function with improved logic
-  const fetchProfileData = useCallback(async (forceRefresh: boolean = false) => {
+  // Fetch profile data function - IMMEDIATE, NO DEBOUNCE
+  const fetchProfileData = useCallback(async () => {
     if (!selectedChild) {
       console.log('ProfileScreen: No selected child, skipping fetch');
       return;
     }
-
-    // Prevent excessive fetches (minimum 200ms between fetches unless forced)
-    const now = Date.now();
-    if (!forceRefresh && now - lastFetchTimeRef.current < 200) {
-      console.log('ProfileScreen: Skipping fetch - too soon since last fetch');
-      return;
-    }
-
-    lastFetchTimeRef.current = now;
 
     try {
       setLoading(true);
@@ -231,11 +220,21 @@ export default function ProfileScreen() {
     }
   }, [selectedChild]);
 
+  // CRITICAL FIX: Fetch data immediately when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('ProfileScreen: Screen focused - fetching fresh data');
+      if (selectedChild) {
+        fetchProfileData();
+      }
+    }, [selectedChild, fetchProfileData])
+  );
+
   // Initial data fetch when selectedChild changes
   useEffect(() => {
     if (selectedChild) {
       console.log('ProfileScreen: Selected child changed, fetching data...');
-      fetchProfileData(true);
+      fetchProfileData();
     } else if (!childLoading && !selectedChild) {
       setLoading(false);
       setStats({
@@ -255,28 +254,14 @@ export default function ProfileScreen() {
     HapticFeedback.light();
     setRefreshing(true);
     await Promise.all([
-      fetchProfileData(true),
+      fetchProfileData(),
       refreshUsage(),
     ]);
     setRefreshing(false);
     HapticFeedback.success();
   }, [fetchProfileData, refreshUsage]);
 
-  // Debounced fetch function to prevent excessive API calls
-  const debouncedFetchProfileData = useCallback(() => {
-    // Clear any existing timeout
-    if (fetchDebounceRef.current) {
-      clearTimeout(fetchDebounceRef.current);
-    }
-
-    // Set a new timeout with shorter delay for better responsiveness
-    fetchDebounceRef.current = setTimeout(() => {
-      console.log('ProfileScreen: Debounced fetch triggered');
-      fetchProfileData(false);
-    }, 300);
-  }, [fetchProfileData]);
-
-  // Set up real-time subscriptions for stats updates
+  // Set up real-time subscriptions for stats updates - IMMEDIATE REFRESH
   useEffect(() => {
     if (!selectedChild) {
       console.log('ProfileScreen: No selected child, skipping subscriptions');
@@ -298,7 +283,8 @@ export default function ProfileScreen() {
         },
         (payload) => {
           console.log('ProfileScreen: user_words change detected:', payload.eventType, payload);
-          debouncedFetchProfileData();
+          // IMMEDIATE REFRESH - NO DEBOUNCE
+          fetchProfileData();
           refreshUsage();
         }
       )
@@ -322,7 +308,8 @@ export default function ProfileScreen() {
         },
         (payload) => {
           console.log('ProfileScreen: user_books change detected:', payload.eventType, payload);
-          debouncedFetchProfileData();
+          // IMMEDIATE REFRESH - NO DEBOUNCE
+          fetchProfileData();
           refreshUsage();
         }
       )
@@ -346,7 +333,8 @@ export default function ProfileScreen() {
         },
         (payload) => {
           console.log('ProfileScreen: moments change detected:', payload.eventType, payload);
-          debouncedFetchProfileData();
+          // IMMEDIATE REFRESH - NO DEBOUNCE
+          fetchProfileData();
         }
       )
       .subscribe((status, err) => {
@@ -360,18 +348,12 @@ export default function ProfileScreen() {
     return () => {
       console.log('ProfileScreen: Cleaning up subscriptions');
       
-      // Clear debounce timeout
-      if (fetchDebounceRef.current) {
-        clearTimeout(fetchDebounceRef.current);
-        fetchDebounceRef.current = null;
-      }
-
       // Unsubscribe from all channels
       supabase.removeChannel(wordsChannel);
       supabase.removeChannel(booksChannel);
       supabase.removeChannel(momentsChannel);
     };
-  }, [selectedChild?.id, debouncedFetchProfileData, refreshUsage]);
+  }, [selectedChild?.id, fetchProfileData, refreshUsage]);
 
   const calculateAge = (birthDate: string) => {
     try {
@@ -663,7 +645,7 @@ export default function ProfileScreen() {
               style={styles.retryButton} 
               onPress={() => {
                 HapticFeedback.medium();
-                fetchProfileData(true);
+                fetchProfileData();
               }}
             >
               <Text style={styles.retryButtonText}>Retry</Text>
