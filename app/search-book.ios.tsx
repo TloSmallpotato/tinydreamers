@@ -39,6 +39,7 @@ export default function SearchBookScreen() {
   const [toastType, setToastType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [selectedBook, setSelectedBook] = useState<BookSearchResult | null>(null);
+  const [isCoverLoading, setIsCoverLoading] = useState(false);
   
   const searchInputRef = useRef<TextInput>(null);
   const addBookTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -104,6 +105,7 @@ export default function SearchBookScreen() {
     
     // OPTIMIZED: Fetch detailed book info with high-quality cover AFTER selection
     setIsLoadingDetails(true);
+    setIsCoverLoading(true);
     try {
       const detailedBook = await getBookDetails(book.googleBooksId);
       if (detailedBook) {
@@ -118,6 +120,7 @@ export default function SearchBookScreen() {
       setSelectedBook(book);
     } finally {
       setIsLoadingDetails(false);
+      // Keep cover loading state until image loads
     }
   };
 
@@ -264,6 +267,7 @@ export default function SearchBookScreen() {
   const handleSearchAgain = () => {
     console.log('[iOS] Search again clicked');
     setSelectedBook(null);
+    setIsCoverLoading(false);
     setShowDropdown(searchResults.length > 0);
     setTimeout(() => {
       searchInputRef.current?.focus();
@@ -301,6 +305,16 @@ export default function SearchBookScreen() {
     setTimeout(() => {
       router.back();
     }, 1500);
+  };
+
+  const handleCoverLoad = () => {
+    console.log('[iOS] Cover image loaded successfully');
+    setIsCoverLoading(false);
+  };
+
+  const handleCoverError = () => {
+    console.log('[iOS] Cover image failed to load');
+    setIsCoverLoading(false);
   };
 
   return (
@@ -400,18 +414,27 @@ export default function SearchBookScreen() {
                 contentContainerStyle={styles.selectedBookContent}
               >
                 <View style={styles.selectedBookCard}>
-                  {/* Book Cover */}
+                  {/* Book Cover with Loading State */}
                   <View style={styles.selectedBookCoverContainer}>
                     {selectedBook.coverUrl || selectedBook.thumbnailUrl ? (
-                      <Image
-                        source={{ uri: getFirstValidImageUrl([selectedBook.coverUrl, selectedBook.thumbnailUrl]) }}
-                        style={styles.selectedBookCover}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                        priority="high"
-                        transition={300}
-                        onError={() => console.log('[iOS] Selected book image error:', selectedBook.title)}
-                      />
+                      <View style={styles.coverWrapper}>
+                        {isCoverLoading && (
+                          <View style={styles.coverLoadingOverlay}>
+                            <ActivityIndicator size="large" color={colors.primary} />
+                            <Text style={styles.coverLoadingText}>Loading cover...</Text>
+                          </View>
+                        )}
+                        <Image
+                          source={{ uri: getFirstValidImageUrl([selectedBook.coverUrl, selectedBook.thumbnailUrl]) }}
+                          style={[styles.selectedBookCover, isCoverLoading && styles.hiddenCover]}
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
+                          priority="high"
+                          transition={300}
+                          onLoad={handleCoverLoad}
+                          onError={handleCoverError}
+                        />
+                      </View>
                     ) : (
                       <View style={[styles.selectedBookCover, styles.selectedPlaceholderCover]}>
                         <Text style={styles.selectedPlaceholderText} numberOfLines={3}>
@@ -436,15 +459,6 @@ export default function SearchBookScreen() {
                       <Text style={styles.selectedBookMeta}>
                         Pages: {selectedBook.pageCount}
                       </Text>
-                    )}
-
-                    {selectedBook.description && (
-                      <View style={styles.descriptionContainer}>
-                        <Text style={styles.descriptionLabel}>Description:</Text>
-                        <Text style={styles.selectedBookDescription}>
-                          {selectedBook.description}
-                        </Text>
-                      </View>
                     )}
                   </View>
 
@@ -703,10 +717,35 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
+  coverWrapper: {
+    position: 'relative',
+    width: 200,
+    height: 300,
+  },
   selectedBookCover: {
     width: 200,
     height: 300,
     borderRadius: 12,
+  },
+  hiddenCover: {
+    opacity: 0,
+  },
+  coverLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  coverLoadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 12,
   },
   selectedPlaceholderCover: {
     backgroundColor: '#EDEDFF',
@@ -743,23 +782,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 4,
     textAlign: 'center',
-  },
-  descriptionContainer: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.background,
-  },
-  descriptionLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  selectedBookDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
   },
   actionButtons: {
     width: '100%',
