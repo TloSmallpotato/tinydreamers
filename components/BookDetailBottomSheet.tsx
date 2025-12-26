@@ -42,13 +42,6 @@ interface BookDetailBottomSheetProps {
 
 type RatingType = 'not_vibing' | 'like_it' | 'love_it' | null;
 
-// Bookmark component
-const Bookmark = () => (
-  <View style={styles.bookmark}>
-    <View style={styles.bookmarkRibbon} />
-  </View>
-);
-
 const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheetProps>(
   ({ userBook, onClose, onRefresh }, ref) => {
     const snapPoints = useMemo(() => [screenHeight * 0.85], []);
@@ -453,7 +446,11 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
                     />
                   ) : (
                     <View style={[styles.bookCover, styles.placeholderCover]}>
-                      <Bookmark />
+                      <Image
+                        source={require('@/assets/images/9a501b37-3b8d-4309-b89f-a0f0a8a510bb.png')}
+                        style={styles.bookmarkImage}
+                        contentFit="contain"
+                      />
                       <Text style={styles.placeholderTitle} numberOfLines={4}>
                         {book.title}
                       </Text>
@@ -689,6 +686,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     overflow: 'visible',
+    position: 'relative',
+  },
+  bookmarkImage: {
+    position: 'absolute',
+    top: 0,
+    right: 16,
+    width: 32,
+    height: 48,
+    zIndex: 10,
   },
   placeholderTitle: {
     fontSize: 16,
@@ -802,22 +808,6 @@ const styles = StyleSheet.create({
   },
   recommendTextActive: {
     color: colors.backgroundAlt,
-  },
-  bookmark: {
-    position: 'absolute',
-    top: 0,
-    right: 16,
-    width: 32,
-    height: 48,
-    zIndex: 10,
-  },
-  bookmarkRibbon: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#FF5722',
-    borderBottomLeftRadius: 2,
-    borderBottomRightRadius: 2,
-    // Shadow removed
   },
 });
 

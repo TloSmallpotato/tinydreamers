@@ -28,7 +28,7 @@ import * as Haptics from 'expo-haptics';
 import { getFirstValidImageUrl } from '@/utils/imageValidation';
 import ValidatedImage from '@/components/ValidatedImage';
 import PropTypes from 'prop-types';
-import Svg, { Path } from 'react-native-svg';
+import { Image } from 'expo-image';
 
 interface SavedBook {
   id: string;
@@ -60,19 +60,6 @@ const LOADING_MESSAGES = [
   "Peeking inside the story…"
 ];
 
-// Bookmark component with V-notch at the bottom
-const Bookmark = () => (
-  <View style={styles.bookmark}>
-    <Svg width="32" height="48" viewBox="0 0 32 48" style={styles.bookmarkSvg}>
-      <Path
-        d="M 0 0 L 32 0 L 32 48 L 16 38 L 0 48 Z"
-        fill="#FF5722"
-        stroke="none"
-      />
-    </Svg>
-  </View>
-);
-
 // Memoized book card component for better performance
 const BookCard = React.memo<{
   book: SavedBook;
@@ -102,7 +89,11 @@ const BookCard = React.memo<{
           />
         ) : (
           <View style={[styles.bookCoverLarge, styles.placeholderCoverLarge]}>
-            <Bookmark />
+            <Image
+              source={require('@/assets/images/9a501b37-3b8d-4309-b89f-a0f0a8a510bb.png')}
+              style={styles.bookmarkImage}
+              contentFit="contain"
+            />
             <Text style={styles.placeholderText} numberOfLines={4}>
               {book.book.title}
             </Text>
@@ -261,6 +252,14 @@ export default function BooksScreen() {
     }, [params.autoScan, router])
   );
 
+  // Refresh books when screen comes into focus (e.g., after adding a book)
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔵 Books screen focused - refreshing books');
+      fetchSavedBooks();
+    }, [selectedChild])
+  );
+
   // Generate signed URLs for private covers
   const generateSignedUrl = useCallback(async (path: string): Promise<string | null> => {
     try {
@@ -344,10 +343,6 @@ export default function BooksScreen() {
       setIsLoadingBooks(false);
     }
   }, [selectedChild, generateSignedUrl]);
-
-  useEffect(() => {
-    fetchSavedBooks();
-  }, [fetchSavedBooks]);
 
   // Pull to refresh handler
   const onRefresh = useCallback(async () => {
@@ -928,6 +923,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     overflow: 'visible',
+    position: 'relative',
+  },
+  bookmarkImage: {
+    position: 'absolute',
+    top: 0,
+    right: 16,
+    width: 32,
+    height: 48,
+    zIndex: 10,
   },
   placeholderText: {
     fontSize: 14,
@@ -948,16 +952,5 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: colors.backgroundAlt,
-  },
-  bookmark: {
-    position: 'absolute',
-    top: 0,
-    right: 16,
-    width: 32,
-    height: 48,
-    zIndex: 10,
-  },
-  bookmarkSvg: {
-    // Shadow removed
   },
 });
