@@ -115,7 +115,7 @@ export default function AllMomentsScreen() {
       console.log('AllMomentsScreen: Cleaning up subscription');
       supabase.removeChannel(momentsChannel);
     };
-  }, [selectedChild?.id, fetchAllMoments]);
+  }, [selectedChild, fetchAllMoments]);
 
   const handleBack = () => {
     console.log('AllMomentsScreen: Back button pressed');

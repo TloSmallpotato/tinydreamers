@@ -32,7 +32,7 @@ export default function NotificationSettingsBottomSheet({ bottomSheetRef }: Noti
 
   useEffect(() => {
     refreshReminderStatus();
-  }, []);
+  }, [refreshReminderStatus]);
 
   const handleToggleReminder = async (value: boolean) => {
     if (value) {

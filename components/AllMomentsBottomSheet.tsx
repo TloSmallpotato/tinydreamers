@@ -114,7 +114,7 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
       console.log('AllMomentsBottomSheet: Cleaning up subscription');
       supabase.removeChannel(momentsChannel);
     };
-  }, [selectedChild?.id, fetchAllMoments]);
+  }, [selectedChild, fetchAllMoments]);
 
   const handleMomentPress = (moment: Moment) => {
     console.log('AllMomentsBottomSheet: Moment pressed:', moment.id);
