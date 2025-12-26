@@ -217,9 +217,10 @@ export default function SearchBookScreen() {
         setSelectedBook(null);
         setIsAddingBook(false);
         
-        // Navigate back to books screen after a short delay
+        // Navigate back to books screen with bookAdded parameter
         setTimeout(() => {
-          router.back();
+          console.log('[iOS] 🔄 Navigating back to Books page with bookAdded=true parameter');
+          router.push('/(tabs)/books?bookAdded=true');
         }, 1500);
         return;
       }
@@ -248,9 +249,10 @@ export default function SearchBookScreen() {
       // Show success message
       showToast('Book added to your library!', 'success');
       
-      // Navigate back to books screen after a short delay
+      // Navigate back to books screen with bookAdded parameter
       setTimeout(() => {
-        router.back();
+        console.log('[iOS] 🔄 Navigating back to Books page with bookAdded=true parameter');
+        router.push('/(tabs)/books?bookAdded=true');
       }, 1500);
     } catch (error) {
       console.error('[iOS] Error in handleAddToLibrary:', error);
@@ -303,7 +305,8 @@ export default function SearchBookScreen() {
   const handleCustomBookAdded = () => {
     showToast('Custom book added successfully!', 'success');
     setTimeout(() => {
-      router.back();
+      console.log('[iOS] 🔄 Navigating back to Books page with bookAdded=true parameter');
+      router.push('/(tabs)/books?bookAdded=true');
     }, 1500);
   };
 

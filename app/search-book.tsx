@@ -221,9 +221,10 @@ export default function SearchBookScreen() {
         setSelectedBook(null);
         setIsAddingBook(false);
         
-        // Navigate back to books screen after a short delay
+        // Navigate back to books screen with bookAdded parameter
         setTimeout(() => {
-          router.back();
+          console.log('🔄 Navigating back to Books page with bookAdded=true parameter');
+          router.push('/(tabs)/books?bookAdded=true');
         }, 1500);
         return;
       }
