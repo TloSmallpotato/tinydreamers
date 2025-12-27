@@ -11,6 +11,8 @@ import { useProfileStats } from '@/contexts/ProfileStatsContext';
 import * as Haptics from 'expo-haptics';
 import { isLikelyBlankImage, getFirstValidImageUrl } from '@/utils/imageValidation';
 import ValidatedImage from '@/components/ValidatedImage';
+import * as ImagePicker from 'expo-image-picker';
+import { decode } from 'base64-arraybuffer';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -24,7 +26,12 @@ interface Book {
   description: string;
   published_date: string;
   page_count: number;
-  requested: number;
+  requested?: number;
+  active_request_count?: number;
+  not_vibing_count?: number;
+  like_it_count?: number;
+  love_it_count?: number;
+  recommend_count?: number;
 }
 
 interface UserBook {
@@ -40,6 +47,7 @@ interface BookDetailBottomSheetProps {
   userBook: UserBook | null;
   onClose: () => void;
   onRefresh: () => void;
+  isAdminView?: boolean;
 }
 
 type RatingType = 'not_vibing' | 'like_it' | 'love_it' | null;
@@ -56,7 +64,7 @@ const Bookmark = () => (
 );
 
 const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheetProps>(
-  ({ userBook, onClose, onRefresh }, ref) => {
+  ({ userBook, onClose, onRefresh, isAdminView = false }, ref) => {
     const { refreshStats } = useStats();
     const { fetchProfileStats } = useProfileStats();
     const snapPoints = useMemo(() => [screenHeight * 0.85], []);
@@ -70,6 +78,8 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     const [hasUserRequestedCover, setHasUserRequestedCover] = useState(false);
     const [hasUserRequestedBetterImage, setHasUserRequestedBetterImage] = useState(false);
     const [isCheckingRequest, setIsCheckingRequest] = useState(false);
+    const [isUploadingCover, setIsUploadingCover] = useState(false);
+    const [isCompletingRequests, setIsCompletingRequests] = useState(false);
 
     // Cache the current book data to prevent flickering
     const [cachedUserBook, setCachedUserBook] = useState<UserBook | null>(null);
@@ -147,7 +157,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
     // Check if user has already requested when book changes or image state changes
     useEffect(() => {
-      if (!cachedUserBook) return;
+      if (!cachedUserBook || isAdminView) return;
 
       const checkRequests = async () => {
         setIsCheckingRequest(true);
@@ -166,10 +176,10 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       };
 
       checkRequests();
-    }, [cachedUserBook, checkUserRequest]);
+    }, [cachedUserBook, checkUserRequest, isAdminView]);
 
     const updateBookData = useCallback(async (field: 'rating' | 'would_recommend', value: any) => {
-      if (!cachedUserBook) return;
+      if (!cachedUserBook || isAdminView) return;
 
       try {
         const { error } = await supabase
@@ -187,24 +197,28 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         console.error('Error in updateBookData:', error);
         Alert.alert('Error', 'Failed to update book');
       }
-    }, [cachedUserBook, onRefresh]);
+    }, [cachedUserBook, onRefresh, isAdminView]);
 
     const handleRatingPress = useCallback(async (newRating: RatingType) => {
+      if (isAdminView) return;
+      
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const finalRating = rating === newRating ? null : newRating;
       setRating(finalRating);
       await updateBookData('rating', finalRating);
-    }, [rating, updateBookData]);
+    }, [rating, updateBookData, isAdminView]);
 
     const toggleRecommend = useCallback(async () => {
+      if (isAdminView) return;
+      
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const newValue = !wouldRecommend;
       setWouldRecommend(newValue);
       await updateBookData('would_recommend', newValue);
-    }, [wouldRecommend, updateBookData]);
+    }, [wouldRecommend, updateBookData, isAdminView]);
 
     const deleteBook = useCallback(async () => {
-      if (!cachedUserBook) return;
+      if (!cachedUserBook || isAdminView) return;
 
       try {
         const { error } = await supabase
@@ -235,9 +249,11 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         console.error('Error in deleteBook:', error);
         Alert.alert('Error', 'Failed to remove book');
       }
-    }, [cachedUserBook, ref, onRefresh]);
+    }, [cachedUserBook, ref, onRefresh, isAdminView]);
 
     const handleDeleteBook = useCallback(() => {
+      if (isAdminView) return;
+      
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setShowMenu(false);
       
@@ -258,9 +274,11 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
           },
         ]
       );
-    }, [cachedUserBook, deleteBook]);
+    }, [cachedUserBook, deleteBook, isAdminView]);
 
     const handleMenuPress = () => {
+      if (isAdminView) return;
+      
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setShowMenu(!showMenu);
     };
@@ -325,10 +343,11 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
     }, [cachedUserBook, imageError]);
 
     const handleRequestCover = useCallback(async () => {
-      if (!cachedUserBook || isRequesting) {
+      if (!cachedUserBook || isRequesting || isAdminView) {
         console.log('⚠️ Cannot request:', { 
           hasBook: !!cachedUserBook, 
-          isRequesting
+          isRequesting,
+          isAdminView
         });
         return;
       }
@@ -382,18 +401,188 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
       } finally {
         setIsRequesting(false);
       }
-    }, [cachedUserBook, isRequesting, hasUserRequestedCover, hasUserRequestedBetterImage, hasNoCover, onRefresh]);
+    }, [cachedUserBook, isRequesting, hasUserRequestedCover, hasUserRequestedBetterImage, hasNoCover, onRefresh, isAdminView]);
+
+    const handleUploadCover = useCallback(async () => {
+      if (!cachedUserBook || !isAdminView || isUploadingCover) return;
+
+      try {
+        // Request permission
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Required', 'Please grant photo library access to upload a book cover.');
+          return;
+        }
+
+        // Launch image picker
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [4, 5],
+          quality: 0.9,
+        });
+
+        if (result.canceled) {
+          return;
+        }
+
+        setIsUploadingCover(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+        const image = result.assets[0];
+        console.log('📤 Uploading new book cover for:', cachedUserBook.book.title);
+
+        // Read the file as base64
+        const response = await fetch(image.uri);
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+        // Generate a unique filename
+        const fileExt = image.uri.split('.').pop() || 'jpg';
+        const fileName = `${cachedUserBook.book.id}_${Date.now()}.${fileExt}`;
+        const filePath = `book-covers/${fileName}`;
+
+        // Upload to Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from('book-covers')
+          .upload(filePath, decode(base64), {
+            contentType: `image/${fileExt}`,
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error('❌ Error uploading cover:', uploadError);
+          Alert.alert('Error', 'Failed to upload book cover. Please try again.');
+          return;
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('book-covers')
+          .getPublicUrl(filePath);
+
+        console.log('✅ Cover uploaded successfully:', publicUrl);
+
+        // Update book in database
+        const { error: updateError } = await supabase
+          .from('books_library')
+          .update({
+            cover_url: publicUrl,
+            thumbnail_url: publicUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', cachedUserBook.book.id);
+
+        if (updateError) {
+          console.error('❌ Error updating book:', updateError);
+          Alert.alert('Error', 'Failed to update book cover. Please try again.');
+          return;
+        }
+
+        console.log('✅ Book cover updated successfully');
+        
+        Alert.alert(
+          'Success',
+          'Book cover has been updated successfully!',
+          [{ 
+            text: 'OK', 
+            onPress: () => {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              onRefresh();
+              // Reset image error state to show new image
+              setImageError(false);
+              setIsLowRes(false);
+              setHasNoCover(false);
+            }
+          }]
+        );
+      } catch (error) {
+        console.error('❌ Error in handleUploadCover:', error);
+        Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      } finally {
+        setIsUploadingCover(false);
+      }
+    }, [cachedUserBook, isAdminView, isUploadingCover, onRefresh]);
+
+    const handleCompleteRequests = useCallback(async () => {
+      if (!cachedUserBook || !isAdminView || isCompletingRequests) return;
+
+      const activeRequests = cachedUserBook.book.active_request_count || 0;
+      if (activeRequests === 0) {
+        Alert.alert('No Requests', 'There are no active requests for this book.');
+        return;
+      }
+
+      Alert.alert(
+        'Complete Cover Requests',
+        `Mark all ${activeRequests} active request${activeRequests === 1 ? '' : 's'} as completed? This will hide the "Request book cover" button for users.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Complete',
+            style: 'default',
+            onPress: async () => {
+              try {
+                setIsCompletingRequests(true);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+                console.log('✅ Marking requests as completed for book:', cachedUserBook.book.id);
+
+                const { data, error } = await supabase.rpc('mark_book_requests_completed', {
+                  p_book_id: cachedUserBook.book.id
+                });
+
+                if (error) {
+                  console.error('❌ Error completing requests:', error);
+                  Alert.alert('Error', 'Failed to complete requests. Please try again.');
+                  return;
+                }
+
+                console.log('✅ Completed', data, 'requests');
+
+                Alert.alert(
+                  'Success',
+                  `${data} request${data === 1 ? '' : 's'} marked as completed!`,
+                  [{ 
+                    text: 'OK', 
+                    onPress: () => {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      onRefresh();
+                    }
+                  }]
+                );
+              } catch (error) {
+                console.error('❌ Error in handleCompleteRequests:', error);
+                Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+              } finally {
+                setIsCompletingRequests(false);
+              }
+            },
+          },
+        ]
+      );
+    }, [cachedUserBook, isAdminView, isCompletingRequests, onRefresh]);
 
     // Don't return null - keep the component mounted with cached data
     if (!cachedUserBook) return null;
 
     const book = cachedUserBook.book;
     const imageUrl = getImageUrl();
-    const showRequestButton = hasNoCover || isLowRes;
+    const showRequestButton = !isAdminView && (hasNoCover || isLowRes);
     
     // Determine which request state to check based on current button type
     const requestType = hasNoCover ? 'cover' : 'better_image';
     const hasUserRequested = requestType === 'cover' ? hasUserRequestedCover : hasUserRequestedBetterImage;
+
+    const activeRequests = book.active_request_count || 0;
+    const notVibingCount = book.not_vibing_count || 0;
+    const likeItCount = book.like_it_count || 0;
+    const loveItCount = book.love_it_count || 0;
+    const recommendCount = book.recommend_count || 0;
 
     return (
       <BottomSheetModal
@@ -419,21 +608,23 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
               {/* Header with Menu */}
               <View style={styles.header}>
                 <Text style={styles.headerTitle}>Book Details</Text>
-                <TouchableOpacity
-                  style={styles.menuButton}
-                  onPress={handleMenuPress}
-                >
-                  <IconSymbol
-                    ios_icon_name="ellipsis.circle"
-                    android_material_icon_name="more-vert"
-                    size={28}
-                    color={colors.primary}
-                  />
-                </TouchableOpacity>
+                {!isAdminView && (
+                  <TouchableOpacity
+                    style={styles.menuButton}
+                    onPress={handleMenuPress}
+                  >
+                    <IconSymbol
+                      ios_icon_name="ellipsis.circle"
+                      android_material_icon_name="more-vert"
+                      size={28}
+                      color={colors.primary}
+                    />
+                  </TouchableOpacity>
+                )}
               </View>
 
               {/* Menu Dropdown - Positioned absolutely above content */}
-              {showMenu && (
+              {showMenu && !isAdminView && (
                 <View style={styles.menuDropdown}>
                   <TouchableOpacity
                     style={styles.menuItem}
@@ -477,7 +668,26 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
                   )}
                 </View>
                 
-                {/* Request Button - Always show, grey out if already requested */}
+                {/* Admin: Upload Cover Button */}
+                {isAdminView && (
+                  <TouchableOpacity
+                    style={[styles.adminButton, isUploadingCover && styles.adminButtonDisabled]}
+                    onPress={handleUploadCover}
+                    disabled={isUploadingCover}
+                  >
+                    <IconSymbol
+                      ios_icon_name="photo"
+                      android_material_icon_name="image"
+                      size={16}
+                      color={colors.backgroundAlt}
+                    />
+                    <Text style={styles.adminButtonText}>
+                      {isUploadingCover ? 'Uploading...' : 'Replace Book Cover'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* User: Request Button - Always show, grey out if already requested */}
                 {showRequestButton && (
                   <TouchableOpacity
                     style={[
@@ -515,91 +725,161 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
                 )}
               </View>
 
-              {/* Rating - Moved above description */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>How did your kids like it?</Text>
-                <View style={styles.ratingContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.ratingButton,
-                      rating === 'not_vibing' && styles.ratingButtonActive,
-                    ]}
-                    onPress={() => handleRatingPress('not_vibing')}
-                  >
-                    <Text style={styles.ratingEmoji}>😕</Text>
-                    <Text
-                      style={[
-                        styles.ratingText,
-                        rating === 'not_vibing' && styles.ratingTextActive,
-                      ]}
+              {/* Admin: Request Stats */}
+              {isAdminView && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Cover Requests</Text>
+                  <View style={styles.statsRow}>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statValue}>{activeRequests}</Text>
+                      <Text style={styles.statLabel}>Active Requests</Text>
+                    </View>
+                  </View>
+                  {activeRequests > 0 && (
+                    <TouchableOpacity
+                      style={[styles.adminButton, styles.completeButton, isCompletingRequests && styles.adminButtonDisabled]}
+                      onPress={handleCompleteRequests}
+                      disabled={isCompletingRequests}
                     >
-                      Didn&apos;t vibe
-                    </Text>
-                  </TouchableOpacity>
+                      <IconSymbol
+                        ios_icon_name="checkmark.circle"
+                        android_material_icon_name="check-circle"
+                        size={16}
+                        color={colors.backgroundAlt}
+                      />
+                      <Text style={styles.adminButtonText}>
+                        {isCompletingRequests ? 'Completing...' : 'Complete Cover Requests'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
 
-                  <TouchableOpacity
-                    style={[
-                      styles.ratingButton,
-                      rating === 'like_it' && styles.ratingButtonActive,
-                    ]}
-                    onPress={() => handleRatingPress('like_it')}
-                  >
-                    <Text style={styles.ratingEmoji}>😊</Text>
-                    <Text
-                      style={[
-                        styles.ratingText,
-                        rating === 'like_it' && styles.ratingTextActive,
-                      ]}
-                    >
-                      Liked it
-                    </Text>
-                  </TouchableOpacity>
+              {/* Admin: User Stats */}
+              {isAdminView && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>User Ratings & Recommendations</Text>
+                  <View style={styles.statsRow}>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statEmoji}>😕</Text>
+                      <Text style={styles.statValue}>{notVibingCount}</Text>
+                      <Text style={styles.statLabel}>Didn&apos;t vibe</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statEmoji}>😊</Text>
+                      <Text style={styles.statValue}>{likeItCount}</Text>
+                      <Text style={styles.statLabel}>Liked it</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statEmoji}>😍</Text>
+                      <Text style={styles.statValue}>{loveItCount}</Text>
+                      <Text style={styles.statLabel}>Loved it</Text>
+                    </View>
+                  </View>
+                  <View style={styles.statsRow}>
+                    <View style={styles.statItem}>
+                      <IconSymbol
+                        ios_icon_name="heart.fill"
+                        android_material_icon_name="favorite"
+                        size={24}
+                        color={colors.secondary}
+                      />
+                      <Text style={styles.statValue}>{recommendCount}</Text>
+                      <Text style={styles.statLabel}>Recommended</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
 
+              {/* User: Rating - Moved above description */}
+              {!isAdminView && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>How did your kids like it?</Text>
+                  <View style={styles.ratingContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.ratingButton,
+                        rating === 'not_vibing' && styles.ratingButtonActive,
+                      ]}
+                      onPress={() => handleRatingPress('not_vibing')}
+                    >
+                      <Text style={styles.ratingEmoji}>😕</Text>
+                      <Text
+                        style={[
+                          styles.ratingText,
+                          rating === 'not_vibing' && styles.ratingTextActive,
+                        ]}
+                      >
+                        Didn&apos;t vibe
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.ratingButton,
+                        rating === 'like_it' && styles.ratingButtonActive,
+                      ]}
+                      onPress={() => handleRatingPress('like_it')}
+                    >
+                      <Text style={styles.ratingEmoji}>😊</Text>
+                      <Text
+                        style={[
+                          styles.ratingText,
+                          rating === 'like_it' && styles.ratingTextActive,
+                        ]}
+                      >
+                        Liked it
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.ratingButton,
+                        rating === 'love_it' && styles.ratingButtonActive,
+                      ]}
+                      onPress={() => handleRatingPress('love_it')}
+                    >
+                      <Text style={styles.ratingEmoji}>😍</Text>
+                      <Text
+                        style={[
+                          styles.ratingText,
+                          rating === 'love_it' && styles.ratingTextActive,
+                        ]}
+                      >
+                        Loved it
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* User: Would Recommend - Moved above description */}
+              {!isAdminView && (
+                <View style={styles.section}>
                   <TouchableOpacity
                     style={[
-                      styles.ratingButton,
-                      rating === 'love_it' && styles.ratingButtonActive,
+                      styles.recommendButton,
+                      wouldRecommend && styles.recommendButtonActive,
                     ]}
-                    onPress={() => handleRatingPress('love_it')}
+                    onPress={toggleRecommend}
                   >
-                    <Text style={styles.ratingEmoji}>😍</Text>
+                    <IconSymbol
+                      ios_icon_name={wouldRecommend ? 'heart.fill' : 'heart'}
+                      android_material_icon_name={wouldRecommend ? 'favorite' : 'favorite-border'}
+                      size={24}
+                      color={wouldRecommend ? colors.backgroundAlt : colors.primary}
+                    />
                     <Text
                       style={[
-                        styles.ratingText,
-                        rating === 'love_it' && styles.ratingTextActive,
+                        styles.recommendText,
+                        wouldRecommend && styles.recommendTextActive,
                       ]}
                     >
-                      Loved it
+                      Would Recommend
                     </Text>
                   </TouchableOpacity>
                 </View>
-              </View>
-
-              {/* Would Recommend - Moved above description */}
-              <View style={styles.section}>
-                <TouchableOpacity
-                  style={[
-                    styles.recommendButton,
-                    wouldRecommend && styles.recommendButtonActive,
-                  ]}
-                  onPress={toggleRecommend}
-                >
-                  <IconSymbol
-                    ios_icon_name={wouldRecommend ? 'heart.fill' : 'heart'}
-                    android_material_icon_name={wouldRecommend ? 'favorite' : 'favorite-border'}
-                    size={24}
-                    color={wouldRecommend ? colors.backgroundAlt : colors.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.recommendText,
-                      wouldRecommend && styles.recommendTextActive,
-                    ]}
-                  >
-                    Would Recommend
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              )}
 
               {/* Description */}
               {book.description && (
@@ -734,6 +1014,32 @@ const styles = StyleSheet.create({
   requestButtonTextDisabled: {
     color: '#FFFFFF',
   },
+  adminButton: {
+    backgroundColor: colors.buttonBlue,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    width: screenWidth * 0.5,
+    marginTop: 8,
+  },
+  completeButton: {
+    backgroundColor: colors.secondary,
+    marginTop: 12,
+    width: '100%',
+  },
+  adminButtonDisabled: {
+    opacity: 0.6,
+  },
+  adminButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
+    textAlign: 'center',
+  },
   bookInfo: {
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -771,6 +1077,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     lineHeight: 24,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 12,
+  },
+  statItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  statEmoji: {
+    fontSize: 32,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   ratingContainer: {
     flexDirection: 'row',

@@ -26,6 +26,11 @@ interface Book {
   description: string;
   published_date: string;
   page_count: number;
+  active_request_count?: number;
+  not_vibing_count?: number;
+  like_it_count?: number;
+  love_it_count?: number;
+  recommend_count?: number;
 }
 
 interface UserBook {
@@ -38,6 +43,8 @@ interface UserBook {
 }
 
 const BOOKS_PER_PAGE = 40;
+
+type SortOption = 'recent' | 'alphabetical' | 'most_requested';
 
 // Bookmark component with PNG image
 const Bookmark = () => (
@@ -62,11 +69,13 @@ export default function AdminAllBooksScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedBook, setSelectedBook] = useState<UserBook | null>(null);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<SortOption>('recent');
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const bookDetailRef = useRef<BottomSheetModal>(null);
 
   useEffect(() => {
     checkAdminStatusAndFetchBooks();
-  }, [user, currentPage]);
+  }, [user, currentPage, sortBy]);
 
   const checkAdminStatusAndFetchBooks = async () => {
     if (!user) {
@@ -112,24 +121,37 @@ export default function AdminAllBooksScreen() {
 
   const fetchBooks = async () => {
     try {
-      console.log('AdminAllBooks: Fetching books, page:', currentPage);
+      console.log('AdminAllBooks: Fetching books, page:', currentPage, 'sort:', sortBy);
       
       const from = (currentPage - 1) * BOOKS_PER_PAGE;
       const to = from + BOOKS_PER_PAGE - 1;
 
       // Get total count
       const { count } = await supabase
-        .from('books_library')
+        .from('admin_book_stats')
         .select('*', { count: 'exact', head: true });
 
       setTotalBooks(count || 0);
 
-      // Get paginated books with all fields needed for detail view
-      const { data, error } = await supabase
-        .from('books_library')
-        .select('id, google_books_id, title, authors, cover_url, thumbnail_url, description, published_date, page_count, source, created_at')
-        .order('created_at', { ascending: false })
-        .range(from, to);
+      // Build query with sorting
+      let query = supabase
+        .from('admin_book_stats')
+        .select('*');
+
+      // Apply sorting
+      if (sortBy === 'alphabetical') {
+        query = query.order('title', { ascending: true });
+      } else if (sortBy === 'most_requested') {
+        query = query.order('active_request_count', { ascending: false, nullsFirst: false });
+      } else {
+        // Default: recent
+        query = query.order('created_at', { ascending: false });
+      }
+
+      // Apply pagination
+      query = query.range(from, to);
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('AdminAllBooks: Error fetching books:', error);
@@ -153,7 +175,7 @@ export default function AdminAllBooksScreen() {
     await fetchBooks();
     setRefreshing(false);
     HapticFeedback.success();
-  }, []);
+  }, [sortBy]);
 
   const handleGoBack = () => {
     HapticFeedback.medium();
@@ -176,6 +198,14 @@ export default function AdminAllBooksScreen() {
     }
   };
 
+  const handleSortChange = (newSort: SortOption) => {
+    HapticFeedback.light();
+    setSortBy(newSort);
+    setShowSortMenu(false);
+    setCurrentPage(1);
+    setLoadingMore(true);
+  };
+
   const handleBookPress = (book: Book) => {
     console.log('AdminAllBooks: Book pressed:', book.title);
     HapticFeedback.medium();
@@ -188,7 +218,15 @@ export default function AdminAllBooksScreen() {
       rating: null,
       tags: [],
       would_recommend: false,
-      book: book,
+      book: {
+        ...book,
+        // Pass the stats to the bottom sheet
+        not_vibing_count: book.not_vibing_count || 0,
+        like_it_count: book.like_it_count || 0,
+        love_it_count: book.love_it_count || 0,
+        recommend_count: book.recommend_count || 0,
+        active_request_count: book.active_request_count || 0,
+      },
     };
     
     setSelectedBook(userBook);
@@ -221,6 +259,17 @@ export default function AdminAllBooksScreen() {
 
     return null;
   }, [imageErrors]);
+
+  const getSortLabel = () => {
+    switch (sortBy) {
+      case 'alphabetical':
+        return 'A-Z';
+      case 'most_requested':
+        return 'Most Requested';
+      default:
+        return 'Recent';
+    }
+  };
 
   const totalPages = Math.ceil(totalBooks / BOOKS_PER_PAGE);
 
@@ -269,12 +318,79 @@ export default function AdminAllBooksScreen() {
             />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>All Books</Text>
-          <View style={styles.headerSpacer} />
+          <TouchableOpacity 
+            style={styles.sortButton} 
+            onPress={() => {
+              HapticFeedback.light();
+              setShowSortMenu(!showSortMenu);
+            }}
+          >
+            <IconSymbol 
+              ios_icon_name="arrow.up.arrow.down" 
+              android_material_icon_name="sort" 
+              size={24} 
+              color={colors.primary} 
+            />
+          </TouchableOpacity>
         </View>
+
+        {/* Sort Menu */}
+        {showSortMenu && (
+          <View style={styles.sortMenu}>
+            <TouchableOpacity
+              style={[styles.sortMenuItem, sortBy === 'recent' && styles.sortMenuItemActive]}
+              onPress={() => handleSortChange('recent')}
+            >
+              <Text style={[styles.sortMenuText, sortBy === 'recent' && styles.sortMenuTextActive]}>
+                Recent
+              </Text>
+              {sortBy === 'recent' && (
+                <IconSymbol 
+                  ios_icon_name="checkmark" 
+                  android_material_icon_name="check" 
+                  size={20} 
+                  color={colors.backgroundAlt} 
+                />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortMenuItem, sortBy === 'alphabetical' && styles.sortMenuItemActive]}
+              onPress={() => handleSortChange('alphabetical')}
+            >
+              <Text style={[styles.sortMenuText, sortBy === 'alphabetical' && styles.sortMenuTextActive]}>
+                Alphabetical (A-Z)
+              </Text>
+              {sortBy === 'alphabetical' && (
+                <IconSymbol 
+                  ios_icon_name="checkmark" 
+                  android_material_icon_name="check" 
+                  size={20} 
+                  color={colors.backgroundAlt} 
+                />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortMenuItem, sortBy === 'most_requested' && styles.sortMenuItemActive]}
+              onPress={() => handleSortChange('most_requested')}
+            >
+              <Text style={[styles.sortMenuText, sortBy === 'most_requested' && styles.sortMenuTextActive]}>
+                Most Requested
+              </Text>
+              {sortBy === 'most_requested' && (
+                <IconSymbol 
+                  ios_icon_name="checkmark" 
+                  android_material_icon_name="check" 
+                  size={20} 
+                  color={colors.backgroundAlt} 
+                />
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.statsBar}>
           <Text style={styles.statsText}>
-            Total: {totalBooks} books • Page {currentPage} of {totalPages}
+            Total: {totalBooks} books • Page {currentPage} of {totalPages} • Sort: {getSortLabel()}
           </Text>
         </View>
 
@@ -301,6 +417,8 @@ export default function AdminAllBooksScreen() {
               <View style={styles.booksGrid}>
                 {books.map((book, index) => {
                   const imageUrl = getImageUrl(book);
+                  const hasRequests = (book.active_request_count || 0) > 0;
+                  
                   return (
                     <TouchableOpacity
                       key={index}
@@ -331,6 +449,21 @@ export default function AdminAllBooksScreen() {
                           </View>
                         )}
                       </View>
+                      
+                      {/* Request Pill */}
+                      {hasRequests && (
+                        <View style={styles.requestPill}>
+                          <IconSymbol 
+                            ios_icon_name="photo" 
+                            android_material_icon_name="image" 
+                            size={12} 
+                            color={colors.backgroundAlt} 
+                          />
+                          <Text style={styles.requestPillText}>
+                            {book.active_request_count} {book.active_request_count === 1 ? 'request' : 'requests'}
+                          </Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -397,6 +530,7 @@ export default function AdminAllBooksScreen() {
         userBook={selectedBook}
         onClose={handleCloseBookDetail}
         onRefresh={fetchBooks}
+        isAdminView={true}
       />
     </View>
   );
@@ -468,8 +602,40 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
-  headerSpacer: {
+  sortButton: {
     width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sortMenu: {
+    backgroundColor: colors.backgroundAlt,
+    marginHorizontal: 20,
+    marginTop: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  sortMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.background,
+  },
+  sortMenuItemActive: {
+    backgroundColor: colors.buttonBlue,
+  },
+  sortMenuText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  sortMenuTextActive: {
+    color: colors.backgroundAlt,
   },
   statsBar: {
     paddingHorizontal: 20,
@@ -523,6 +689,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
     textAlign: 'center',
+  },
+  requestPill: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    backgroundColor: colors.secondary,
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  requestPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
   },
   emptyContainer: {
     flex: 1,
