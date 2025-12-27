@@ -8,7 +8,10 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isInitialized: boolean;
+  userRole: 'user' | 'admin' | null;
+  roleLoading: boolean;
   signOut: () => Promise<void>;
+  refreshUserRole: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -16,7 +19,10 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   isInitialized: false,
+  userRole: null,
+  roleLoading: true,
   signOut: async () => {},
+  refreshUserRole: async () => {},
 });
 
 export const useAuth = () => {
@@ -32,8 +38,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [userRole, setUserRole] = useState<'user' | 'admin' | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
   const isInitializing = useRef(false);
   const signInTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const roleChannelRef = useRef<any>(null);
+
+  // Fetch user role from database
+  const fetchUserRole = async (userId: string) => {
+    try {
+      console.log('AuthProvider: Fetching role for user:', userId);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('AuthProvider: Error fetching role:', error);
+        setUserRole('user'); // Default to user on error
+        return;
+      }
+
+      const role = data?.role === 'admin' ? 'admin' : 'user';
+      console.log('AuthProvider: User role:', role);
+      setUserRole(role);
+    } catch (err) {
+      console.error('AuthProvider: Unexpected error fetching role:', err);
+      setUserRole('user'); // Default to user on error
+    } finally {
+      setRoleLoading(false);
+    }
+  };
+
+  // Refresh user role (can be called manually)
+  const refreshUserRole = async () => {
+    if (!user) {
+      console.log('AuthProvider: No user to refresh role for');
+      return;
+    }
+    setRoleLoading(true);
+    await fetchUserRole(user.id);
+  };
+
+  // Set up real-time subscription for role changes
+  const setupRoleSubscription = (userId: string) => {
+    // Clean up existing subscription
+    if (roleChannelRef.current) {
+      console.log('AuthProvider: Cleaning up existing role subscription');
+      supabase.removeChannel(roleChannelRef.current);
+      roleChannelRef.current = null;
+    }
+
+    console.log('AuthProvider: Setting up role subscription for user:', userId);
+    const channel = supabase
+      .channel(`user_role_${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${userId}`,
+        },
+        (payload) => {
+          console.log('AuthProvider: Role update detected:', payload);
+          const newRole = payload.new?.role === 'admin' ? 'admin' : 'user';
+          console.log('AuthProvider: Updating role to:', newRole);
+          setUserRole(newRole);
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('AuthProvider: Role subscription status:', status);
+        if (err) {
+          console.error('AuthProvider: Role subscription error:', err);
+        }
+      });
+
+    roleChannelRef.current = channel;
+  };
 
   useEffect(() => {
     console.log('AuthProvider: Initializing auth state');
@@ -60,15 +143,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('AuthProvider: Error getting session:', error);
           setSession(null);
           setUser(null);
+          setUserRole(null);
+          setRoleLoading(false);
         } else {
           console.log('AuthProvider: Initial session:', session?.user?.id || 'none');
           setSession(session);
           setUser(session?.user ?? null);
+          
+          // Fetch role if user exists
+          if (session?.user) {
+            await fetchUserRole(session.user.id);
+            setupRoleSubscription(session.user.id);
+          } else {
+            setUserRole(null);
+            setRoleLoading(false);
+          }
         }
       } catch (err) {
         console.error('AuthProvider: Unexpected error getting session:', err);
         setSession(null);
         setUser(null);
+        setUserRole(null);
+        setRoleLoading(false);
       } finally {
         console.log('AuthProvider: Auth initialization complete');
         setLoading(false);
@@ -96,6 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (_event === 'SIGNED_IN' && session) {
           console.log('AuthProvider: User signed in, stabilizing session...');
           setLoading(true);
+          setRoleLoading(true);
           
           // Extended delay to ensure all native modules are ready
           // This prevents view snapshot crashes during navigation
@@ -106,16 +203,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('AuthProvider: Session stabilized, updating state');
           setSession(session);
           setUser(session?.user ?? null);
+          
+          // Fetch role and set up subscription
+          if (session?.user) {
+            await fetchUserRole(session.user.id);
+            setupRoleSubscription(session.user.id);
+          }
+          
           setLoading(false);
         } else if (_event === 'SIGNED_OUT') {
-          console.log('AuthProvider: User signed out');
+          console.log('AuthProvider: User signed out, clearing role cache');
+          
+          // Clean up role subscription
+          if (roleChannelRef.current) {
+            supabase.removeChannel(roleChannelRef.current);
+            roleChannelRef.current = null;
+          }
+          
+          // Clear all state
           setSession(null);
           setUser(null);
+          setUserRole(null);
+          setRoleLoading(false);
           setLoading(false);
         } else {
           // For other events, update immediately
           setSession(session);
           setUser(session?.user ?? null);
+          
+          if (session?.user) {
+            setRoleLoading(true);
+            await fetchUserRole(session.user.id);
+            setupRoleSubscription(session.user.id);
+          } else {
+            setUserRole(null);
+            setRoleLoading(false);
+          }
+          
           setLoading(false);
         }
       } catch (err) {
@@ -123,6 +247,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // On error, still update state to prevent stuck loading
         setSession(session);
         setUser(session?.user ?? null);
+        setUserRole(null);
+        setRoleLoading(false);
         setLoading(false);
       }
     });
@@ -136,6 +262,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInTimeoutRef.current = null;
       }
       
+      // Clean up role subscription
+      if (roleChannelRef.current) {
+        supabase.removeChannel(roleChannelRef.current);
+        roleChannelRef.current = null;
+      }
+      
       subscription.unsubscribe();
     };
   }, []);
@@ -145,14 +277,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('AuthProvider: Signing out');
       setLoading(true);
       
+      // Clean up role subscription before signing out
+      if (roleChannelRef.current) {
+        console.log('AuthProvider: Cleaning up role subscription on logout');
+        supabase.removeChannel(roleChannelRef.current);
+        roleChannelRef.current = null;
+      }
+      
       const { error } = await supabase.auth.signOut();
       
       if (error) {
         console.error('AuthProvider: Sign out error:', error);
       } else {
-        console.log('AuthProvider: Sign out successful');
+        console.log('AuthProvider: Sign out successful, clearing role cache');
         setSession(null);
         setUser(null);
+        setUserRole(null);
+        setRoleLoading(false);
       }
     } catch (err) {
       console.error('AuthProvider: Unexpected error during sign out:', err);
@@ -162,7 +303,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, isInitialized, signOut }}>
+    <AuthContext.Provider value={{ 
+      session, 
+      user, 
+      loading, 
+      isInitialized, 
+      userRole, 
+      roleLoading,
+      signOut,
+      refreshUserRole,
+    }}>
       {children}
     </AuthContext.Provider>
   );

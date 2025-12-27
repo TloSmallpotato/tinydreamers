@@ -10,6 +10,7 @@ import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useProfileStats } from '@/contexts/ProfileStatsContext';
+import { useAuth } from '@/contexts/AuthContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
 import SettingsBottomSheet from '@/components/SettingsBottomSheet';
@@ -58,6 +59,7 @@ export default function ProfileScreen() {
   const { triggerCamera } = useCameraTrigger();
   const { canAddChild, refreshUsage } = useSubscription();
   const { stats: profileStats, fetchProfileStats } = useProfileStats();
+  const { userRole, roleLoading } = useAuth();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
   const settingsRef = useRef<BottomSheetModal>(null);
@@ -82,6 +84,9 @@ export default function ProfileScreen() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
+
+  // Check if user is admin
+  const isAdmin = userRole === 'admin';
 
   // Update local avatar URL when selectedChild changes
   useEffect(() => {
@@ -441,6 +446,16 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleOpenAdminPanel = () => {
+    try {
+      console.log('ProfileScreen: Admin panel button pressed');
+      HapticFeedback.medium();
+      router.push('/admin-panel');
+    } catch (err) {
+      console.error('ProfileScreen: Error opening admin panel:', err);
+    }
+  };
+
   const handleRecordMoment = () => {
     try {
       console.log('ProfileScreen: Record button pressed - triggering camera');
@@ -714,6 +729,31 @@ export default function ProfileScreen() {
           </View>
 
           <SubscriptionStatusCard />
+
+          {/* Admin Panel Button - Only show after role is loaded and user is admin */}
+          {!roleLoading && isAdmin && (
+            <TouchableOpacity 
+              style={styles.adminPanelButton}
+              onPress={handleOpenAdminPanel}
+              activeOpacity={0.7}
+            >
+              <View style={styles.adminPanelIconContainer}>
+                <IconSymbol 
+                  ios_icon_name="shield.fill" 
+                  android_material_icon_name="admin-panel-settings" 
+                  size={24} 
+                  color={colors.backgroundAlt} 
+                />
+              </View>
+              <Text style={styles.adminPanelButtonText}>Admin Panel</Text>
+              <IconSymbol 
+                ios_icon_name="chevron.right" 
+                android_material_icon_name="chevron-right" 
+                size={20} 
+                color={colors.backgroundAlt} 
+              />
+            </TouchableOpacity>
+          )}
 
           {stats.newWordsThisWeek > 0 && (
             <View style={styles.achievementBanner}>
@@ -1020,6 +1060,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
     marginTop: 4,
+  },
+  adminPanelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.buttonBlue,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.15)',
+    elevation: 4,
+  },
+  adminPanelIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  adminPanelButtonText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
   },
   achievementBanner: {
     backgroundColor: colors.cardPurple,
