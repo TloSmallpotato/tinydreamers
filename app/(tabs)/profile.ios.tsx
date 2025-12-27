@@ -11,7 +11,6 @@ import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
 import SettingsBottomSheet from '@/components/SettingsBottomSheet';
-
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import SubscriptionStatusCard from '@/components/SubscriptionStatusCard';
@@ -20,6 +19,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
 import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { HapticFeedback } from '@/utils/haptics';
 
 interface ProfileStats {
@@ -57,10 +57,10 @@ export default function ProfileScreen() {
   const { children, selectedChild, selectChild, addChild, updateChild, refreshChildren, loading: childLoading } = useChild();
   const { triggerCamera } = useCameraTrigger();
   const { canAddChild, refreshUsage } = useSubscription();
+  const { userRole, roleLoading } = useAuth();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
   const settingsRef = useRef<BottomSheetModal>(null);
-
 
   const [stats, setStats] = useState<ProfileStats>({
     totalWords: 0,
@@ -80,6 +80,14 @@ export default function ProfileScreen() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
+
+  // Check if user is admin
+  const isAdmin = userRole === 'admin';
+
+  // Log role status for debugging
+  useEffect(() => {
+    console.log('ProfileScreen (iOS): Role status - roleLoading:', roleLoading, 'userRole:', userRole, 'isAdmin:', isAdmin);
+  }, [roleLoading, userRole, isAdmin]);
 
   // Update local avatar URL when selectedChild changes
   useEffect(() => {
@@ -257,7 +265,7 @@ export default function ProfileScreen() {
     fetchDebounceRef.current = setTimeout(() => {
       console.log('ProfileScreen (iOS): Debounced fetch triggered');
       fetchProfileData(false);
-    }, 300); // Reduced from 500ms to 300ms for faster updates
+    }, 300);
   }, [fetchProfileData]);
 
   // Set up real-time subscriptions for stats updates
@@ -269,7 +277,7 @@ export default function ProfileScreen() {
 
     console.log('ProfileScreen (iOS): Setting up real-time subscriptions for child:', selectedChild.id);
 
-    // Subscribe to user_words changes - REMOVED self: false to receive own changes
+    // Subscribe to user_words changes
     const wordsChannel = supabase
       .channel(`profile_words_${selectedChild.id}`)
       .on(
@@ -292,7 +300,7 @@ export default function ProfileScreen() {
         }
       });
 
-    // Subscribe to user_books changes - REMOVED self: false to receive own changes
+    // Subscribe to user_books changes
     const booksChannel = supabase
       .channel(`profile_books_${selectedChild.id}`)
       .on(
@@ -315,7 +323,7 @@ export default function ProfileScreen() {
         }
       });
 
-    // Subscribe to moments changes - REMOVED self: false to receive own changes
+    // Subscribe to moments changes
     const momentsChannel = supabase
       .channel(`profile_moments_${selectedChild.id}`)
       .on(
@@ -437,6 +445,16 @@ export default function ProfileScreen() {
       settingsRef.current?.present();
     } catch (err) {
       console.error('ProfileScreen (iOS): Error opening settings:', err);
+    }
+  };
+
+  const handleOpenAdminPanel = () => {
+    try {
+      console.log('ProfileScreen (iOS): Admin panel button pressed');
+      HapticFeedback.medium();
+      router.push('/admin-panel');
+    } catch (err) {
+      console.error('ProfileScreen (iOS): Error opening admin panel:', err);
     }
   };
 
@@ -678,6 +696,31 @@ export default function ProfileScreen() {
           </View>
 
           <SubscriptionStatusCard />
+
+          {/* Admin Panel Button - Only show after role is loaded and user is admin */}
+          {!roleLoading && isAdmin && (
+            <TouchableOpacity 
+              style={styles.adminPanelButton}
+              onPress={handleOpenAdminPanel}
+              activeOpacity={0.7}
+            >
+              <View style={styles.adminPanelIconContainer}>
+                <IconSymbol 
+                  ios_icon_name="shield.fill" 
+                  android_material_icon_name="admin-panel-settings" 
+                  size={24} 
+                  color={colors.backgroundAlt} 
+                />
+              </View>
+              <Text style={styles.adminPanelButtonText}>Admin Panel</Text>
+              <IconSymbol 
+                ios_icon_name="chevron.right" 
+                android_material_icon_name="chevron-right" 
+                size={20} 
+                color={colors.backgroundAlt} 
+              />
+            </TouchableOpacity>
+          )}
 
           {stats.newWordsThisWeek > 0 && (
             <View style={styles.achievementBanner}>
@@ -978,6 +1021,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
     marginTop: 4,
+  },
+  adminPanelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.buttonBlue,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  adminPanelIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  adminPanelButtonText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
   },
   achievementBanner: {
     backgroundColor: colors.cardPurple,

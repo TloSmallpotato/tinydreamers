@@ -1,13 +1,18 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { HapticFeedback } from '@/utils/haptics';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import BookDetailBottomSheet from '@/components/BookDetailBottomSheet';
+import { getFirstValidImageUrl } from '@/utils/imageValidation';
+import ValidatedImage from '@/components/ValidatedImage';
+import { Image } from 'expo-image';
 
 interface Book {
   id: string;
@@ -17,9 +22,33 @@ interface Book {
   thumbnail_url: string | null;
   source: string | null;
   created_at: string;
+  google_books_id: string;
+  description: string;
+  published_date: string;
+  page_count: number;
+}
+
+interface UserBook {
+  id: string;
+  book_id: string;
+  rating: string | null;
+  tags: string[];
+  would_recommend: boolean;
+  book: Book;
 }
 
 const BOOKS_PER_PAGE = 40;
+
+// Bookmark component with PNG image
+const Bookmark = () => (
+  <View style={styles.bookmark}>
+    <Image
+      source={require('@/assets/images/bb1d0280-280e-49da-964e-cc8dac050425.png')}
+      style={styles.bookmarkImage}
+      contentFit="contain"
+    />
+  </View>
+);
 
 export default function AdminAllBooksScreen() {
   const router = useRouter();
@@ -31,6 +60,9 @@ export default function AdminAllBooksScreen() {
   const [totalBooks, setTotalBooks] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [selectedBook, setSelectedBook] = useState<UserBook | null>(null);
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const bookDetailRef = useRef<BottomSheetModal>(null);
 
   useEffect(() => {
     checkAdminStatusAndFetchBooks();
@@ -92,10 +124,10 @@ export default function AdminAllBooksScreen() {
 
       setTotalBooks(count || 0);
 
-      // Get paginated books
+      // Get paginated books with all fields needed for detail view
       const { data, error } = await supabase
         .from('books_library')
-        .select('id, title, authors, cover_url, thumbnail_url, source, created_at')
+        .select('id, google_books_id, title, authors, cover_url, thumbnail_url, description, published_date, page_count, source, created_at')
         .order('created_at', { ascending: false })
         .range(from, to);
 
@@ -143,6 +175,52 @@ export default function AdminAllBooksScreen() {
       setCurrentPage(prev => prev - 1);
     }
   };
+
+  const handleBookPress = (book: Book) => {
+    console.log('AdminAllBooks: Book pressed:', book.title);
+    HapticFeedback.medium();
+    
+    // Create a UserBook object for the bottom sheet
+    // Since this is admin view, we don't have user-specific data
+    const userBook: UserBook = {
+      id: book.id, // Using book id as placeholder
+      book_id: book.id,
+      rating: null,
+      tags: [],
+      would_recommend: false,
+      book: book,
+    };
+    
+    setSelectedBook(userBook);
+    setTimeout(() => {
+      bookDetailRef.current?.present();
+    }, 50);
+  };
+
+  const handleCloseBookDetail = () => {
+    console.log('AdminAllBooks: Closing book detail modal');
+    setSelectedBook(null);
+  };
+
+  const handleImageValidationFailed = useCallback((bookId: string) => {
+    console.log('AdminAllBooks: Image validation failed for book:', bookId);
+    setImageErrors(prev => new Set(prev).add(bookId));
+  }, []);
+
+  const getImageUrl = useCallback((book: Book) => {
+    // Use the same logic as Books page - cover_url first, then thumbnail_url
+    const validUrl = getFirstValidImageUrl([
+      book.cover_url,
+      book.thumbnail_url
+    ]);
+
+    // Check if the URL has already failed validation
+    if (validUrl && !imageErrors.has(book.id)) {
+      return validUrl;
+    }
+
+    return null;
+  }, [imageErrors]);
 
   const totalPages = Math.ceil(totalBooks / BOOKS_PER_PAGE);
 
@@ -221,45 +299,41 @@ export default function AdminAllBooksScreen() {
           ) : (
             <>
               <View style={styles.booksGrid}>
-                {books.map((book, index) => (
-                  <View key={index} style={styles.bookCard}>
-                    {book.thumbnail_url || book.cover_url ? (
-                      <Image 
-                        source={{ uri: book.thumbnail_url || book.cover_url || '' }}
-                        style={styles.bookCover}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={styles.bookPlaceholder}>
-                        <IconSymbol 
-                          ios_icon_name="book.fill" 
-                          android_material_icon_name="menu-book" 
-                          size={32} 
-                          color={colors.textSecondary} 
-                        />
+                {books.map((book, index) => {
+                  const imageUrl = getImageUrl(book);
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.bookCard}
+                      onPress={() => handleBookPress(book)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.bookCoverContainer}>
+                        {imageUrl ? (
+                          <ValidatedImage
+                            source={{ uri: imageUrl }}
+                            style={styles.bookCover}
+                            fallbackTitle={book.title}
+                            minWidth={50}
+                            minHeight={50}
+                            contentFit="contain"
+                            cachePolicy="memory-disk"
+                            priority="high"
+                            transition={200}
+                            onValidationFailed={() => handleImageValidationFailed(book.id)}
+                          />
+                        ) : (
+                          <View style={[styles.bookCover, styles.placeholderCover]}>
+                            <Bookmark />
+                            <Text style={styles.placeholderText} numberOfLines={4}>
+                              {book.title}
+                            </Text>
+                          </View>
+                        )}
                       </View>
-                    )}
-                    <View style={styles.bookInfo}>
-                      <Text style={styles.bookTitle} numberOfLines={2}>
-                        {book.title}
-                      </Text>
-                      {book.authors && (
-                        <Text style={styles.bookAuthor} numberOfLines={1}>
-                          {book.authors}
-                        </Text>
-                      )}
-                      {book.source && (
-                        <View style={styles.sourceTag}>
-                          <Text style={styles.sourceText}>
-                            {book.source === 'google_books' ? 'Google' : 
-                             book.source === 'custom_global' ? 'Custom' : 
-                             book.source === 'isbn_scan' ? 'ISBN' : book.source}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                ))}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               {books.length === 0 && (
@@ -317,6 +391,13 @@ export default function AdminAllBooksScreen() {
           </View>
         )}
       </SafeAreaView>
+
+      <BookDetailBottomSheet
+        ref={bookDetailRef}
+        userBook={selectedBook}
+        onClose={handleCloseBookDetail}
+        onRefresh={fetchBooks}
+      />
     </View>
   );
 }
@@ -411,54 +492,37 @@ const styles = StyleSheet.create({
   booksGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    marginTop: 8,
   },
   bookCard: {
-    width: '48%',
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 12,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
+    width: '47%',
+    marginBottom: 16,
+    overflow: 'visible',
+    position: 'relative',
+  },
+  bookCoverContainer: {
+    width: '100%',
+    aspectRatio: 4 / 5,
   },
   bookCover: {
     width: '100%',
-    height: 200,
-    backgroundColor: colors.cardPurple,
+    height: '100%',
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
   },
-  bookPlaceholder: {
-    width: '100%',
-    height: 200,
-    backgroundColor: colors.cardPurple,
-    alignItems: 'center',
+  placeholderCover: {
+    backgroundColor: '#FFD0A3',
     justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    overflow: 'visible',
   },
-  bookInfo: {
-    padding: 12,
-  },
-  bookTitle: {
+  placeholderText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: colors.primary,
-    marginBottom: 4,
-  },
-  bookAuthor: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 8,
-  },
-  sourceTag: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.cardPink,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  sourceText: {
-    fontSize: 10,
     fontWeight: '600',
     color: colors.primary,
+    textAlign: 'center',
   },
   emptyContainer: {
     flex: 1,
@@ -508,5 +572,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.primary,
+  },
+  bookmark: {
+    position: 'absolute',
+    top: 0,
+    right: 16,
+    width: 32,
+    height: 48,
+    zIndex: 10,
+  },
+  bookmarkImage: {
+    width: '100%',
+    height: '100%',
   },
 });
