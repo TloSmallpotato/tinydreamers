@@ -46,6 +46,34 @@ export interface OpenLibraryBookDetails {
   isbn_10?: string[];
 }
 
+export interface DoubanBook {
+  id: string;
+  title: string;
+  subtitle?: string;
+  author?: string[];
+  translator?: string[];
+  publisher?: string;
+  pubdate?: string;
+  pages?: string;
+  summary?: string;
+  images?: {
+    small?: string;
+    medium?: string;
+    large?: string;
+  };
+  isbn13?: string;
+  isbn10?: string;
+}
+
+export interface WorldCatBook {
+  title?: string;
+  creator?: string;
+  date?: string;
+  extent?: string;
+  summary?: string[];
+  oclcNumber?: string;
+}
+
 export interface BookSearchResult {
   googleBooksId: string;
   title: string;
@@ -55,7 +83,7 @@ export interface BookSearchResult {
   description: string;
   publishedDate: string;
   pageCount: number;
-  source?: 'google' | 'openlibrary' | 'googlecustomsearch';
+  source?: 'google' | 'openlibrary' | 'googlecustomsearch' | 'douban' | 'worldcat';
 }
 
 interface GoogleCustomSearchResult {
@@ -700,6 +728,180 @@ function extractISBN(volumeInfo: GoogleBook['volumeInfo']): string | undefined {
 }
 
 /**
+ * Determines the ISBN prefix to route to the appropriate API
+ * @param isbn - The ISBN to check
+ * @returns The ISBN prefix type
+ */
+function getISBNPrefix(isbn: string): 'china' | 'english' | 'other' {
+  const cleanISBN = isbn.replace(/[-\s]/g, '');
+  
+  // Check for Mainland China ISBN (978-7)
+  if (cleanISBN.startsWith('9787')) {
+    console.log('🇨🇳 Detected Mainland China ISBN (978-7)');
+    return 'china';
+  }
+  
+  // Check for English-language ISBN (978-0 or 978-1)
+  if (cleanISBN.startsWith('9780') || cleanISBN.startsWith('9781')) {
+    console.log('🇬🇧 Detected English-language ISBN (978-0/978-1)');
+    return 'english';
+  }
+  
+  console.log('🌍 Detected other ISBN prefix');
+  return 'other';
+}
+
+/**
+ * Searches Douban API for a book by ISBN
+ * Used for Mainland China books (978-7)
+ * 
+ * @param isbn - The ISBN to search for
+ * @returns Promise<BookSearchResult | null> - Book data or null
+ */
+async function searchDoubanAPI(isbn: string): Promise<BookSearchResult | null> {
+  try {
+    const cleanISBN = isbn.replace(/[-\s]/g, '');
+    console.log('🇨🇳 Searching Douban API for ISBN:', cleanISBN);
+    
+    // Douban API endpoint
+    const response = await withTimeout(
+      fetch(`https://api.douban.com/v2/book/isbn/${cleanISBN}`),
+      API_TIMEOUT
+    );
+
+    if (!response.ok) {
+      console.log('❌ Douban API error:', response.status);
+      return null;
+    }
+
+    const data: DoubanBook = await response.json();
+
+    if (!data || !data.title) {
+      console.log('❌ No book data from Douban API');
+      return null;
+    }
+
+    console.log('✅ Found book on Douban API:', data.title);
+
+    const title = data.title + (data.subtitle ? `: ${data.subtitle}` : '');
+    const authors = data.author?.join(', ') || 'Unknown Author';
+    const googleBooksId = `douban-${data.id}`;
+    
+    // Get cover image using our existing flow
+    const { coverUrl, thumbnailUrl } = await getBestCoverUrl(
+      cleanISBN,
+      title,
+      authors,
+      undefined,
+      googleBooksId
+    );
+
+    return {
+      googleBooksId,
+      title,
+      authors,
+      coverUrl,
+      thumbnailUrl,
+      description: data.summary || '',
+      publishedDate: data.pubdate || '',
+      pageCount: data.pages ? parseInt(data.pages, 10) : 0,
+      source: 'douban',
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Request timeout') {
+      console.error('❌ Douban API timed out');
+    } else {
+      console.error('❌ Error searching Douban API:', error);
+    }
+    return null;
+  }
+}
+
+/**
+ * Searches WorldCat API for a book by ISBN
+ * Used for English-language books (978-0/978-1)
+ * 
+ * Note: WorldCat API requires authentication. This is a placeholder implementation.
+ * You'll need to set up WorldCat API credentials and implement proper authentication.
+ * 
+ * @param isbn - The ISBN to search for
+ * @returns Promise<BookSearchResult | null> - Book data or null
+ */
+async function searchWorldCatAPI(isbn: string): Promise<BookSearchResult | null> {
+  try {
+    const cleanISBN = isbn.replace(/[-\s]/g, '');
+    console.log('🌍 Searching WorldCat API for ISBN:', cleanISBN);
+    
+    // WorldCat Search API endpoint (requires API key)
+    // Note: This is a simplified example. WorldCat API requires proper authentication.
+    // You'll need to implement OAuth or API key authentication based on your WorldCat subscription.
+    
+    // For now, we'll return null and let it fall back to other APIs
+    // TODO: Implement WorldCat API authentication and search
+    console.log('⚠️ WorldCat API not yet implemented - falling back to other APIs');
+    return null;
+
+    /* Example implementation when WorldCat API is set up:
+    
+    const response = await withTimeout(
+      fetch(`https://www.worldcat.org/webservices/catalog/content/isbn/${cleanISBN}?wskey=YOUR_API_KEY`, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      }),
+      API_TIMEOUT
+    );
+
+    if (!response.ok) {
+      console.log('❌ WorldCat API error:', response.status);
+      return null;
+    }
+
+    const data: WorldCatBook = await response.json();
+
+    if (!data || !data.title) {
+      console.log('❌ No book data from WorldCat API');
+      return null;
+    }
+
+    console.log('✅ Found book on WorldCat API:', data.title);
+
+    const title = data.title;
+    const authors = data.creator || 'Unknown Author';
+    const googleBooksId = `worldcat-${data.oclcNumber}`;
+    
+    // Get cover image using our existing flow (WorldCat doesn't provide good covers)
+    const { coverUrl, thumbnailUrl } = await getBestCoverUrl(
+      cleanISBN,
+      title,
+      authors,
+      undefined,
+      googleBooksId
+    );
+
+    return {
+      googleBooksId,
+      title,
+      authors,
+      coverUrl,
+      thumbnailUrl,
+      description: data.summary?.join(' ') || '',
+      publishedDate: data.date || '',
+      pageCount: data.extent ? parseInt(data.extent, 10) : 0,
+      source: 'worldcat',
+    };
+    */
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Request timeout') {
+      console.error('❌ WorldCat API timed out');
+    } else {
+      console.error('❌ Error searching WorldCat API:', error);
+    }
+    return null;
+  }
+}
+
+/**
  * Searches OpenLibrary API for books
  */
 async function searchOpenLibrary(query: string, limit: number = 5): Promise<BookSearchResult[]> {
@@ -992,19 +1194,23 @@ export async function getBookDetails(googleBooksId: string): Promise<BookSearchR
 }
 
 /**
- * Searches for a book by ISBN
- * Uses Google Books API first, falls back to OpenLibrary if not found
- * Uses Google Custom Search API for cover images with fallback to OpenLibrary and Google Books
+ * Searches for a book by ISBN with intelligent routing based on ISBN prefix
  * 
- * FLOW:
- * 1. Search Google Books API for book metadata by ISBN (free)
- * 2. Call getBestCoverUrl() which:
- *    - Checks cache first (free)
- *    - Checks database (free)
- *    - Tries Google Custom Search API ONCE ($0.005 per call) - ONLY if quota not exceeded
- *    - Falls back to OpenLibrary API (free)
- *    - Falls back to Google Books API (free)
- * 3. Return result with cover URLs
+ * ROUTING LOGIC:
+ * - Mainland China (978-7): Douban API -> Google Books API -> OpenLibrary API -> Google Custom Search
+ * - English (978-0/978-1): Google Books API -> WorldCat API -> OpenLibrary API -> Google Custom Search
+ * - Other ISBNs: Google Books API -> OpenLibrary API -> Google Custom Search
+ * 
+ * COVER IMAGE FLOW (preserved):
+ * After fetching book data from any API, getBestCoverUrl() is called which:
+ * 1. Checks cache
+ * 2. Checks database
+ * 3. Tries Google Custom Search (if quota not exceeded)
+ * 4. Falls back to OpenLibrary
+ * 5. Falls back to Google Books
+ * 
+ * @param isbn - The ISBN to search for
+ * @returns Promise<BookSearchResult | null> - Book data with cover URLs or null
  */
 export async function searchBookByISBN(isbn: string): Promise<BookSearchResult | null> {
   if (!isbn || isbn.trim().length === 0) {
@@ -1017,73 +1223,193 @@ export async function searchBookByISBN(isbn: string): Promise<BookSearchResult |
     
     console.log('🔍 Searching for ISBN:', cleanISBN);
     
-    // Search by ISBN using the isbn: prefix with full projection
+    // Determine ISBN prefix to route to appropriate API
+    const isbnPrefix = getISBNPrefix(cleanISBN);
+    
+    let result: BookSearchResult | null = null;
+    
+    // MAINLAND CHINA ISBN (978-7)
+    if (isbnPrefix === 'china') {
+      console.log('📚 Route: Douban -> Google Books -> OpenLibrary -> Google Custom Search');
+      
+      // Try Douban API first
+      result = await searchDoubanAPI(cleanISBN);
+      if (result) {
+        console.log('✅ Book found on Douban API');
+        return result;
+      }
+      console.log('⚠️ Douban API failed, trying Google Books API');
+      
+      // Fall back to Google Books API
+      const response = await withTimeout(
+        fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanISBN}&projection=full`),
+        API_TIMEOUT
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.items && data.items.length > 0) {
+          const item: GoogleBook = data.items[0];
+          const itemISBN = extractISBN(item.volumeInfo) || cleanISBN;
+          const title = item.volumeInfo.title || 'Unknown Title';
+          const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
+          
+          console.log('✅ Found book on Google Books:', title);
+          
+          const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
+            itemISBN,
+            title,
+            authors,
+            item.volumeInfo,
+            item.id
+          );
+
+          return {
+            googleBooksId: item.id,
+            title,
+            authors,
+            coverUrl,
+            thumbnailUrl,
+            description: item.volumeInfo.description || '',
+            publishedDate: item.volumeInfo.publishedDate || '',
+            pageCount: item.volumeInfo.pageCount || 0,
+            source: source as 'google' | 'openlibrary' | 'googlecustomsearch',
+          };
+        }
+      }
+      console.log('⚠️ Google Books API failed, trying OpenLibrary API');
+      
+      // Fall back to OpenLibrary
+      result = await searchOpenLibraryByISBN(cleanISBN);
+      if (result) {
+        console.log('✅ Book found on OpenLibrary');
+        return result;
+      }
+      
+      console.log('❌ No book found for Mainland China ISBN');
+      return null;
+    }
+    
+    // ENGLISH-LANGUAGE ISBN (978-0/978-1)
+    if (isbnPrefix === 'english') {
+      console.log('📚 Route: Google Books -> WorldCat -> OpenLibrary -> Google Custom Search');
+      
+      // Try Google Books API first
+      const response = await withTimeout(
+        fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanISBN}&projection=full`),
+        API_TIMEOUT
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.items && data.items.length > 0) {
+          const item: GoogleBook = data.items[0];
+          const itemISBN = extractISBN(item.volumeInfo) || cleanISBN;
+          const title = item.volumeInfo.title || 'Unknown Title';
+          const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
+          
+          console.log('✅ Found book on Google Books:', title);
+          
+          const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
+            itemISBN,
+            title,
+            authors,
+            item.volumeInfo,
+            item.id
+          );
+
+          return {
+            googleBooksId: item.id,
+            title,
+            authors,
+            coverUrl,
+            thumbnailUrl,
+            description: item.volumeInfo.description || '',
+            publishedDate: item.volumeInfo.publishedDate || '',
+            pageCount: item.volumeInfo.pageCount || 0,
+            source: source as 'google' | 'openlibrary' | 'googlecustomsearch',
+          };
+        }
+      }
+      console.log('⚠️ Google Books API failed, trying WorldCat API');
+      
+      // Try WorldCat API
+      result = await searchWorldCatAPI(cleanISBN);
+      if (result) {
+        console.log('✅ Book found on WorldCat API');
+        return result;
+      }
+      console.log('⚠️ WorldCat API failed, trying OpenLibrary API');
+      
+      // Fall back to OpenLibrary
+      result = await searchOpenLibraryByISBN(cleanISBN);
+      if (result) {
+        console.log('✅ Book found on OpenLibrary');
+        return result;
+      }
+      
+      console.log('❌ No book found for English-language ISBN');
+      return null;
+    }
+    
+    // OTHER ISBNs
+    console.log('📚 Route: Google Books -> OpenLibrary -> Google Custom Search');
+    
+    // Try Google Books API first
     const response = await withTimeout(
       fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanISBN}&projection=full`),
       API_TIMEOUT
     );
 
-    if (!response.ok) {
-      console.error('Google Books API error:', response.status);
-      // Fallback to OpenLibrary
-      console.log('Falling back to OpenLibrary API for ISBN');
-      return await searchOpenLibraryByISBN(cleanISBN);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.items && data.items.length > 0) {
+        const item: GoogleBook = data.items[0];
+        const itemISBN = extractISBN(item.volumeInfo) || cleanISBN;
+        const title = item.volumeInfo.title || 'Unknown Title';
+        const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
+        
+        console.log('✅ Found book on Google Books:', title);
+        
+        const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
+          itemISBN,
+          title,
+          authors,
+          item.volumeInfo,
+          item.id
+        );
+
+        return {
+          googleBooksId: item.id,
+          title,
+          authors,
+          coverUrl,
+          thumbnailUrl,
+          description: item.volumeInfo.description || '',
+          publishedDate: item.volumeInfo.publishedDate || '',
+          pageCount: item.volumeInfo.pageCount || 0,
+          source: source as 'google' | 'openlibrary' | 'googlecustomsearch',
+        };
+      }
     }
-
-    const data = await response.json();
-
-    if (!data.items || data.items.length === 0) {
-      console.log('No book found for ISBN on Google Books, trying OpenLibrary');
-      // Fallback to OpenLibrary
-      return await searchOpenLibraryByISBN(cleanISBN);
+    console.log('⚠️ Google Books API failed, trying OpenLibrary API');
+    
+    // Fall back to OpenLibrary
+    result = await searchOpenLibraryByISBN(cleanISBN);
+    if (result) {
+      console.log('✅ Book found on OpenLibrary');
+      return result;
     }
-
-    // Get the first result (should be the most relevant)
-    const item: GoogleBook = data.items[0];
-    const itemISBN = extractISBN(item.volumeInfo) || cleanISBN;
-    const title = item.volumeInfo.title || 'Unknown Title';
-    const authors = item.volumeInfo.authors?.join(', ') || 'Unknown Author';
     
-    console.log('Found book on Google Books:', title);
-    console.log('Fetching cover image...');
-    
-    // This will check cache, database, then try Google Custom Search ONCE (if quota not exceeded), then OpenLibrary, then Google Books
-    const { coverUrl, thumbnailUrl, source } = await getBestCoverUrl(
-      itemISBN,
-      title,
-      authors,
-      item.volumeInfo,
-      item.id
-    );
-
-    console.log('Book image URLs:', {
-      title,
-      coverUrl,
-      thumbnailUrl,
-      source,
-    });
-
-    return {
-      googleBooksId: item.id,
-      title,
-      authors,
-      coverUrl,
-      thumbnailUrl,
-      description: item.volumeInfo.description || '',
-      publishedDate: item.volumeInfo.publishedDate || '',
-      pageCount: item.volumeInfo.pageCount || 0,
-      source: source as 'google' | 'openlibrary' | 'googlecustomsearch',
-    };
+    console.log('❌ No book found for ISBN');
+    return null;
   } catch (error) {
     if (error instanceof Error && error.message === 'Request timeout') {
       console.error('ISBN search timed out');
     } else {
       console.error('Error searching book by ISBN:', error);
     }
-    // Fallback to OpenLibrary
-    console.log('Error occurred, falling back to OpenLibrary API for ISBN');
-    const cleanISBN = isbn.replace(/[-\s]/g, '');
-    return await searchOpenLibraryByISBN(cleanISBN);
+    return null;
   }
 }
 
