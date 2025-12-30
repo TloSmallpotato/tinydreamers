@@ -2,12 +2,15 @@
 const fs = require('fs');
 const path = require('path');
 
+// Get __dirname equivalent for CommonJS
+const dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
+
 console.log('🔧 Patching ffmpeg-kit-react-native to use version 6.0.2...');
 
 try {
   // Path to the ffmpeg-kit-react-native podspec
   const podspecPath = path.join(
-    __dirname,
+    dirname,
     '..',
     'node_modules',
     'ffmpeg-kit-react-native',

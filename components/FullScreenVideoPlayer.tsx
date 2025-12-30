@@ -52,7 +52,7 @@ export default function FullScreenVideoPlayer({
     const interval = setInterval(checkDuration, 100);
 
     return () => clearInterval(interval);
-  }, [visible, player.duration, videoDuration, trimStart, trimEnd]);
+  }, [visible, player, player.duration, videoDuration, trimStart, trimEnd]);
 
   // Initialize playback when modal opens
   useEffect(() => {
@@ -62,7 +62,7 @@ export default function FullScreenVideoPlayer({
       player.play();
       setIsInitialized(true);
     }
-  }, [visible, videoDuration, trimStart, isInitialized]);
+  }, [visible, videoDuration, trimStart, isInitialized, player]);
 
   // Monitor playback position and enforce trim boundaries
   useEffect(() => {

@@ -244,7 +244,7 @@ export default function ProfileScreen() {
     ]);
     setRefreshing(false);
     HapticFeedback.success();
-  }, [fetchProfileData, fetchProfileStats, refreshUsage]);
+  }, [fetchProfileData, fetchProfileStats, refreshUsage, profileStats.books, profileStats.words]);
 
   // Debounced fetch function to prevent excessive API calls
   const debouncedFetchProfileData = useCallback(() => {
@@ -258,7 +258,7 @@ export default function ProfileScreen() {
       console.log('ProfileScreen: Debounced fetch triggered');
       fetchProfileData(false);
     }, 300);
-  }, [fetchProfileData, profileStats.books, profileStats.words]);
+  }, [fetchProfileData]);
 
   // Set up real-time subscriptions for stats updates
   useEffect(() => {
