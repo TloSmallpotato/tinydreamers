@@ -23,13 +23,15 @@ export default function FullScreenVideoPlayer({
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [videoDuration, setVideoDuration] = useState(0);
+  const lastPositionRef = useRef<number>(0);
 
   // Reset video position when modal opens
   useEffect(() => {
     if (visible && videoRef.current) {
-      console.log('FullScreenVideoPlayer: Setting initial position to trim start:', trimStart);
+      console.log('FullScreenVideoPlayer: Modal opened, setting initial position to trim start:', trimStart);
       videoRef.current.setPositionAsync(trimStart * 1000);
       videoRef.current.playAsync();
+      lastPositionRef.current = trimStart;
     }
   }, [visible, trimStart]);
 
@@ -50,29 +52,52 @@ export default function FullScreenVideoPlayer({
       
       // Store video duration
       if (status.durationMillis && videoDuration === 0) {
-        setVideoDuration(status.durationMillis / 1000);
+        const durationInSeconds = status.durationMillis / 1000;
+        setVideoDuration(durationInSeconds);
+        console.log('FullScreenVideoPlayer: Video duration:', durationInSeconds, 'seconds');
       }
       
       const currentPosition = (status.positionMillis || 0) / 1000;
       const effectiveTrimEnd = trimEnd || videoDuration;
       
-      // If we have trim times, loop within the trimmed section
+      // If we have trim times, enforce strict boundaries
       if (trimStart !== undefined && effectiveTrimEnd > 0) {
-        // When we reach the trim end, loop back to trim start
-        if (currentPosition >= effectiveTrimEnd) {
-          console.log('FullScreenVideoPlayer: Reached trim end, looping to trim start');
+        // Check if we've reached or exceeded the trim end
+        // Use a small buffer (0.1s) to catch the boundary before it's too late
+        if (currentPosition >= effectiveTrimEnd - 0.1) {
+          console.log('FullScreenVideoPlayer: Reached trim end at', currentPosition, 's, looping to trim start', trimStart, 's');
           await videoRef.current?.setPositionAsync(trimStart * 1000);
+          lastPositionRef.current = trimStart;
+          
+          // Continue playing if it was playing
           if (status.isPlaying) {
             await videoRef.current?.playAsync();
           }
+          return;
         }
         
-        // If somehow we're before trim start, jump to trim start
+        // If somehow we're before trim start (shouldn't happen, but safety check)
         if (currentPosition < trimStart && status.isPlaying) {
-          console.log('FullScreenVideoPlayer: Before trim start, jumping to trim start');
+          console.log('FullScreenVideoPlayer: Before trim start at', currentPosition, 's, jumping to trim start', trimStart, 's');
           await videoRef.current?.setPositionAsync(trimStart * 1000);
+          lastPositionRef.current = trimStart;
+          return;
+        }
+        
+        // If we somehow jumped way past the trim end (e.g., user seeked), reset
+        if (currentPosition > effectiveTrimEnd + 0.5) {
+          console.log('FullScreenVideoPlayer: Way past trim end at', currentPosition, 's, resetting to trim start', trimStart, 's');
+          await videoRef.current?.setPositionAsync(trimStart * 1000);
+          lastPositionRef.current = trimStart;
+          
+          if (status.isPlaying) {
+            await videoRef.current?.playAsync();
+          }
+          return;
         }
       }
+      
+      lastPositionRef.current = currentPosition;
     }
   };
 
@@ -106,6 +131,7 @@ export default function FullScreenVideoPlayer({
             isLooping={false}
             shouldPlay={true}
             onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+            progressUpdateIntervalMillis={50}
           />
 
           {!isPlaying && (
