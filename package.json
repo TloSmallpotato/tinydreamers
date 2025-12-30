@@ -10,7 +10,8 @@
     "web": "EXPO_NO_TELEMETRY=1 expo start --web --clear",
     "build:web": "expo export -p web && npx workbox generateSW workbox-config.js",
     "build:android": "expo prebuild -p android",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "postinstall": "node scripts/patch-ffmpeg-kit.js"
   },
   "dependencies": {
     "@babel/plugin-proposal-export-namespace-from": "^7.18.9",
