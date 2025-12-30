@@ -3,14 +3,28 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "channel": "staging"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "channel": "production"
+    }
+  },
+  "submit": {
+    "production": {}
+  },
+  "update": {
+    "staging": {
+      "channel": "staging"
+    },
+    "production": {
+      "channel": "production"
     }
   }
 }

@@ -41,6 +41,7 @@
       "expo-font",
       "expo-router",
       "expo-web-browser",
+      "expo-dev-client",
       [
         "expo-camera",
         {
