@@ -212,7 +212,7 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
-  }, [selectedChild]);
+  }, [selectedChild, profileStats.words, profileStats.books]);
 
   // Initial data fetch when selectedChild changes
   useEffect(() => {
@@ -231,7 +231,7 @@ export default function ProfileScreen() {
       });
       setMoments([]);
     }
-  }, [selectedChild, childLoading, fetchProfileData, profileStats]);
+  }, [selectedChild, childLoading, fetchProfileData, profileStats.words, profileStats.books]);
 
   // Pull to refresh handler
   const onRefresh = useCallback(async () => {
