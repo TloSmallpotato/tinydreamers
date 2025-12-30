@@ -12,6 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { isLikelyBlankImage, getFirstValidImageUrl } from '@/utils/imageValidation';
 import ValidatedImage from '@/components/ValidatedImage';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -414,11 +415,10 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
           return;
         }
 
-        // Launch image picker
+        // Launch image picker WITHOUT cropping
         const result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ['images'],
-          allowsEditing: true,
-          aspect: [4, 5],
+          allowsEditing: false, // Remove cropping
           quality: 0.9,
         });
 
@@ -432,23 +432,27 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         const image = result.assets[0];
         console.log('📤 Uploading new book cover for:', cachedUserBook.book.title);
 
-        // Read the file as base64
-        const response = await fetch(image.uri);
-        const blob = await response.blob();
-        const arrayBuffer = await blob.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        // Read the file as Base64 using expo-file-system (Expo-safe method)
+        const base64 = await FileSystem.readAsStringAsync(image.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        // Convert Base64 to ArrayBuffer
+        const arrayBuffer = decode(base64);
 
         // Generate a unique filename
         const fileExt = image.uri.split('.').pop() || 'jpg';
         const fileName = `${cachedUserBook.book.id}_${Date.now()}.${fileExt}`;
-        const filePath = `book-covers/${fileName}`;
+        const filePath = `covers/${fileName}`;
+
+        console.log('📤 Uploading to storage:', filePath);
 
         // Upload to Supabase Storage
         const { error: uploadError } = await supabase.storage
           .from('book-covers')
-          .upload(filePath, decode(base64), {
+          .upload(filePath, arrayBuffer, {
             contentType: `image/${fileExt}`,
-            upsert: false,
+            upsert: true, // Allow overwriting
           });
 
         if (uploadError) {
@@ -464,7 +468,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
         console.log('✅ Cover uploaded successfully:', publicUrl);
 
-        // Update book in database
+        // Update book in books_library table (this updates for everyone)
         const { error: updateError } = await supabase
           .from('books_library')
           .update({
@@ -476,15 +480,15 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
         if (updateError) {
           console.error('❌ Error updating book:', updateError);
-          Alert.alert('Error', 'Failed to update book cover. Please try again.');
+          Alert.alert('Error', 'Failed to update book cover in database. Please try again.');
           return;
         }
 
-        console.log('✅ Book cover updated successfully');
+        console.log('✅ Book cover updated successfully in books_library table');
         
         Alert.alert(
           'Success',
-          'Book cover has been updated successfully!',
+          'Book cover has been updated successfully for all users!',
           [{ 
             text: 'OK', 
             onPress: () => {
