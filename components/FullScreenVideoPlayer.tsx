@@ -62,7 +62,7 @@ export default function FullScreenVideoPlayer({
       player.play();
       setIsInitialized(true);
     }
-  }, [visible, videoDuration, trimStart, isInitialized, player]);
+  }, [visible, videoDuration, trimStart, isInitialized]);
 
   // Monitor playback position and enforce trim boundaries
   useEffect(() => {
@@ -73,11 +73,7 @@ export default function FullScreenVideoPlayer({
       const effectiveTrimEnd = trimEnd || videoDuration;
       
       // Only enforce boundaries if we have valid trim times
-      // Note: If trim_start is 0 and trim_end equals duration, the video is already trimmed
-      // and we don't need to enforce boundaries (just let it play normally)
-      const isAlreadyTrimmed = trimStart === 0 && Math.abs(effectiveTrimEnd - videoDuration) < 0.1;
-      
-      if (effectiveTrimEnd > 0 && !isAlreadyTrimmed) {
+      if (effectiveTrimEnd > 0) {
         // Check if we've reached or exceeded the trim end
         if (currentPosition >= effectiveTrimEnd - 0.05) {
           console.log('FullScreenVideoPlayer: Reached trim end at', currentPosition.toFixed(2), 's, looping to', trimStart, 's');
@@ -121,7 +117,7 @@ export default function FullScreenVideoPlayer({
       player.pause();
       player.currentTime = 0;
     }
-  }, [visible, player]);
+  }, [visible]);
 
   const togglePlayback = () => {
     if (isPlaying) {

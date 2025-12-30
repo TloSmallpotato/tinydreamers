@@ -212,7 +212,7 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
-  }, [selectedChild, profileStats.books, profileStats.words]);
+  }, [selectedChild]);
 
   // Initial data fetch when selectedChild changes
   useEffect(() => {
@@ -258,7 +258,7 @@ export default function ProfileScreen() {
       console.log('ProfileScreen: Debounced fetch triggered');
       fetchProfileData(false);
     }, 300);
-  }, [fetchProfileData]);
+  }, [fetchProfileData, profileStats.books, profileStats.words]);
 
   // Set up real-time subscriptions for stats updates
   useEffect(() => {

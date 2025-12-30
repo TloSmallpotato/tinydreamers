@@ -175,7 +175,7 @@ export default function AdminAllBooksScreen() {
     await fetchBooks();
     setRefreshing(false);
     HapticFeedback.success();
-  }, [fetchBooks]);
+  }, [sortBy]);
 
   const handleGoBack = () => {
     HapticFeedback.medium();
