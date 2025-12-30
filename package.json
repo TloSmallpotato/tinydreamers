@@ -99,7 +99,11 @@
     "webpack-cli": "^6.0.1"
   },
   "resolutions": {
-    "@expo/prebuild-config": "latest"
+    "@expo/prebuild-config": "latest",
+    "ffmpeg-kit-react-native": "6.0.2"
+  },
+  "overrides": {
+    "ffmpeg-kit-react-native": "6.0.2"
   },
   "private": true
 }
