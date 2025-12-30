@@ -212,7 +212,7 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
-  }, [selectedChild]);
+  }, [selectedChild, profileStats.books, profileStats.words]);
 
   // Initial data fetch when selectedChild changes
   useEffect(() => {
@@ -244,7 +244,7 @@ export default function ProfileScreen() {
     ]);
     setRefreshing(false);
     HapticFeedback.success();
-  }, [fetchProfileData, fetchProfileStats, refreshUsage, profileStats.books, profileStats.words]);
+  }, [fetchProfileData, fetchProfileStats, refreshUsage]);
 
   // Debounced fetch function to prevent excessive API calls
   const debouncedFetchProfileData = useCallback(() => {

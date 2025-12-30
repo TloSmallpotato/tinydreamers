@@ -52,7 +52,7 @@ export default function FullScreenVideoPlayer({
     const interval = setInterval(checkDuration, 100);
 
     return () => clearInterval(interval);
-  }, [visible, player, player.duration, videoDuration, trimStart, trimEnd]);
+  }, [visible, player.duration, videoDuration, trimStart, trimEnd]);
 
   // Initialize playback when modal opens
   useEffect(() => {
@@ -121,7 +121,7 @@ export default function FullScreenVideoPlayer({
       player.pause();
       player.currentTime = 0;
     }
-  }, [visible]);
+  }, [visible, player]);
 
   const togglePlayback = () => {
     if (isPlaying) {
