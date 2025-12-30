@@ -3,45 +3,75 @@
 
 ## Problem
 
-When building for TestFlight, you encountered a 404 error while installing `ffmpeg-kit-ios-https` v6.0:
+When building for TestFlight, you may encounter an error while installing `ffmpeg-kit-react-native`:
 
 ```
-[!] Error installing ffmpeg-kit-ios-https
-curl: (56) The requested URL returned error: 404
-https://github.com/arthenica/ffmpeg-kit/releases/download/v6.0/ffmpeg-kit-https-6.0-ios-xcframework.zip
+error: No version matching "6.0.3" found for specifier "ffmpeg-kit-react-native" (but package exists)
+error: ffmpeg-kit-react-native@6.0.3 failed to resolve
 ```
 
 ## Root Cause
 
-The `ffmpeg-kit-react-native` version 6.0.2 references iOS framework URLs that no longer exist on GitHub. The FFmpeg Kit project has updated their release structure, and version 6.0.3 contains the correct URLs.
+The `ffmpeg-kit-react-native` version 6.0.3 does not exist. The latest stable version is **6.0.2**. If your build system is trying to install 6.0.3, it's likely due to:
+
+1. Cached references in lockfiles
+2. Outdated documentation or configuration
+3. Missing lockfile causing version resolution issues
 
 ## Solution
 
-### Step 1: Update the Package Version
+### Step 1: Verify Package Version
 
-The `package.json` has been updated to use `ffmpeg-kit-react-native` version **6.0.3** instead of 6.0.2.
+Ensure your `package.json` has the correct version:
 
-**Changed line:**
 ```json
-"ffmpeg-kit-react-native": "6.0.3"
+{
+  "dependencies": {
+    "ffmpeg-kit-react-native": "6.0.2"
+  },
+  "resolutions": {
+    "ffmpeg-kit-react-native": "6.0.2"
+  },
+  "overrides": {
+    "ffmpeg-kit-react-native": "6.0.2"
+  }
+}
 ```
 
-### Step 2: Clean and Reinstall Dependencies
+### Step 2: Check Available Versions
+
+You can verify the available versions using:
+
+```bash
+npm info ffmpeg-kit-react-native versions
+```
+
+This should show that 6.0.2 is the latest stable version.
+
+### Step 3: Clean and Reinstall Dependencies
 
 Run the following commands in your project directory:
 
 ```bash
-# Remove node_modules and package-lock.json
-rm -rf node_modules package-lock.json
+# Remove node_modules and any lockfiles
+rm -rf node_modules package-lock.json yarn.lock bun.lockb
 
-# Clear npm cache (optional but recommended)
+# Clear package manager cache
 npm cache clean --force
+# OR if using yarn
+yarn cache clean
+# OR if using bun
+bun pm cache rm
 
 # Reinstall dependencies
 npm install
+# OR
+yarn install
+# OR
+bun install
 ```
 
-### Step 3: Clean iOS Build
+### Step 4: Clean iOS Build (if applicable)
 
 If you have an `ios` folder (from `expo prebuild`), you need to clean the iOS build:
 
@@ -49,20 +79,28 @@ If you have an `ios` folder (from `expo prebuild`), you need to clean the iOS bu
 # Remove the ios folder
 rm -rf ios
 
-# Remove Pods
-cd ios 2>/dev/null && pod deintegrate && cd .. || true
-
 # Regenerate the ios folder
 npx expo prebuild -p ios --clean
 ```
 
-### Step 4: Rebuild for TestFlight
+### Step 5: Update iOS Pods
+
+After reinstalling dependencies, update the iOS Pods:
+
+```bash
+cd ios
+pod repo update
+pod install
+cd ..
+```
+
+### Step 6: Rebuild for TestFlight
 
 Now you can rebuild your app for TestFlight:
 
 ```bash
-# Build with EAS
-eas build --platform ios --profile production
+# Build with EAS (with cache cleared)
+eas build --platform ios --profile production --clear-cache
 ```
 
 ## Alternative Solution: Use a Different FFmpeg Package
@@ -71,7 +109,7 @@ If the above solution doesn't work, you can consider using an alternative approa
 
 ### Option A: Use expo-av for Basic Video Operations
 
-If you only need basic video trimming without re-encoding, you can use `expo-av` with metadata-based trimming (your original approach). This doesn't require FFmpeg.
+If you only need basic video trimming without re-encoding, you can use `expo-av` with metadata-based trimming. This doesn't require FFmpeg.
 
 **Pros:**
 - No native dependencies
@@ -104,17 +142,22 @@ Process videos on the server using Supabase Edge Functions with FFmpeg:
 
 After rebuilding, verify that the build succeeds by checking:
 
-1. **Pod Installation Success:**
+1. **Dependency Installation Success:**
    ```
-   ✓ Installing ffmpeg-kit-ios-https (6.0.3)
+   ✓ Installing ffmpeg-kit-react-native@6.0.2
    ```
 
-2. **Build Completion:**
+2. **Pod Installation Success (iOS):**
+   ```
+   ✓ Installing ffmpeg-kit-ios-https (6.0.2)
+   ```
+
+3. **Build Completion:**
    ```
    ✓ Build completed successfully
    ```
 
-3. **TestFlight Upload:**
+4. **TestFlight Upload:**
    ```
    ✓ Uploaded to TestFlight
    ```
@@ -131,10 +174,10 @@ Once the build is successful and uploaded to TestFlight:
 
 ## Additional Notes
 
-### Why Version 6.0.3?
+### Why Version 6.0.2?
 
-- Version 6.0.3 is the latest stable release of `ffmpeg-kit-react-native`
-- It contains updated iOS framework URLs that work with the current GitHub release structure
+- Version 6.0.2 is the latest stable release of `ffmpeg-kit-react-native`
+- Version 6.0.3 does not exist in the npm registry
 - It's compatible with Expo SDK 54 and React Native 0.81
 
 ### FFmpeg Kit Variants
@@ -160,25 +203,38 @@ eas build --platform ios --profile development
 
 ## Troubleshooting
 
-### Issue: Still Getting 404 Error
+### Issue: Still Getting "6.0.3 not found" Error
 
 **Solution:**
-1. Make sure you've updated `package.json` to version 6.0.3
-2. Delete `node_modules` and reinstall
+1. Make sure you've updated `package.json` to version 6.0.2
+2. Delete `node_modules` and **all lockfiles** (package-lock.json, yarn.lock, bun.lockb)
 3. Clear the EAS build cache: `eas build --platform ios --clear-cache`
+4. Ensure `resolutions` and `overrides` fields in package.json are set to 6.0.2
 
-### Issue: Pod Install Fails with Different Error
+### Issue: No Lockfile Detected
+
+If EAS Build shows "Did not detect any lock files", it means:
+- You don't have a lockfile committed to your repository
+- The build system will use the default package manager (bun)
+
+**Solution:**
+1. Generate a lockfile locally: `npm install` (creates package-lock.json)
+2. Commit the lockfile to your repository
+3. Push the changes and rebuild
+
+### Issue: Pod Install Fails
 
 **Solution:**
 1. Check your Xcode version (should be 14.0 or later)
 2. Update CocoaPods: `sudo gem install cocoapods`
 3. Clear CocoaPods cache: `pod cache clean --all`
+4. Run `pod repo update` to update the CocoaPods repository
 
 ### Issue: Build Succeeds but App Crashes
 
 **Solution:**
 1. Check that you're using Expo Dev Client (not Expo Go)
-2. Verify that the FFmpeg commands in `utils/videoStorage.ts` are correct
+2. Verify that the FFmpeg commands in your code are correct
 3. Check the device logs for FFmpeg-related errors
 
 ## References
@@ -190,6 +246,13 @@ eas build --platform ios --profile development
 
 ## Summary
 
-The fix is simple: update `ffmpeg-kit-react-native` from version 6.0.2 to 6.0.3. This version contains the correct iOS framework URLs and should resolve the 404 error during TestFlight builds.
+The fix is to ensure `ffmpeg-kit-react-native` is set to version **6.0.2** (not 6.0.3, which doesn't exist). 
 
-After updating, clean your dependencies and rebuild for TestFlight. The build should complete successfully.
+Key steps:
+1. Update `package.json` to use version 6.0.2
+2. Add `resolutions` and `overrides` fields to force version 6.0.2
+3. Delete all lockfiles and node_modules
+4. Reinstall dependencies
+5. Clear EAS build cache and rebuild
+
+After these steps, the build should complete successfully without trying to resolve the non-existent 6.0.3 version.
