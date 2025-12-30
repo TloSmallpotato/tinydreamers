@@ -4,7 +4,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, 
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useEvent } from 'expo';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -23,13 +24,20 @@ export default function VideoPreviewModal({
   onConfirm,
   onCancel,
 }: VideoPreviewModalProps) {
-  const videoRef = useRef<Video>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [actualDuration, setActualDuration] = useState(duration);
   const [currentPosition, setCurrentPosition] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(Math.min(duration, MAX_TRIM_DURATION));
   const insets = useSafeAreaInsets();
+
+  // Create video player
+  const player = useVideoPlayer(videoUri, (player) => {
+    player.loop = false;
+    player.play();
+  });
+
+  // Listen to playing state changes
+  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
 
   // Calculate video container height to fit within safe area
   const topSafeArea = insets.top || 44;
@@ -43,33 +51,53 @@ export default function VideoPreviewModal({
   const videoHeight = Math.min(videoWidth * (16 / 9), maxVideoHeight);
 
   useEffect(() => {
-    // Load the video to get actual duration
-    const loadVideo = async () => {
-      if (videoRef.current) {
-        try {
-          const status = await videoRef.current.getStatusAsync();
-          if (status.isLoaded && status.durationMillis) {
-            const durationInSeconds = status.durationMillis / 1000;
-            console.log('VideoPreviewModal: Actual video duration:', durationInSeconds, 'seconds');
-            setActualDuration(durationInSeconds);
-            
-            // Set initial trim end to min of duration or MAX_TRIM_DURATION
-            const initialTrimEnd = Math.min(durationInSeconds, MAX_TRIM_DURATION);
-            setTrimEnd(initialTrimEnd);
-            
-            // If video is longer than MAX_TRIM_DURATION, show a warning
-            if (durationInSeconds > MAX_TRIM_DURATION) {
-              console.log(`VideoPreviewModal: Video is ${durationInSeconds.toFixed(1)}s, auto-trimming to ${MAX_TRIM_DURATION}s`);
-            }
-          }
-        } catch (error) {
-          console.error('VideoPreviewModal: Error getting video duration:', error);
+    // Get actual duration from player
+    const checkDuration = () => {
+      if (player.duration > 0) {
+        const durationInSeconds = player.duration;
+        console.log('VideoPreviewModal: Actual video duration:', durationInSeconds, 'seconds');
+        setActualDuration(durationInSeconds);
+        
+        // Set initial trim end to min of duration or MAX_TRIM_DURATION
+        const initialTrimEnd = Math.min(durationInSeconds, MAX_TRIM_DURATION);
+        setTrimEnd(initialTrimEnd);
+        
+        // If video is longer than MAX_TRIM_DURATION, show a warning
+        if (durationInSeconds > MAX_TRIM_DURATION) {
+          console.log(`VideoPreviewModal: Video is ${durationInSeconds.toFixed(1)}s, auto-trimming to ${MAX_TRIM_DURATION}s`);
         }
       }
     };
 
-    loadVideo();
-  }, [videoUri]);
+    // Check duration immediately and set up interval
+    checkDuration();
+    const interval = setInterval(checkDuration, 100);
+
+    return () => clearInterval(interval);
+  }, [player]);
+
+  // Monitor playback position
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const positionSeconds = player.currentTime;
+      setCurrentPosition(positionSeconds);
+
+      // Stop playback when reaching trim end
+      if (player.playing && positionSeconds >= trimEnd) {
+        player.pause();
+        player.currentTime = trimStart;
+      }
+
+      // Keep playback within trim range
+      if (positionSeconds < trimStart || positionSeconds > trimEnd) {
+        if (player.playing) {
+          player.currentTime = trimStart;
+        }
+      }
+    }, 50); // Update every 50ms for smooth tracking
+
+    return () => clearInterval(interval);
+  }, [player, trimStart, trimEnd]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -78,52 +106,15 @@ export default function VideoPreviewModal({
     return `${mins}:${secs.toString().padStart(2, '0')}.${ms}`;
   };
 
-  const togglePlayback = async () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        await videoRef.current.pauseAsync();
-      } else {
-        // If at the end of trim range, restart from trim start
-        if (currentPosition >= trimEnd || currentPosition < trimStart) {
-          await videoRef.current.setPositionAsync(trimStart * 1000);
-        }
-        await videoRef.current.playAsync();
+  const togglePlayback = () => {
+    if (isPlaying) {
+      player.pause();
+    } else {
+      // If at the end of trim range, restart from trim start
+      if (currentPosition >= trimEnd || currentPosition < trimStart) {
+        player.currentTime = trimStart;
       }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const handlePlaybackStatusUpdate = async (status: AVPlaybackStatus) => {
-    if (status.isLoaded) {
-      setIsPlaying(status.isPlaying);
-      
-      const positionSeconds = (status.positionMillis || 0) / 1000;
-      setCurrentPosition(positionSeconds);
-      
-      // Update actual duration if we get it from playback status
-      if (status.durationMillis && actualDuration === 0) {
-        const durationInSeconds = status.durationMillis / 1000;
-        console.log('VideoPreviewModal: Duration from playback status:', durationInSeconds, 'seconds');
-        setActualDuration(durationInSeconds);
-        
-        // Update trim end if needed
-        const initialTrimEnd = Math.min(durationInSeconds, MAX_TRIM_DURATION);
-        setTrimEnd(initialTrimEnd);
-      }
-
-      // Stop playback when reaching trim end
-      if (status.isPlaying && positionSeconds >= trimEnd) {
-        await videoRef.current?.pauseAsync();
-        await videoRef.current?.setPositionAsync(trimStart * 1000);
-        setIsPlaying(false);
-      }
-
-      // Keep playback within trim range
-      if (positionSeconds < trimStart || positionSeconds > trimEnd) {
-        if (status.isPlaying) {
-          await videoRef.current?.setPositionAsync(trimStart * 1000);
-        }
-      }
+      player.play();
     }
   };
 
@@ -181,14 +172,11 @@ export default function VideoPreviewModal({
       <View style={styles.content}>
         {/* Video Player */}
         <View style={[styles.videoContainer, { width: videoWidth, height: videoHeight }]}>
-          <Video
-            ref={videoRef}
-            source={{ uri: videoUri }}
+          <VideoView
+            player={player}
             style={styles.video}
-            resizeMode={ResizeMode.CONTAIN}
-            isLooping={false}
-            shouldPlay={false}
-            onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+            contentFit="contain"
+            nativeControls={false}
           />
           
           <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
@@ -236,7 +224,7 @@ export default function VideoPreviewModal({
               max={actualDuration}
               startValue={trimStart}
               endValue={trimEnd}
-              onStartChange={async (value) => {
+              onStartChange={(value) => {
                 // Ensure trim start doesn't exceed trim end minus 0.1s
                 const newStart = Math.min(value, trimEnd - 0.1);
                 
@@ -247,11 +235,9 @@ export default function VideoPreviewModal({
                 setTrimStart(finalStart);
                 
                 // Update video position to new start
-                if (videoRef.current) {
-                  await videoRef.current.setPositionAsync(finalStart * 1000);
-                }
+                player.currentTime = finalStart;
               }}
-              onEndChange={async (value) => {
+              onEndChange={(value) => {
                 // Ensure trim end is at least 0.1s after trim start
                 const newEnd = Math.max(value, trimStart + 0.1);
                 

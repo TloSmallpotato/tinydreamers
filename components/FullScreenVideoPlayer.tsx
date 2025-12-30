@@ -1,7 +1,8 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Modal, StatusBar } from 'react-native';
-import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useEvent } from 'expo';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { colors } from '@/styles/commonStyles';
 
@@ -20,44 +21,43 @@ export default function FullScreenVideoPlayer({
   trimEnd,
   onClose,
 }: FullScreenVideoPlayerProps) {
-  const videoRef = useRef<Video>(null);
-  const [isPlaying, setIsPlaying] = useState(true);
   const [videoDuration, setVideoDuration] = useState(0);
   const lastPositionRef = useRef<number>(0);
 
+  // Create video player
+  const player = useVideoPlayer(videoUri, (player) => {
+    player.loop = false;
+    player.play();
+  });
+
+  // Listen to playing state changes
+  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+
   // Reset video position when modal opens
   useEffect(() => {
-    if (visible && videoRef.current) {
+    if (visible) {
       console.log('FullScreenVideoPlayer: Modal opened, setting initial position to trim start:', trimStart);
-      videoRef.current.setPositionAsync(trimStart * 1000);
-      videoRef.current.playAsync();
+      player.currentTime = trimStart;
+      player.play();
       lastPositionRef.current = trimStart;
     }
   }, [visible, trimStart]);
 
-  const togglePlayback = async () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        await videoRef.current.pauseAsync();
-      } else {
-        await videoRef.current.playAsync();
-      }
-      setIsPlaying(!isPlaying);
+  // Get video duration
+  useEffect(() => {
+    if (player.duration > 0 && videoDuration === 0) {
+      const durationInSeconds = player.duration;
+      setVideoDuration(durationInSeconds);
+      console.log('FullScreenVideoPlayer: Video duration:', durationInSeconds, 'seconds');
     }
-  };
+  }, [player.duration, videoDuration]);
 
-  const handlePlaybackStatusUpdate = async (status: AVPlaybackStatus) => {
-    if (status.isLoaded) {
-      setIsPlaying(status.isPlaying);
-      
-      // Store video duration
-      if (status.durationMillis && videoDuration === 0) {
-        const durationInSeconds = status.durationMillis / 1000;
-        setVideoDuration(durationInSeconds);
-        console.log('FullScreenVideoPlayer: Video duration:', durationInSeconds, 'seconds');
-      }
-      
-      const currentPosition = (status.positionMillis || 0) / 1000;
+  // Monitor playback position and enforce trim boundaries
+  useEffect(() => {
+    if (!visible) return;
+
+    const interval = setInterval(() => {
+      const currentPosition = player.currentTime;
       const effectiveTrimEnd = trimEnd || videoDuration;
       
       // If we have trim times, enforce strict boundaries
@@ -66,20 +66,20 @@ export default function FullScreenVideoPlayer({
         // Use a small buffer (0.1s) to catch the boundary before it's too late
         if (currentPosition >= effectiveTrimEnd - 0.1) {
           console.log('FullScreenVideoPlayer: Reached trim end at', currentPosition, 's, looping to trim start', trimStart, 's');
-          await videoRef.current?.setPositionAsync(trimStart * 1000);
+          player.currentTime = trimStart;
           lastPositionRef.current = trimStart;
           
           // Continue playing if it was playing
-          if (status.isPlaying) {
-            await videoRef.current?.playAsync();
+          if (player.playing) {
+            player.play();
           }
           return;
         }
         
         // If somehow we're before trim start (shouldn't happen, but safety check)
-        if (currentPosition < trimStart && status.isPlaying) {
+        if (currentPosition < trimStart && player.playing) {
           console.log('FullScreenVideoPlayer: Before trim start at', currentPosition, 's, jumping to trim start', trimStart, 's');
-          await videoRef.current?.setPositionAsync(trimStart * 1000);
+          player.currentTime = trimStart;
           lastPositionRef.current = trimStart;
           return;
         }
@@ -87,17 +87,27 @@ export default function FullScreenVideoPlayer({
         // If we somehow jumped way past the trim end (e.g., user seeked), reset
         if (currentPosition > effectiveTrimEnd + 0.5) {
           console.log('FullScreenVideoPlayer: Way past trim end at', currentPosition, 's, resetting to trim start', trimStart, 's');
-          await videoRef.current?.setPositionAsync(trimStart * 1000);
+          player.currentTime = trimStart;
           lastPositionRef.current = trimStart;
           
-          if (status.isPlaying) {
-            await videoRef.current?.playAsync();
+          if (player.playing) {
+            player.play();
           }
           return;
         }
       }
       
       lastPositionRef.current = currentPosition;
+    }, 50); // Check every 50ms for precise trimming
+
+    return () => clearInterval(interval);
+  }, [visible, player, trimStart, trimEnd, videoDuration]);
+
+  const togglePlayback = () => {
+    if (isPlaying) {
+      player.pause();
+    } else {
+      player.play();
     }
   };
 
@@ -123,15 +133,11 @@ export default function FullScreenVideoPlayer({
           onPress={togglePlayback}
           activeOpacity={1}
         >
-          <Video
-            ref={videoRef}
-            source={{ uri: videoUri }}
+          <VideoView
+            player={player}
             style={styles.video}
-            resizeMode={ResizeMode.CONTAIN}
-            isLooping={false}
-            shouldPlay={true}
-            onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-            progressUpdateIntervalMillis={50}
+            contentFit="contain"
+            nativeControls={false}
           />
 
           {!isPlaying && (
