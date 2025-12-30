@@ -258,7 +258,7 @@ export default function ProfileScreen() {
       console.log('ProfileScreen: Debounced fetch triggered');
       fetchProfileData(false);
     }, 300);
-  }, [fetchProfileData]);
+  }, [fetchProfileData, profileStats.books, profileStats.words]);
 
   // Set up real-time subscriptions for stats updates
   useEffect(() => {

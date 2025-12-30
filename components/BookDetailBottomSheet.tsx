@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { isLikelyBlankImage, getFirstValidImageUrl } from '@/utils/imageValidation';
 import ValidatedImage from '@/components/ValidatedImage';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -250,7 +250,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         console.error('Error in deleteBook:', error);
         Alert.alert('Error', 'Failed to remove book');
       }
-    }, [cachedUserBook, ref, onRefresh, isAdminView]);
+    }, [cachedUserBook, ref, onRefresh, isAdminView, refreshStats, fetchProfileStats]);
 
     const handleDeleteBook = useCallback(() => {
       if (isAdminView) return;
