@@ -229,23 +229,31 @@ export default function VideoPreviewModal({
                 const newStart = Math.min(value, trimEnd - 0.1);
                 
                 // Ensure trim duration doesn't exceed MAX_TRIM_DURATION
-                const maxAllowedStart = trimEnd - MAX_TRIM_DURATION;
-                const finalStart = Math.max(0, Math.max(newStart, maxAllowedStart));
+                // If moving start would make duration > MAX_TRIM_DURATION, also move end
+                const potentialDuration = trimEnd - newStart;
+                if (potentialDuration > MAX_TRIM_DURATION) {
+                  const adjustedEnd = newStart + MAX_TRIM_DURATION;
+                  setTrimEnd(Math.min(adjustedEnd, actualDuration));
+                }
                 
-                setTrimStart(finalStart);
+                setTrimStart(Math.max(0, newStart));
                 
                 // Update video position to new start
-                player.currentTime = finalStart;
+                player.currentTime = Math.max(0, newStart);
               }}
               onEndChange={(value) => {
                 // Ensure trim end is at least 0.1s after trim start
                 const newEnd = Math.max(value, trimStart + 0.1);
                 
                 // Ensure trim duration doesn't exceed MAX_TRIM_DURATION
-                const maxAllowedEnd = Math.min(newEnd, trimStart + MAX_TRIM_DURATION);
-                const finalEnd = Math.min(actualDuration, maxAllowedEnd);
+                // If moving end would make duration > MAX_TRIM_DURATION, also move start
+                const potentialDuration = newEnd - trimStart;
+                if (potentialDuration > MAX_TRIM_DURATION) {
+                  const adjustedStart = newEnd - MAX_TRIM_DURATION;
+                  setTrimStart(Math.max(0, adjustedStart));
+                }
                 
-                setTrimEnd(finalEnd);
+                setTrimEnd(Math.min(actualDuration, newEnd));
               }}
             />
             
@@ -256,7 +264,7 @@ export default function VideoPreviewModal({
           </View>
           
           <Text style={styles.hint}>
-            Drag circles to adjust trim points. Max {MAX_TRIM_DURATION} seconds.
+            Drag circles to adjust trim points. Duration is limited to {MAX_TRIM_DURATION} seconds.
           </Text>
         </View>
 

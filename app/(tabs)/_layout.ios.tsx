@@ -20,7 +20,6 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { supabase } from '@/app/integrations/supabase/client';
 import { File } from 'expo-file-system';
 import { generateVideoThumbnail, uploadThumbnailToSupabase, uploadVideoToSupabase } from '@/utils/videoThumbnail';
-import { Video, AVPlaybackStatus } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 
 interface TabItem {
@@ -320,30 +319,6 @@ function CustomTabBar() {
     setIsCameraReady(true);
   };
 
-  const getVideoDuration = async (videoUri: string): Promise<number> => {
-    try {
-      console.log('Getting actual video duration from file...');
-      const { sound } = await Video.createAsync(
-        { uri: videoUri },
-        { shouldPlay: false }
-      );
-      
-      const status = await sound.getStatusAsync();
-      if (status.isLoaded && status.durationMillis) {
-        const durationInSeconds = Math.round(status.durationMillis / 1000);
-        console.log('Actual video duration:', durationInSeconds, 'seconds');
-        await sound.unloadAsync();
-        return durationInSeconds;
-      }
-      
-      await sound.unloadAsync();
-      return 0;
-    } catch (error) {
-      console.error('Error getting video duration:', error);
-      return 0;
-    }
-  };
-
   const startRecording = async () => {
     if (cameraRef.current && !isRecording) {
       try {
@@ -367,14 +342,15 @@ function CustomTabBar() {
         
         setIsRecording(false);
         
-        // Get actual video duration from the file
-        const actualDuration = await getVideoDuration(video.uri);
-        console.log('Setting video with actual duration:', actualDuration);
+        // Use the duration from the recorded video
+        // CameraView returns duration in milliseconds
+        const durationInSeconds = video.duration ? video.duration / 1000 : 0;
+        console.log('Video duration from recording:', durationInSeconds, 'seconds');
         
         // Set creation date to now for recorded videos
         setVideoCreationDate(new Date());
         
-        setRecordedVideo(video.uri, actualDuration);
+        setRecordedVideo(video.uri, durationInSeconds);
         setShowCamera(false);
         setIsCameraReady(false);
         

@@ -22,91 +22,112 @@ export default function FullScreenVideoPlayer({
   onClose,
 }: FullScreenVideoPlayerProps) {
   const [videoDuration, setVideoDuration] = useState(0);
-  const lastPositionRef = useRef<number>(0);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Create video player
   const player = useVideoPlayer(videoUri, (player) => {
     player.loop = false;
-    player.play();
   });
 
   // Listen to playing state changes
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
 
-  // Reset video position when modal opens
+  // Get video duration and initialize
   useEffect(() => {
-    if (visible) {
-      console.log('FullScreenVideoPlayer: Modal opened, setting initial position to trim start:', trimStart);
+    if (!visible) {
+      setIsInitialized(false);
+      return;
+    }
+
+    const checkDuration = () => {
+      if (player.duration > 0 && videoDuration === 0) {
+        const durationInSeconds = player.duration;
+        setVideoDuration(durationInSeconds);
+        console.log('FullScreenVideoPlayer: Video duration:', durationInSeconds, 'seconds');
+        console.log('FullScreenVideoPlayer: Trim range:', trimStart, '-', trimEnd || durationInSeconds);
+      }
+    };
+
+    checkDuration();
+    const interval = setInterval(checkDuration, 100);
+
+    return () => clearInterval(interval);
+  }, [visible, player.duration, videoDuration, trimStart, trimEnd]);
+
+  // Initialize playback when modal opens
+  useEffect(() => {
+    if (visible && videoDuration > 0 && !isInitialized) {
+      console.log('FullScreenVideoPlayer: Initializing playback at trim start:', trimStart);
       player.currentTime = trimStart;
       player.play();
-      lastPositionRef.current = trimStart;
+      setIsInitialized(true);
     }
-  }, [visible, trimStart]);
-
-  // Get video duration
-  useEffect(() => {
-    if (player.duration > 0 && videoDuration === 0) {
-      const durationInSeconds = player.duration;
-      setVideoDuration(durationInSeconds);
-      console.log('FullScreenVideoPlayer: Video duration:', durationInSeconds, 'seconds');
-    }
-  }, [player.duration, videoDuration]);
+  }, [visible, videoDuration, trimStart, isInitialized]);
 
   // Monitor playback position and enforce trim boundaries
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !isInitialized) return;
 
     const interval = setInterval(() => {
       const currentPosition = player.currentTime;
       const effectiveTrimEnd = trimEnd || videoDuration;
       
-      // If we have trim times, enforce strict boundaries
-      if (trimStart !== undefined && effectiveTrimEnd > 0) {
+      // Only enforce boundaries if we have valid trim times
+      if (effectiveTrimEnd > 0) {
         // Check if we've reached or exceeded the trim end
-        // Use a small buffer (0.1s) to catch the boundary before it's too late
-        if (currentPosition >= effectiveTrimEnd - 0.1) {
-          console.log('FullScreenVideoPlayer: Reached trim end at', currentPosition, 's, looping to trim start', trimStart, 's');
+        if (currentPosition >= effectiveTrimEnd - 0.05) {
+          console.log('FullScreenVideoPlayer: Reached trim end at', currentPosition.toFixed(2), 's, looping to', trimStart, 's');
+          player.pause();
           player.currentTime = trimStart;
-          lastPositionRef.current = trimStart;
           
-          // Continue playing if it was playing
-          if (player.playing) {
+          // Auto-play again to create seamless loop
+          setTimeout(() => {
             player.play();
-          }
+          }, 50);
           return;
         }
         
         // If somehow we're before trim start (shouldn't happen, but safety check)
-        if (currentPosition < trimStart && player.playing) {
-          console.log('FullScreenVideoPlayer: Before trim start at', currentPosition, 's, jumping to trim start', trimStart, 's');
+        if (currentPosition < trimStart - 0.05) {
+          console.log('FullScreenVideoPlayer: Before trim start at', currentPosition.toFixed(2), 's, jumping to', trimStart, 's');
           player.currentTime = trimStart;
-          lastPositionRef.current = trimStart;
           return;
         }
         
         // If we somehow jumped way past the trim end (e.g., user seeked), reset
         if (currentPosition > effectiveTrimEnd + 0.5) {
-          console.log('FullScreenVideoPlayer: Way past trim end at', currentPosition, 's, resetting to trim start', trimStart, 's');
+          console.log('FullScreenVideoPlayer: Way past trim end at', currentPosition.toFixed(2), 's, resetting to', trimStart, 's');
+          player.pause();
           player.currentTime = trimStart;
-          lastPositionRef.current = trimStart;
           
-          if (player.playing) {
+          setTimeout(() => {
             player.play();
-          }
+          }, 50);
           return;
         }
       }
-      
-      lastPositionRef.current = currentPosition;
     }, 50); // Check every 50ms for precise trimming
 
     return () => clearInterval(interval);
-  }, [visible, player, trimStart, trimEnd, videoDuration]);
+  }, [visible, isInitialized, player, trimStart, trimEnd, videoDuration]);
+
+  // Clean up when modal closes
+  useEffect(() => {
+    if (!visible) {
+      player.pause();
+      player.currentTime = 0;
+    }
+  }, [visible]);
 
   const togglePlayback = () => {
     if (isPlaying) {
       player.pause();
     } else {
+      // If at the end of trim range, restart from trim start
+      const effectiveTrimEnd = trimEnd || videoDuration;
+      if (player.currentTime >= effectiveTrimEnd - 0.1 || player.currentTime < trimStart) {
+        player.currentTime = trimStart;
+      }
       player.play();
     }
   };
