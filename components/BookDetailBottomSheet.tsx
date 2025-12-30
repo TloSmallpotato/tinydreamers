@@ -12,7 +12,6 @@ import * as Haptics from 'expo-haptics';
 import { isLikelyBlankImage, getFirstValidImageUrl } from '@/utils/imageValidation';
 import ValidatedImage from '@/components/ValidatedImage';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -250,7 +249,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         console.error('Error in deleteBook:', error);
         Alert.alert('Error', 'Failed to remove book');
       }
-    }, [cachedUserBook, ref, onRefresh, refreshStats, fetchProfileStats, isAdminView]);
+    }, [cachedUserBook, ref, onRefresh, isAdminView]);
 
     const handleDeleteBook = useCallback(() => {
       if (isAdminView) return;
@@ -415,12 +414,11 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
           return;
         }
 
-        // Launch image picker with editing enabled and book cover aspect ratio
-        // Using aspect ratio of 2:3 (common for book covers) to ensure the entire image fits
+        // Launch image picker
         const result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ['images'],
           allowsEditing: true,
-          aspect: [2, 3], // Book cover aspect ratio
+          aspect: [4, 5],
           quality: 0.9,
         });
 
@@ -433,21 +431,19 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
         const image = result.assets[0];
         console.log('📤 Uploading new book cover for:', cachedUserBook.book.title);
-        console.log('📐 Image dimensions:', image.width, 'x', image.height);
 
-        // Read the file using expo-file-system and convert to base64
-        const base64 = await FileSystem.readAsStringAsync(image.uri, {
-          encoding: 'base64',
-        });
+        // Read the file as base64
+        const response = await fetch(image.uri);
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
         // Generate a unique filename
         const fileExt = image.uri.split('.').pop() || 'jpg';
         const fileName = `${cachedUserBook.book.id}_${Date.now()}.${fileExt}`;
         const filePath = `book-covers/${fileName}`;
 
-        console.log('📤 Uploading to:', filePath);
-
-        // Upload to Supabase Storage using base64-arraybuffer decode
+        // Upload to Supabase Storage
         const { error: uploadError } = await supabase.storage
           .from('book-covers')
           .upload(filePath, decode(base64), {
