@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -34,7 +34,7 @@ export default function VideoPreviewModal({
   // Calculate video container height to fit within safe area
   const topSafeArea = insets.top || 44;
   const bottomSafeArea = insets.bottom || 34;
-  const controlsHeight = 280; // Reduced since we removed preview button and merged sliders
+  const controlsHeight = 280;
   const buttonsHeight = 100;
   const padding = 40;
   
@@ -56,6 +56,11 @@ export default function VideoPreviewModal({
             // Set initial trim end to min of duration or MAX_TRIM_DURATION
             const initialTrimEnd = Math.min(durationInSeconds, MAX_TRIM_DURATION);
             setTrimEnd(initialTrimEnd);
+            
+            // If video is longer than MAX_TRIM_DURATION, show a warning
+            if (durationInSeconds > MAX_TRIM_DURATION) {
+              console.log(`VideoPreviewModal: Video is ${durationInSeconds.toFixed(1)}s, auto-trimming to ${MAX_TRIM_DURATION}s`);
+            }
           }
         } catch (error) {
           console.error('VideoPreviewModal: Error getting video duration:', error);
@@ -213,6 +218,12 @@ export default function VideoPreviewModal({
             </Text>
           )}
           
+          {actualDuration > MAX_TRIM_DURATION && (
+            <Text style={styles.warningText}>
+              ⚠️ Video is {formatTime(actualDuration)} long. Only the selected {MAX_TRIM_DURATION}s will be saved.
+            </Text>
+          )}
+          
           {/* Dual Handle Trim Slider */}
           <View style={styles.trimSliderContainer}>
             <View style={styles.trimSliderLabels}>
@@ -259,7 +270,7 @@ export default function VideoPreviewModal({
           </View>
           
           <Text style={styles.hint}>
-            Drag circles to adjust trim points, then confirm
+            Drag circles to adjust trim points. Max {MAX_TRIM_DURATION} seconds.
           </Text>
         </View>
 
@@ -469,6 +480,13 @@ const styles = StyleSheet.create({
     color: colors.secondary,
     marginBottom: 8,
     textAlign: 'center',
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#FF9800',
+    marginBottom: 8,
+    textAlign: 'center',
+    fontWeight: '600',
   },
   trimSliderContainer: {
     width: '100%',

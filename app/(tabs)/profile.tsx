@@ -486,6 +486,8 @@ export default function ProfileScreen() {
     }
   };
 
+  const [selectedMoment, setSelectedMoment] = useState<Moment | null>(null);
+
   const handleMomentPress = async (moment: Moment) => {
     console.log('ProfileScreen: Moment pressed:', moment.id);
     HapticFeedback.medium();
@@ -508,6 +510,7 @@ export default function ProfileScreen() {
     }
     
     setSelectedVideoUri(videoUrl);
+    setSelectedMoment(moment);
     setShowVideoPlayer(true);
   };
 
@@ -515,6 +518,7 @@ export default function ProfileScreen() {
     console.log('ProfileScreen: Closing video player');
     setShowVideoPlayer(false);
     setSelectedVideoUri(null);
+    setSelectedMoment(null);
   };
 
   const handleThumbnailError = (momentId: string) => {
@@ -942,6 +946,8 @@ export default function ProfileScreen() {
         <FullScreenVideoPlayer
           visible={showVideoPlayer}
           videoUri={selectedVideoUri}
+          trimStart={selectedMoment?.trim_start}
+          trimEnd={selectedMoment?.trim_end}
           onClose={handleCloseVideoPlayer}
         />
       )}

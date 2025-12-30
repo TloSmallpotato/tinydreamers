@@ -488,12 +488,15 @@ export default function ProfileScreen() {
     }
   };
 
+  const [selectedMoment, setSelectedMoment] = useState<Moment | null>(null);
+
   const handleMomentPress = (moment: Moment) => {
     console.log('ProfileScreen (iOS): Moment pressed:', moment.id);
     HapticFeedback.medium();
     // Use signed URL if available, fallback to original URL
     const videoUrl = moment.signedVideoUrl || moment.video_url;
     setSelectedVideoUri(videoUrl);
+    setSelectedMoment(moment);
     setShowVideoPlayer(true);
   };
 
@@ -501,6 +504,7 @@ export default function ProfileScreen() {
     console.log('ProfileScreen (iOS): Closing video player');
     setShowVideoPlayer(false);
     setSelectedVideoUri(null);
+    setSelectedMoment(null);
   };
 
   const handleChangeAvatar = async () => {
@@ -901,6 +905,8 @@ export default function ProfileScreen() {
         <FullScreenVideoPlayer
           visible={showVideoPlayer}
           videoUri={selectedVideoUri}
+          trimStart={selectedMoment?.trim_start}
+          trimEnd={selectedMoment?.trim_end}
           onClose={handleCloseVideoPlayer}
         />
       )}

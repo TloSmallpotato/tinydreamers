@@ -28,6 +28,7 @@ export default function AllMomentsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
+  const [selectedMoment, setSelectedMoment] = useState<Moment | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
 
   const fetchAllMoments = useCallback(async () => {
@@ -127,6 +128,7 @@ export default function AllMomentsScreen() {
     // Use signed URL if available, fallback to original URL
     const videoUrl = moment.signedVideoUrl || moment.video_url;
     setSelectedVideoUri(videoUrl);
+    setSelectedMoment(moment);
     setShowVideoPlayer(true);
   };
 
@@ -134,6 +136,7 @@ export default function AllMomentsScreen() {
     console.log('AllMomentsScreen (iOS): Closing video player');
     setShowVideoPlayer(false);
     setSelectedVideoUri(null);
+    setSelectedMoment(null);
   };
 
   const renderMomentItem = ({ item, index }: { item: Moment; index: number }) => {
@@ -280,6 +283,8 @@ export default function AllMomentsScreen() {
         <FullScreenVideoPlayer
           visible={showVideoPlayer}
           videoUri={selectedVideoUri}
+          trimStart={selectedMoment?.trim_start}
+          trimEnd={selectedMoment?.trim_end}
           onClose={handleCloseVideoPlayer}
         />
       )}
