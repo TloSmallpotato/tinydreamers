@@ -73,53 +73,7 @@ export default function AdminAllBooksScreen() {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const bookDetailRef = useRef<BottomSheetModal>(null);
 
-  useEffect(() => {
-    checkAdminStatusAndFetchBooks();
-  }, [user, currentPage, sortBy]);
-
-  const checkAdminStatusAndFetchBooks = async () => {
-    if (!user) {
-      console.log('AdminAllBooks: No user, redirecting...');
-      router.replace('/(tabs)/profile');
-      return;
-    }
-
-    try {
-      console.log('AdminAllBooks: Checking admin status for user:', user.id);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (error) {
-        console.error('AdminAllBooks: Error checking admin status:', error);
-        setIsAdmin(false);
-        setLoading(false);
-        return;
-      }
-
-      const adminStatus = data?.role === 'admin';
-      console.log('AdminAllBooks: Admin status:', adminStatus);
-      setIsAdmin(adminStatus);
-
-      if (!adminStatus) {
-        console.log('AdminAllBooks: User is not admin, redirecting...');
-        HapticFeedback.warning();
-        router.replace('/(tabs)/profile');
-        return;
-      }
-
-      // Fetch books if admin
-      await fetchBooks();
-    } catch (err) {
-      console.error('AdminAllBooks: Unexpected error:', err);
-      setIsAdmin(false);
-      setLoading(false);
-    }
-  };
-
-  const fetchBooks = async () => {
+  const fetchBooks = useCallback(async () => {
     try {
       console.log('AdminAllBooks: Fetching books, page:', currentPage, 'sort:', sortBy);
       
@@ -166,7 +120,53 @@ export default function AdminAllBooksScreen() {
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [currentPage, sortBy]);
+
+  const checkAdminStatusAndFetchBooks = useCallback(async () => {
+    if (!user) {
+      console.log('AdminAllBooks: No user, redirecting...');
+      router.replace('/(tabs)/profile');
+      return;
+    }
+
+    try {
+      console.log('AdminAllBooks: Checking admin status for user:', user.id);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('AdminAllBooks: Error checking admin status:', error);
+        setIsAdmin(false);
+        setLoading(false);
+        return;
+      }
+
+      const adminStatus = data?.role === 'admin';
+      console.log('AdminAllBooks: Admin status:', adminStatus);
+      setIsAdmin(adminStatus);
+
+      if (!adminStatus) {
+        console.log('AdminAllBooks: User is not admin, redirecting...');
+        HapticFeedback.warning();
+        router.replace('/(tabs)/profile');
+        return;
+      }
+
+      // Fetch books if admin
+      await fetchBooks();
+    } catch (err) {
+      console.error('AdminAllBooks: Unexpected error:', err);
+      setIsAdmin(false);
+      setLoading(false);
+    }
+  }, [user, router, fetchBooks]);
+
+  useEffect(() => {
+    checkAdminStatusAndFetchBooks();
+  }, [checkAdminStatusAndFetchBooks]);
 
   const onRefresh = useCallback(async () => {
     HapticFeedback.light();
@@ -175,7 +175,7 @@ export default function AdminAllBooksScreen() {
     await fetchBooks();
     setRefreshing(false);
     HapticFeedback.success();
-  }, [sortBy]);
+  }, [fetchBooks]);
 
   const handleGoBack = () => {
     HapticFeedback.medium();

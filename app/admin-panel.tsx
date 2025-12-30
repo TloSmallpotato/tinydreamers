@@ -15,11 +15,7 @@ export default function AdminPanelScreen() {
   const [isAdmin, setIsAdmin] = React.useState<boolean | null>(null);
   const [loading, setLoading] = React.useState(true);
 
-  React.useEffect(() => {
-    checkAdminStatus();
-  }, [user]);
-
-  const checkAdminStatus = async () => {
+  const checkAdminStatus = React.useCallback(async () => {
     if (!user) {
       console.log('AdminPanel: No user, redirecting...');
       router.replace('/(tabs)/profile');
@@ -56,7 +52,11 @@ export default function AdminPanelScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, router]);
+
+  React.useEffect(() => {
+    checkAdminStatus();
+  }, [checkAdminStatus]);
 
   const handleGoBack = () => {
     HapticFeedback.medium();

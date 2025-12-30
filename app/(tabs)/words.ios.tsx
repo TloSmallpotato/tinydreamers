@@ -159,7 +159,7 @@ export default function WordsScreen() {
   useEffect(() => {
     console.log('📝 [iOS] Initial load - fetching words for child:', selectedChild?.id);
     fetchWords();
-  }, [selectedChild?.id]);
+  }, [selectedChild?.id, fetchWords]);
 
   // Pull to refresh handler
   const onRefresh = useCallback(async () => {
