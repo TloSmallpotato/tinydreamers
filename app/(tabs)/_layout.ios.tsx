@@ -468,12 +468,14 @@ function CustomTabBar() {
   };
 
   const handleConfirmVideo = async (trimmedUri: string, startTime: number, endTime: number) => {
-    console.log('Video confirmed with trim:', { startTime, endTime });
+    console.log('Video confirmed with trim:', { trimmedUri, startTime, endTime });
     console.log('isRecordingFromWordDetail:', isRecordingFromWordDetail);
     console.log('targetWordId:', targetWordId);
     console.log('videoCreationDate:', videoCreationDate);
     
     // Store trim information
+    // Note: The video is already trimmed by FFmpeg, so startTime should be 0
+    // and endTime should be the duration of the trimmed video
     setTrimStart(startTime);
     setTrimEnd(endTime);
     
@@ -574,6 +576,8 @@ function CustomTabBar() {
         video_url: uploadedVideoUrl,
         thumbnail_url: uploadedThumbnailUrl,
         duration: trimmedDuration,
+        // Since the video is already trimmed by FFmpeg, we store the trim range
+        // relative to the trimmed video (which starts at 0)
         trim_start: startTime,
         trim_end: endTime,
       };
@@ -583,6 +587,8 @@ function CustomTabBar() {
         momentData.original_created_at = videoCreationDate.toISOString();
         console.log('Including original creation date:', momentData.original_created_at);
       }
+      
+      console.log('Moment data to insert:', momentData);
       
       const { error: insertError } = await supabase
         .from('moments')

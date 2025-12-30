@@ -1,11 +1,12 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent } from 'expo';
+import { trimVideo } from '@/utils/videoStorage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -28,6 +29,7 @@ export default function VideoPreviewModal({
   const [currentPosition, setCurrentPosition] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(Math.min(duration, MAX_TRIM_DURATION));
+  const [isTrimming, setIsTrimming] = useState(false);
   const insets = useSafeAreaInsets();
 
   // Create video player
@@ -118,7 +120,7 @@ export default function VideoPreviewModal({
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const trimmedDuration = trimEnd - trimStart;
     
     if (trimmedDuration < 0.1) {
@@ -141,9 +143,42 @@ export default function VideoPreviewModal({
       maxAllowed: MAX_TRIM_DURATION 
     });
     
-    // Pass the original URI and trim times to parent
-    // The actual trimming will be done during upload/processing
-    onConfirm(videoUri, trimStart, trimEnd);
+    try {
+      // Show loading state
+      setIsTrimming(true);
+      
+      // Trim the video using FFmpeg
+      console.log('Starting FFmpeg video trim...');
+      const trimmedUri = await trimVideo(videoUri, trimStart, trimEnd);
+      
+      if (!trimmedUri) {
+        throw new Error('Failed to trim video');
+      }
+      
+      console.log('✓ Video trimmed successfully:', trimmedUri);
+      
+      // Pass the trimmed video URI to parent
+      // Note: We pass 0 and trimmedDuration as the new trim times since the video is already trimmed
+      onConfirm(trimmedUri, 0, trimmedDuration);
+    } catch (error) {
+      console.error('Error trimming video:', error);
+      Alert.alert(
+        'Trim Failed',
+        'Failed to trim video. Please try again or use the full video.',
+        [
+          {
+            text: 'Use Full Video',
+            onPress: () => onConfirm(videoUri, 0, actualDuration),
+          },
+          {
+            text: 'Try Again',
+            style: 'cancel',
+          },
+        ]
+      );
+    } finally {
+      setIsTrimming(false);
+    }
   };
 
   const getTrimmedDuration = () => {
@@ -270,7 +305,11 @@ export default function VideoPreviewModal({
 
         {/* Action Buttons */}
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
+          <TouchableOpacity 
+            style={styles.cancelButton} 
+            onPress={onCancel}
+            disabled={isTrimming}
+          >
             <MaterialIcons name="close" size={24} color={colors.backgroundAlt} />
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
@@ -278,13 +317,22 @@ export default function VideoPreviewModal({
           <TouchableOpacity 
             style={[
               styles.confirmButton,
-              !isValidTrim && styles.confirmButtonDisabled
+              (!isValidTrim || isTrimming) && styles.confirmButtonDisabled
             ]} 
             onPress={handleConfirm}
-            disabled={!isValidTrim}
+            disabled={!isValidTrim || isTrimming}
           >
-            <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
-            <Text style={styles.confirmButtonText}>Confirm</Text>
+            {isTrimming ? (
+              <>
+                <ActivityIndicator size="small" color={colors.backgroundAlt} />
+                <Text style={styles.confirmButtonText}>Trimming...</Text>
+              </>
+            ) : (
+              <>
+                <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
+                <Text style={styles.confirmButtonText}>Confirm</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>

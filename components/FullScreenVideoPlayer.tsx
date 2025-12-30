@@ -73,7 +73,11 @@ export default function FullScreenVideoPlayer({
       const effectiveTrimEnd = trimEnd || videoDuration;
       
       // Only enforce boundaries if we have valid trim times
-      if (effectiveTrimEnd > 0) {
+      // Note: If trim_start is 0 and trim_end equals duration, the video is already trimmed
+      // and we don't need to enforce boundaries (just let it play normally)
+      const isAlreadyTrimmed = trimStart === 0 && Math.abs(effectiveTrimEnd - videoDuration) < 0.1;
+      
+      if (effectiveTrimEnd > 0 && !isAlreadyTrimmed) {
         // Check if we've reached or exceeded the trim end
         if (currentPosition >= effectiveTrimEnd - 0.05) {
           console.log('FullScreenVideoPlayer: Reached trim end at', currentPosition.toFixed(2), 's, looping to', trimStart, 's');
