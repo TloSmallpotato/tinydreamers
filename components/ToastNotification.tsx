@@ -1,9 +1,16 @@
 
 import React, { useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
-import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  runOnJS,
+} from 'react-native-reanimated';
 
 interface ToastNotificationProps {
   visible: boolean;
@@ -24,97 +31,120 @@ export default function ToastNotification({
   showViewButton = false,
   onViewPress,
 }: ToastNotificationProps) {
-  const translateY = useRef(new Animated.Value(-100)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-  const gestureTranslateY = useRef(new Animated.Value(0)).current;
+  const translateY = useSharedValue(-100);
+  const opacity = useSharedValue(0);
+  const gestureTranslateY = useSharedValue(0);
+  const isMountedRef = useRef(true);
+  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const hideToast = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: -100,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      gestureTranslateY.setValue(0);
-      if (onHide) {
-        onHide();
+    'worklet';
+    if (!isMountedRef.current) return;
+
+    translateY.value = withTiming(-100, { duration: 300 });
+    opacity.value = withTiming(0, { duration: 300 }, (finished) => {
+      if (finished && isMountedRef.current) {
+        gestureTranslateY.value = 0;
+        if (onHide) {
+          runOnJS(onHide)();
+        }
       }
     });
   }, [translateY, opacity, gestureTranslateY, onHide]);
 
   useEffect(() => {
+    // Clear any existing timeout
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+
     if (visible) {
       // Show animation
-      Animated.parallel([
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      translateY.value = withTiming(0, { duration: 300 });
+      opacity.value = withTiming(1, { duration: 300 });
 
       // Only auto-hide if NOT in saving mode
       if (type !== 'saving') {
-        const timer = setTimeout(() => {
-          hideToast();
+        hideTimeoutRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            hideToast();
+          }
         }, duration);
-
-        return () => clearTimeout(timer);
       }
     } else {
       hideToast();
     }
-  }, [visible, duration, hideToast, translateY, opacity, type]);
+
+    return () => {
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
+      }
+    };
+  }, [visible, duration, type, hideToast, translateY, opacity]);
 
   // Swipe up gesture to dismiss
   const panGesture = Gesture.Pan()
     .onUpdate((event) => {
+      'worklet';
       // Only allow upward swipes (negative translationY)
       if (event.translationY < 0) {
-        gestureTranslateY.setValue(event.translationY);
+        gestureTranslateY.value = event.translationY;
       }
     })
     .onEnd((event) => {
+      'worklet';
       // If swiped up more than 50 pixels, dismiss
       if (event.translationY < -50) {
-        Animated.parallel([
-          Animated.timing(gestureTranslateY, {
-            toValue: -200,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacity, {
-            toValue: 0,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-        ]).start(() => {
-          gestureTranslateY.setValue(0);
-          if (onHide) {
-            onHide();
+        gestureTranslateY.value = withTiming(-200, { duration: 200 });
+        opacity.value = withTiming(0, { duration: 200 }, (finished) => {
+          if (finished && isMountedRef.current) {
+            gestureTranslateY.value = 0;
+            if (onHide) {
+              runOnJS(onHide)();
+            }
           }
         });
       } else {
         // Spring back to original position
-        Animated.spring(gestureTranslateY, {
-          toValue: 0,
-          useNativeDriver: true,
+        gestureTranslateY.value = withSpring(0, {
           damping: 15,
           stiffness: 150,
-        }).start();
+        });
+      }
+    })
+    .onFinalize(() => {
+      'worklet';
+      // Ensure we reset if gesture is cancelled
+      if (gestureTranslateY.value !== 0 && gestureTranslateY.value > -50) {
+        gestureTranslateY.value = withSpring(0, {
+          damping: 15,
+          stiffness: 150,
+        });
       }
     });
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateY: translateY.value + gestureTranslateY.value }
+      ],
+      opacity: opacity.value,
+    };
+  });
 
   const getIconName = () => {
     switch (type) {
@@ -159,11 +189,8 @@ export default function ToastNotification({
           styles.container,
           {
             backgroundColor: getBackgroundColor(),
-            transform: [
-              { translateY: Animated.add(translateY, gestureTranslateY) }
-            ],
-            opacity,
           },
+          animatedStyle,
         ]}
       >
         <View style={styles.content}>
@@ -198,7 +225,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     zIndex: 9999,
     elevation: 10,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.3)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 10,
+      },
+      web: {
+        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.3)',
+      },
+    }),
   },
   content: {
     flex: 1,
