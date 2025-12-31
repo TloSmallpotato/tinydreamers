@@ -18,22 +18,12 @@ export async function generateVideoThumbnail(
     console.log('[Thumbnail] Starting thumbnail generation for:', videoUri);
     console.log('[Thumbnail] Extracting frame at:', timeInSeconds, 'seconds');
     
-    // Ensure timeInSeconds is a valid number
-    if (typeof timeInSeconds !== 'number' || isNaN(timeInSeconds) || timeInSeconds < 0) {
-      console.error('[Thumbnail] Invalid time value:', timeInSeconds);
-      timeInSeconds = 0;
-    }
-    
-    // Convert seconds to milliseconds and ensure it's an integer
-    const timeInMilliseconds = Math.round(timeInSeconds * 1000);
-    
-    console.log('[Thumbnail] Time in milliseconds (integer):', timeInMilliseconds);
-    
     // Generate thumbnail at the specified timestamp
+    // Convert seconds to milliseconds for the API
     const { uri } = await VideoThumbnails.getThumbnailAsync(
       videoUri,
       {
-        time: timeInMilliseconds, // Must be an integer in milliseconds
+        time: timeInSeconds * 1000, // Convert to milliseconds
         quality: 0.8, // Good quality (0-1 scale)
       }
     );
