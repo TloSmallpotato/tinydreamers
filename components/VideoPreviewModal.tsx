@@ -217,7 +217,7 @@ export default function VideoPreviewModal({
       return;
     }
 
-    console.log('[VideoPreviewModal] Confirm clicked - generating thumbnail at trimStart:', trimStart);
+    console.log('[VideoPreviewModal] ✅ Confirm clicked - generating thumbnail at trimStart:', trimStart);
     
     // Generate thumbnail at trimStart when user confirms
     setIsGeneratingThumbnail(true);
@@ -226,7 +226,8 @@ export default function VideoPreviewModal({
       const thumbnailUri = await generateVideoThumbnail(videoUri, trimStart);
       
       if (thumbnailUri) {
-        console.log('[VideoPreviewModal] ✅ Thumbnail generated successfully:', thumbnailUri);
+        console.log('[VideoPreviewModal] ✅ Thumbnail generated successfully at trimStart:', trimStart);
+        console.log('[VideoPreviewModal] Thumbnail URI:', thumbnailUri);
       } else {
         console.error('[VideoPreviewModal] ❌ Failed to generate thumbnail');
       }

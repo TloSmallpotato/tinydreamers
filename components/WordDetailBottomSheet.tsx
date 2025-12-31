@@ -12,6 +12,7 @@ import { useProfileStats } from '@/contexts/ProfileStatsContext';
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 import { Image } from 'expo-image';
 import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
+import { regenerateMomentThumbnail } from '@/utils/thumbnailRegeneration';
 import * as Haptics from 'expo-haptics';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -33,6 +34,7 @@ interface Moment {
   created_at: string;
   trim_start?: number;
   trim_end?: number;
+  child_id?: string;
   signedVideoUrl?: string | null;
   signedThumbnailUrl?: string | null;
 }
@@ -90,10 +92,10 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
         setLoading(true);
         console.log('[WordDetail] Fetching moments for word:', word.id);
         
-        // 🔹 CRITICAL FIX: Include trim_start and trim_end in the SELECT query
+        // 🔹 CRITICAL FIX: Include trim_start, trim_end, and child_id in the SELECT query
         const { data, error } = await supabase
           .from('moments')
-          .select('id, video_url, thumbnail_url, created_at, trim_start, trim_end')
+          .select('id, video_url, thumbnail_url, created_at, trim_start, trim_end, child_id')
           .eq('word_id', word.id)
           .order('created_at', { ascending: false });
 
@@ -117,6 +119,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
               trim_start: moment.trim_start,
               trim_end: moment.trim_end,
               has_thumbnail: !!moment.signedThumbnailUrl,
+              child_id: moment.child_id,
             });
           });
           
@@ -184,7 +187,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       triggerCamera();
     };
 
-    const handlePlayVideo = (moment: Moment) => {
+    const handlePlayVideo = async (moment: Moment) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       console.log('[WordDetail] Playing video:', moment.id);
       console.log('[WordDetail] Trim metadata:', { 
@@ -193,7 +196,33 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
         has_thumbnail: !!moment.signedThumbnailUrl,
       });
       
-      // 🔹 CRITICAL FIX: Store the full moment object with trim metadata
+      // 🔹 CRITICAL FIX: Regenerate thumbnail if trim_start exists but no thumbnail
+      // This ensures the grid thumbnail matches the video start point
+      if (moment.trim_start && moment.trim_start > 0 && !moment.thumbnail_url && moment.child_id) {
+        console.log('[WordDetail] 🔄 No thumbnail found, regenerating at trim_start:', moment.trim_start);
+        
+        try {
+          const newThumbnailPath = await regenerateMomentThumbnail(
+            moment.id,
+            moment.video_url,
+            moment.trim_start,
+            moment.child_id
+          );
+          
+          if (newThumbnailPath) {
+            console.log('[WordDetail] ✅ Thumbnail regenerated successfully');
+            // Refresh moments to get the new thumbnail
+            await fetchMoments();
+          } else {
+            console.warn('[WordDetail] ⚠️ Thumbnail regeneration failed, continuing with playback');
+          }
+        } catch (error) {
+          console.error('[WordDetail] Error regenerating thumbnail:', error);
+          // Continue with playback even if thumbnail regeneration fails
+        }
+      }
+      
+      // Store the full moment object with trim metadata
       setSelectedMoment(moment);
       setShowVideoPlayer(true);
     };
@@ -701,7 +730,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
                       ) : (
                         <View style={styles.momentsGrid}>
                           {moments.map((moment, index) => {
-                            // Use signed thumbnail URL if available, otherwise fall back to original
+                            // 🔹 CRITICAL: Use signed thumbnail URL if available
                             const thumbnailUrl = moment.signedThumbnailUrl || moment.thumbnail_url;
                             
                             return (
@@ -766,7 +795,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           </TouchableWithoutFeedback>
         </BottomSheetModal>
 
-        {/* 🔹 CRITICAL FIX: Pass trim metadata AND thumbnail URI to FullScreenVideoPlayer */}
+        {/* Pass trim metadata AND thumbnail URI to FullScreenVideoPlayer */}
         {selectedMoment && (
           <FullScreenVideoPlayer
             visible={showVideoPlayer}
