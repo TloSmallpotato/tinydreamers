@@ -31,6 +31,8 @@ interface Moment {
   video_url: string;
   thumbnail_url?: string;
   created_at: string;
+  trim_start?: number;
+  trim_end?: number;
   signedVideoUrl?: string | null;
   signedThumbnailUrl?: string | null;
 }
@@ -49,7 +51,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
     const [loading, setLoading] = useState(false);
     const [isSpoken, setIsSpoken] = useState(false);
     const [isRecognised, setIsRecognised] = useState(false);
-    const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
+    const [selectedMoment, setSelectedMoment] = useState<Moment | null>(null);
     const [showVideoPlayer, setShowVideoPlayer] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [editedWord, setEditedWord] = useState('');
@@ -88,9 +90,10 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
         setLoading(true);
         console.log('[WordDetail] Fetching moments for word:', word.id);
         
+        // 🔹 CRITICAL FIX: Include trim_start and trim_end in the SELECT query
         const { data, error } = await supabase
           .from('moments')
-          .select('*')
+          .select('id, video_url, thumbnail_url, created_at, trim_start, trim_end')
           .eq('word_id', word.id)
           .order('created_at', { ascending: false });
 
@@ -106,6 +109,16 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           console.log('[WordDetail] Processing moments with signed URLs...');
           const processedMoments = await processMomentsWithSignedUrls(data);
           console.log('[WordDetail] Processed moments:', processedMoments.length);
+          
+          // Log trim metadata for debugging
+          processedMoments.forEach((moment, index) => {
+            console.log(`[WordDetail] Moment ${index + 1} trim metadata:`, {
+              id: moment.id,
+              trim_start: moment.trim_start,
+              trim_end: moment.trim_end,
+            });
+          });
+          
           setMoments(processedMoments);
         } else {
           setMoments([]);
@@ -172,16 +185,20 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
 
     const handlePlayVideo = (moment: Moment) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      // Use signed URL if available, otherwise fall back to original URL
-      const videoUrl = moment.signedVideoUrl || moment.video_url;
-      console.log('[WordDetail] Playing video:', videoUrl);
-      setSelectedVideoUri(videoUrl);
+      console.log('[WordDetail] Playing video:', moment.id);
+      console.log('[WordDetail] Trim metadata:', { 
+        trim_start: moment.trim_start, 
+        trim_end: moment.trim_end 
+      });
+      
+      // 🔹 CRITICAL FIX: Store the full moment object with trim metadata
+      setSelectedMoment(moment);
       setShowVideoPlayer(true);
     };
 
     const handleCloseVideoPlayer = () => {
       setShowVideoPlayer(false);
-      setSelectedVideoUri(null);
+      setSelectedMoment(null);
     };
 
     const handleDeleteMoment = (moment: Moment) => {
@@ -747,11 +764,14 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           </TouchableWithoutFeedback>
         </BottomSheetModal>
 
-        {selectedVideoUri && (
+        {/* 🔹 CRITICAL FIX: Pass trim metadata to FullScreenVideoPlayer */}
+        {selectedMoment && (
           <FullScreenVideoPlayer
             visible={showVideoPlayer}
-            videoUri={selectedVideoUri}
+            videoUri={selectedMoment.signedVideoUrl || selectedMoment.video_url}
             onClose={handleCloseVideoPlayer}
+            trimStart={selectedMoment.trim_start}
+            trimEnd={selectedMoment.trim_end}
           />
         )}
       </>
