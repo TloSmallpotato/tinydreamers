@@ -367,6 +367,12 @@ export default function ProfileScreen() {
       let years = today.getFullYear() - birth.getFullYear();
       let months = today.getMonth() - birth.getMonth();
       
+      // If the current day is before the birth day in the month, subtract one month
+      if (today.getDate() < birth.getDate()) {
+        months--;
+      }
+      
+      // If months is negative, adjust years and months
       if (months < 0) {
         years--;
         months += 12;
