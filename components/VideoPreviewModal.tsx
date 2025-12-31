@@ -1,17 +1,18 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { generateVideoThumbnail } from '@/utils/videoThumbnail';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 interface VideoPreviewModalProps {
   videoUri: string;
   duration: number;
-  onConfirm: (trimmedUri: string, startTime: number, endTime: number) => void;
+  onConfirm: (trimmedUri: string, startTime: number, endTime: number, thumbnailUri: string | null) => void;
   onCancel: () => void;
 }
 
@@ -30,6 +31,7 @@ export default function VideoPreviewModal({
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(Math.min(duration, MAX_TRIM_DURATION));
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false);
   const isSeekingRef = useRef(false);
   const insets = useSafeAreaInsets();
 
@@ -199,7 +201,7 @@ export default function VideoPreviewModal({
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const trimmedDuration = trimEnd - trimStart;
     
     if (trimmedDuration < 0.1) {
@@ -215,16 +217,51 @@ export default function VideoPreviewModal({
       return;
     }
 
-    console.log('Confirming video with trim:', { 
-      trimStart, 
-      trimEnd, 
-      duration: trimmedDuration,
-      maxAllowed: MAX_TRIM_DURATION 
-    });
+    console.log('[VideoPreviewModal] Confirm clicked - generating thumbnail at trimStart:', trimStart);
     
-    // Pass the original URI and trim times to parent
-    // The actual trimming will be done during upload/processing
-    onConfirm(videoUri, trimStart, trimEnd);
+    // Generate thumbnail at trimStart when user confirms
+    setIsGeneratingThumbnail(true);
+    
+    try {
+      const thumbnailUri = await generateVideoThumbnail(videoUri, trimStart);
+      
+      if (thumbnailUri) {
+        console.log('[VideoPreviewModal] ✅ Thumbnail generated successfully:', thumbnailUri);
+      } else {
+        console.error('[VideoPreviewModal] ❌ Failed to generate thumbnail');
+      }
+      
+      console.log('Confirming video with trim:', { 
+        trimStart, 
+        trimEnd, 
+        duration: trimmedDuration,
+        maxAllowed: MAX_TRIM_DURATION,
+        thumbnailUri,
+      });
+      
+      // Pass the original URI, trim times, and thumbnail URI to parent
+      onConfirm(videoUri, trimStart, trimEnd, thumbnailUri);
+    } catch (error) {
+      console.error('[VideoPreviewModal] Error during thumbnail generation:', error);
+      Alert.alert(
+        'Thumbnail Generation Failed',
+        'Failed to generate video thumbnail. The video will be saved without a thumbnail.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Continue Anyway',
+            onPress: () => {
+              onConfirm(videoUri, trimStart, trimEnd, null);
+            },
+          },
+        ]
+      );
+    } finally {
+      setIsGeneratingThumbnail(false);
+    }
   };
 
   const getTrimmedDuration = () => {
@@ -362,13 +399,22 @@ export default function VideoPreviewModal({
           <TouchableOpacity 
             style={[
               styles.confirmButton,
-              !isValidTrim && styles.confirmButtonDisabled
+              (!isValidTrim || isGeneratingThumbnail) && styles.confirmButtonDisabled
             ]} 
             onPress={handleConfirm}
-            disabled={!isValidTrim}
+            disabled={!isValidTrim || isGeneratingThumbnail}
           >
-            <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
-            <Text style={styles.confirmButtonText}>Confirm</Text>
+            {isGeneratingThumbnail ? (
+              <>
+                <ActivityIndicator size="small" color={colors.backgroundAlt} />
+                <Text style={styles.confirmButtonText}>Generating...</Text>
+              </>
+            ) : (
+              <>
+                <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
+                <Text style={styles.confirmButtonText}>Confirm</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
