@@ -27,7 +27,7 @@ export default function AllMomentsScreen() {
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
+  const [selectedMoment, setSelectedMoment] = useState<Moment | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
 
   const fetchAllMoments = useCallback(async () => {
@@ -124,16 +124,17 @@ export default function AllMomentsScreen() {
 
   const handleMomentPress = (moment: Moment) => {
     console.log('AllMomentsScreen: Moment pressed:', moment.id);
-    // Use signed URL if available, fallback to original URL
-    const videoUrl = moment.signedVideoUrl || moment.video_url;
-    setSelectedVideoUri(videoUrl);
+    console.log('AllMomentsScreen: Trim metadata:', { trim_start: moment.trim_start, trim_end: moment.trim_end });
+    
+    // Store the full moment object with trim metadata
+    setSelectedMoment(moment);
     setShowVideoPlayer(true);
   };
 
   const handleCloseVideoPlayer = () => {
     console.log('AllMomentsScreen: Closing video player');
     setShowVideoPlayer(false);
-    setSelectedVideoUri(null);
+    setSelectedMoment(null);
   };
 
   const renderMomentItem = ({ item, index }: { item: Moment; index: number }) => {
@@ -276,11 +277,13 @@ export default function AllMomentsScreen() {
         />
       </SafeAreaView>
 
-      {selectedVideoUri && (
+      {selectedMoment && (
         <FullScreenVideoPlayer
           visible={showVideoPlayer}
-          videoUri={selectedVideoUri}
+          videoUri={selectedMoment.signedVideoUrl || selectedMoment.video_url}
           onClose={handleCloseVideoPlayer}
+          trimStart={selectedMoment.trim_start}
+          trimEnd={selectedMoment.trim_end}
         />
       )}
     </View>

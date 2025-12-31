@@ -77,7 +77,7 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
-  const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
+  const [selectedMoment, setSelectedMoment] = useState<Moment | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [thumbnailErrors, setThumbnailErrors] = useState<Set<string>>(new Set());
@@ -488,6 +488,7 @@ export default function ProfileScreen() {
 
   const handleMomentPress = async (moment: Moment) => {
     console.log('ProfileScreen: Moment pressed:', moment.id);
+    console.log('ProfileScreen: Trim metadata:', { trim_start: moment.trim_start, trim_end: moment.trim_end });
     HapticFeedback.medium();
     
     // Use signed URL if available, fallback to original URL
@@ -507,14 +508,15 @@ export default function ProfileScreen() {
       }
     }
     
-    setSelectedVideoUri(videoUrl);
+    // Store the full moment object with trim metadata
+    setSelectedMoment(moment);
     setShowVideoPlayer(true);
   };
 
   const handleCloseVideoPlayer = () => {
     console.log('ProfileScreen: Closing video player');
     setShowVideoPlayer(false);
-    setSelectedVideoUri(null);
+    setSelectedMoment(null);
   };
 
   const handleThumbnailError = (momentId: string) => {
@@ -938,11 +940,13 @@ export default function ProfileScreen() {
 
       <SettingsBottomSheet ref={settingsRef} />
 
-      {selectedVideoUri && (
+      {selectedMoment && (
         <FullScreenVideoPlayer
           visible={showVideoPlayer}
-          videoUri={selectedVideoUri}
+          videoUri={selectedMoment.signedVideoUrl || selectedMoment.video_url}
           onClose={handleCloseVideoPlayer}
+          trimStart={selectedMoment.trim_start}
+          trimEnd={selectedMoment.trim_end}
         />
       )}
 

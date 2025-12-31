@@ -76,48 +76,87 @@ export default function VideoPreviewModal({
   const togglePlayback = async () => {
     if (videoRef.current) {
       if (isPlaying) {
+        // Pause
         await videoRef.current.pauseAsync();
+        setIsPlaying(false);
       } else {
-        // If at the end of trim range, restart from trim start
-        if (currentPosition >= trimEnd || currentPosition < trimStart) {
-          await videoRef.current.setPositionAsync(trimStart * 1000);
+        // 1️⃣ ENFORCEMENT POINT: Before Play - Seek to trimStart if needed
+        const status = await videoRef.current.getStatusAsync();
+        
+        if (status.isLoaded) {
+          const positionSeconds = (status.positionMillis || 0) / 1000;
+          
+          console.log('VideoPreviewModal: Before play - Current position:', positionSeconds);
+          console.log('VideoPreviewModal: Before play - Trim range:', trimStart, '-', trimEnd);
+          
+          // If position is outside trim range, seek to trim start
+          if (positionSeconds < trimStart || positionSeconds >= trimEnd) {
+            console.log('VideoPreviewModal: ⚠️ Position outside trim range, seeking to trim start');
+            await videoRef.current.setPositionAsync(trimStart * 1000);
+            console.log('VideoPreviewModal: ✓ Seeked to trim start before play');
+          }
         }
+        
+        // Play
         await videoRef.current.playAsync();
+        setIsPlaying(true);
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
   const handlePlaybackStatusUpdate = async (status: AVPlaybackStatus) => {
-    if (status.isLoaded) {
-      setIsPlaying(status.isPlaying);
-      
-      const positionSeconds = (status.positionMillis || 0) / 1000;
-      setCurrentPosition(positionSeconds);
-      
-      // Update actual duration if we get it from playback status
-      if (status.durationMillis && actualDuration === 0) {
-        const durationInSeconds = status.durationMillis / 1000;
-        console.log('VideoPreviewModal: Duration from playback status:', durationInSeconds, 'seconds');
-        setActualDuration(durationInSeconds);
-        
-        // Update trim end if needed
-        const initialTrimEnd = Math.min(durationInSeconds, MAX_TRIM_DURATION);
-        setTrimEnd(initialTrimEnd);
-      }
+    if (!status.isLoaded) {
+      return;
+    }
 
-      // Stop playback when reaching trim end
-      if (status.isPlaying && positionSeconds >= trimEnd) {
+    // Update playing state
+    setIsPlaying(status.isPlaying);
+    
+    const positionSeconds = (status.positionMillis || 0) / 1000;
+    setCurrentPosition(positionSeconds);
+    
+    // Update actual duration if we get it from playback status
+    if (status.durationMillis && actualDuration === 0) {
+      const durationInSeconds = status.durationMillis / 1000;
+      console.log('VideoPreviewModal: Duration from playback status:', durationInSeconds, 'seconds');
+      setActualDuration(durationInSeconds);
+      
+      // Update trim end if needed
+      const initialTrimEnd = Math.min(durationInSeconds, MAX_TRIM_DURATION);
+      setTrimEnd(initialTrimEnd);
+    }
+
+    // 2️⃣ ENFORCEMENT POINT: Hard-stop playback at trimEnd
+    if (status.isPlaying && positionSeconds >= trimEnd) {
+      console.log('VideoPreviewModal: 🛑 Reached trim end, stopping playback');
+      console.log('VideoPreviewModal: Position:', positionSeconds, 'Trim end:', trimEnd);
+      
+      try {
+        // Pause playback
         await videoRef.current?.pauseAsync();
+        
+        // Seek back to trim start
         await videoRef.current?.setPositionAsync(trimStart * 1000);
+        
+        // Update state
         setIsPlaying(false);
+        setCurrentPosition(trimStart);
+        
+        console.log('VideoPreviewModal: ✓ Stopped and reset to trim start');
+      } catch (err) {
+        console.error('VideoPreviewModal: Error stopping at trim end:', err);
       }
+    }
 
-      // Keep playback within trim range
-      if (positionSeconds < trimStart || positionSeconds > trimEnd) {
-        if (status.isPlaying) {
-          await videoRef.current?.setPositionAsync(trimStart * 1000);
-        }
+    // 3️⃣ ENFORCEMENT POINT: Prevent background looping past trim range
+    // If position goes outside trim range (e.g., from seeking), snap back
+    if (!status.isPlaying) {
+      if (positionSeconds < trimStart) {
+        console.log('VideoPreviewModal: ⚠️ Position below trim start, snapping back');
+        await videoRef.current?.setPositionAsync(trimStart * 1000);
+      } else if (positionSeconds > trimEnd) {
+        console.log('VideoPreviewModal: ⚠️ Position above trim end, snapping back');
+        await videoRef.current?.setPositionAsync(trimStart * 1000);
       }
     }
   };
@@ -181,8 +220,8 @@ export default function VideoPreviewModal({
             source={{ uri: videoUri }}
             style={styles.video}
             resizeMode={ResizeMode.CONTAIN}
-            isLooping={false}
-            shouldPlay={false}
+            isLooping={false} // IMPORTANT: Disable looping for hybrid mode
+            shouldPlay={false} // IMPORTANT: Don't auto-play, we control it manually
             onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
           />
           

@@ -75,7 +75,7 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
-  const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
+  const [selectedMoment, setSelectedMoment] = useState<Moment | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -490,17 +490,18 @@ export default function ProfileScreen() {
 
   const handleMomentPress = (moment: Moment) => {
     console.log('ProfileScreen (iOS): Moment pressed:', moment.id);
+    console.log('ProfileScreen (iOS): Trim metadata:', { trim_start: moment.trim_start, trim_end: moment.trim_end });
     HapticFeedback.medium();
-    // Use signed URL if available, fallback to original URL
-    const videoUrl = moment.signedVideoUrl || moment.video_url;
-    setSelectedVideoUri(videoUrl);
+    
+    // Store the full moment object with trim metadata
+    setSelectedMoment(moment);
     setShowVideoPlayer(true);
   };
 
   const handleCloseVideoPlayer = () => {
     console.log('ProfileScreen (iOS): Closing video player');
     setShowVideoPlayer(false);
-    setSelectedVideoUri(null);
+    setSelectedMoment(null);
   };
 
   const handleChangeAvatar = async () => {
@@ -897,11 +898,13 @@ export default function ProfileScreen() {
 
       <SettingsBottomSheet ref={settingsRef} />
 
-      {selectedVideoUri && (
+      {selectedMoment && (
         <FullScreenVideoPlayer
           visible={showVideoPlayer}
-          videoUri={selectedVideoUri}
+          videoUri={selectedMoment.signedVideoUrl || selectedMoment.video_url}
           onClose={handleCloseVideoPlayer}
+          trimStart={selectedMoment.trim_start}
+          trimEnd={selectedMoment.trim_end}
         />
       )}
 
