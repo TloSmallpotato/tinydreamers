@@ -16,7 +16,14 @@ export async function generateVideoThumbnail(
 ): Promise<string | null> {
   try {
     console.log('[Thumbnail] Starting thumbnail generation for:', videoUri);
+    console.log('[Thumbnail] Platform:', Platform.OS);
     console.log('[Thumbnail] Extracting frame at:', timeInSeconds, 'seconds');
+    
+    // Validate video URI
+    if (!videoUri || videoUri.trim() === '') {
+      console.error('[Thumbnail] Invalid video URI');
+      return null;
+    }
     
     // Ensure timeInSeconds is a valid number
     if (typeof timeInSeconds !== 'number' || isNaN(timeInSeconds) || timeInSeconds < 0) {
@@ -29,17 +36,42 @@ export async function generateVideoThumbnail(
     
     console.log('[Thumbnail] Time in milliseconds (integer):', timeInMilliseconds);
     
-    // Generate thumbnail at the specified timestamp
-    const { uri } = await VideoThumbnails.getThumbnailAsync(
-      videoUri,
-      {
-        time: timeInMilliseconds, // Must be an integer in milliseconds
-        quality: 0.8, // Good quality (0-1 scale)
-      }
-    );
+    // Add retry logic for thumbnail generation
+    let lastError: any = null;
+    const maxRetries = 3;
     
-    console.log('[Thumbnail] Thumbnail generated successfully:', uri);
-    return uri;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[Thumbnail] Attempt ${attempt}/${maxRetries}`);
+        
+        // Generate thumbnail at the specified timestamp
+        const { uri } = await VideoThumbnails.getThumbnailAsync(
+          videoUri,
+          {
+            time: timeInMilliseconds,
+            quality: 0.8,
+          }
+        );
+        
+        console.log('[Thumbnail] Thumbnail generated successfully:', uri);
+        return uri;
+        
+      } catch (attemptError) {
+        console.error(`[Thumbnail] Attempt ${attempt} failed:`, attemptError);
+        lastError = attemptError;
+        
+        // Wait before retrying (exponential backoff)
+        if (attempt < maxRetries) {
+          const waitTime = Math.pow(2, attempt) * 500; // 1s, 2s, 4s
+          console.log(`[Thumbnail] Waiting ${waitTime}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
+    }
+    
+    // All retries failed
+    console.error('[Thumbnail] All retry attempts failed. Last error:', lastError);
+    return null;
     
   } catch (error) {
     console.error('[Thumbnail] Error generating thumbnail:', error);
@@ -75,6 +107,9 @@ export async function uploadThumbnailToSupabase(
     if (Platform.OS === 'web') {
       // On web, fetch the file as a blob
       const response = await fetch(thumbnailUri);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch thumbnail: ${response.statusText}`);
+      }
       fileData = await response.blob();
       console.log('[Upload] Read blob from web, size:', fileData.size, 'bytes');
     } else {
@@ -143,6 +178,12 @@ export async function uploadVideoToSupabase(
 ): Promise<string | null> {
   try {
     console.log('[Video Upload] Starting video upload:', videoUri);
+    console.log('[Video Upload] Platform:', Platform.OS);
+    
+    if (!videoUri || videoUri.trim() === '') {
+      console.error('[Video Upload] Invalid video URI');
+      return null;
+    }
     
     // Read the file as a blob/arraybuffer depending on platform
     let fileData: Blob | ArrayBuffer;
@@ -150,6 +191,9 @@ export async function uploadVideoToSupabase(
     if (Platform.OS === 'web') {
       // On web, fetch the file as a blob
       const response = await fetch(videoUri);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch video: ${response.statusText}`);
+      }
       fileData = await response.blob();
       console.log('[Video Upload] Read blob from web, size:', fileData.size, 'bytes');
     } else {

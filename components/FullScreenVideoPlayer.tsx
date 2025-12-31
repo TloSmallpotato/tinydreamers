@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Modal, StatusBar } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Modal, StatusBar, ActivityIndicator, Text } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { colors } from '@/styles/commonStyles';
@@ -8,10 +8,10 @@ import { colors } from '@/styles/commonStyles';
 interface FullScreenVideoPlayerProps {
   visible: boolean;
   videoUri: string;
-  thumbnailUri?: string | null; // Not used in new flow, but kept for compatibility
+  thumbnailUri?: string | null;
   onClose: () => void;
-  trimStart?: number; // Start time in seconds
-  trimEnd?: number;   // End time in seconds
+  trimStart?: number;
+  trimEnd?: number;
 }
 
 export default function FullScreenVideoPlayer({
@@ -26,7 +26,8 @@ export default function FullScreenVideoPlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPosition, setCurrentPosition] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
-  const [isVideoReady, setIsVideoReady] = useState(false); // Video is loaded AND seeked to trimStart
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const [videoLoadError, setVideoLoadError] = useState(false);
   const isSeekingRef = useRef(false);
   const hasInitializedRef = useRef(false);
 
@@ -41,8 +42,9 @@ export default function FullScreenVideoPlayer({
       trimEnd: effectiveTrimEnd,
       hasTrimming: trimStart !== undefined || trimEnd !== undefined,
       thumbnailUri,
+      videoUri,
     });
-  }, [effectiveTrimStart, effectiveTrimEnd, trimStart, trimEnd, thumbnailUri]);
+  }, [effectiveTrimStart, effectiveTrimEnd, trimStart, trimEnd, thumbnailUri, videoUri]);
 
   // Reset initialization when modal closes
   useEffect(() => {
@@ -52,13 +54,13 @@ export default function FullScreenVideoPlayer({
       setIsPlaying(false);
       setVideoDuration(0);
       setCurrentPosition(0);
+      setVideoLoadError(false);
       console.log('[FullScreenVideoPlayer] Modal closed, reset state');
     }
   }, [visible]);
 
-  // 1️⃣ ENFORCEMENT POINT: Handle play button press
   const handlePlayPress = async () => {
-    if (!videoRef.current || !isVideoReady) {
+    if (!videoRef.current || !isVideoReady || videoLoadError) {
       console.log('[FullScreenVideoPlayer] Video not ready for playback');
       return;
     }
@@ -106,9 +108,12 @@ export default function FullScreenVideoPlayer({
     }
   };
 
-  // 2️⃣ ENFORCEMENT POINT: On Playback Status Update - Initialize and enforce trim range
   const handlePlaybackStatusUpdate = async (status: AVPlaybackStatus) => {
     if (!status.isLoaded) {
+      if (status.error) {
+        console.error('[FullScreenVideoPlayer] Video load error:', status.error);
+        setVideoLoadError(true);
+      }
       console.log('[FullScreenVideoPlayer] Status not loaded');
       return;
     }
@@ -120,7 +125,7 @@ export default function FullScreenVideoPlayer({
       setVideoDuration(durationSeconds);
     }
 
-    // 🔹 CRITICAL: Seek to trimStart as soon as video is loaded (only once)
+    // Seek to trimStart as soon as video is loaded (only once)
     if (!hasInitializedRef.current && status.durationMillis && visible) {
       hasInitializedRef.current = true;
       
@@ -139,12 +144,14 @@ export default function FullScreenVideoPlayer({
         setIsVideoReady(true);
         setCurrentPosition(effectiveTrimStart);
         setIsPlaying(false);
+        setVideoLoadError(false);
         
         console.log('[FullScreenVideoPlayer] ✅ Video ready at trim start:', effectiveTrimStart, 'seconds');
       } catch (err) {
         console.error('[FullScreenVideoPlayer] ❌ Error seeking to trim start:', err);
         isSeekingRef.current = false;
-        hasInitializedRef.current = false; // Allow retry
+        hasInitializedRef.current = false;
+        setVideoLoadError(true);
       }
     }
 
@@ -160,10 +167,9 @@ export default function FullScreenVideoPlayer({
       return;
     }
 
-    // 3️⃣ ENFORCEMENT POINT: Hard-stop playback at trimEnd
+    // Hard-stop playback at trimEnd
     if (status.isPlaying && effectiveTrimEnd > 0 && positionSeconds >= effectiveTrimEnd) {
       console.log('[FullScreenVideoPlayer] 🛑 Reached trim end, stopping playback');
-      console.log('[FullScreenVideoPlayer] Position:', positionSeconds, 'Trim end:', effectiveTrimEnd);
       
       try {
         isSeekingRef.current = true;
@@ -186,8 +192,7 @@ export default function FullScreenVideoPlayer({
       }
     }
 
-    // 4️⃣ ENFORCEMENT POINT: Prevent background looping past trim range
-    // If position goes outside trim range (e.g., from seeking), snap back
+    // Prevent background looping past trim range
     if (!status.isPlaying && effectiveTrimEnd > 0) {
       if (positionSeconds < effectiveTrimStart - 0.1) {
         console.log('[FullScreenVideoPlayer] ⚠️ Position below trim start, snapping back');
@@ -228,35 +233,63 @@ export default function FullScreenVideoPlayer({
           <MaterialIcons name="close" size={32} color={colors.backgroundAlt} />
         </TouchableOpacity>
 
-        {/* Video loads immediately when modal opens */}
-        <TouchableOpacity
-          style={styles.videoContainer}
-          onPress={handlePlayPress}
-          activeOpacity={1}
-        >
-          <Video
-            ref={videoRef}
-            source={{ uri: videoUri }}
-            style={styles.video}
-            resizeMode={ResizeMode.CONTAIN}
-            isLooping={false} // IMPORTANT: Disable looping for hybrid mode
-            shouldPlay={false} // IMPORTANT: Don't auto-play, we control it manually
-            onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-          />
+        {videoLoadError ? (
+          <View style={styles.errorContainer}>
+            <MaterialIcons name="error-outline" size={64} color={colors.secondary} />
+            <Text style={styles.errorText}>Unable to load video</Text>
+            <TouchableOpacity 
+              style={styles.retryButton}
+              onPress={() => {
+                hasInitializedRef.current = false;
+                setVideoLoadError(false);
+                setIsVideoReady(false);
+              }}
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.videoContainer}
+            onPress={handlePlayPress}
+            activeOpacity={1}
+          >
+            <Video
+              ref={videoRef}
+              source={{ uri: videoUri }}
+              style={styles.video}
+              resizeMode={ResizeMode.CONTAIN}
+              isLooping={false}
+              shouldPlay={false}
+              onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+              onError={(error) => {
+                console.error('[FullScreenVideoPlayer] Video component error:', error);
+                setVideoLoadError(true);
+              }}
+            />
 
-          {/* Show play button when paused and video is ready */}
-          {!isPlaying && isVideoReady && (
-            <View style={styles.playButtonOverlay}>
-              <View style={styles.playButton}>
-                <MaterialIcons
-                  name="play-arrow"
-                  size={64}
-                  color={colors.backgroundAlt}
-                />
+            {/* Show loading indicator while video is loading */}
+            {!isVideoReady && !videoLoadError && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingText}>Loading video...</Text>
               </View>
-            </View>
-          )}
-        </TouchableOpacity>
+            )}
+
+            {/* Show play button when paused and video is ready */}
+            {!isPlaying && isVideoReady && !videoLoadError && (
+              <View style={styles.playButtonOverlay}>
+                <View style={styles.playButton}>
+                  <MaterialIcons
+                    name="play-arrow"
+                    size={64}
+                    color={colors.backgroundAlt}
+                  />
+                </View>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
     </Modal>
   );
@@ -288,6 +321,46 @@ const styles = StyleSheet.create({
   video: {
     width: '100%',
     height: '100%',
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: colors.backgroundAlt,
+    fontWeight: '600',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorText: {
+    fontSize: 18,
+    color: colors.backgroundAlt,
+    marginTop: 20,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: colors.backgroundAlt,
+    fontSize: 16,
+    fontWeight: '600',
   },
   playButtonOverlay: {
     ...StyleSheet.absoluteFillObject,

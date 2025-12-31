@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -31,13 +31,15 @@ export default function VideoPreviewModal({
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(Math.min(duration, MAX_TRIM_DURATION));
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const [videoLoadError, setVideoLoadError] = useState(false);
   const isSeekingRef = useRef(false);
   const insets = useSafeAreaInsets();
+  const loadAttemptRef = useRef(0);
 
   // Calculate video container height to fit within safe area
   const topSafeArea = insets.top || 44;
   const bottomSafeArea = insets.bottom || 34;
-  const controlsHeight = 280; // Reduced since we removed preview button and merged sliders
+  const controlsHeight = 280;
   const buttonsHeight = 100;
   const padding = 40;
   
@@ -45,29 +47,71 @@ export default function VideoPreviewModal({
   const videoWidth = screenWidth - 40;
   const videoHeight = Math.min(videoWidth * (16 / 9), maxVideoHeight);
 
+  // Validate and normalize video URI
+  useEffect(() => {
+    console.log('[VideoPreviewModal] Video URI:', videoUri);
+    console.log('[VideoPreviewModal] Platform:', Platform.OS);
+    
+    // Check if URI is valid
+    if (!videoUri || videoUri.trim() === '') {
+      console.error('[VideoPreviewModal] Invalid video URI');
+      setVideoLoadError(true);
+      Alert.alert('Error', 'Invalid video file. Please try recording again.');
+      return;
+    }
+
+    // Log URI format for debugging
+    if (Platform.OS === 'ios' && !videoUri.startsWith('file://')) {
+      console.warn('[VideoPreviewModal] iOS video URI should start with file://');
+    }
+  }, [videoUri]);
+
   useEffect(() => {
     // Load the video to get actual duration
     const loadVideo = async () => {
-      if (videoRef.current) {
+      if (videoRef.current && !videoLoadError) {
         try {
+          loadAttemptRef.current += 1;
+          console.log('[VideoPreviewModal] Loading video, attempt:', loadAttemptRef.current);
+          
           const status = await videoRef.current.getStatusAsync();
           if (status.isLoaded && status.durationMillis) {
             const durationInSeconds = status.durationMillis / 1000;
-            console.log('VideoPreviewModal: Actual video duration:', durationInSeconds, 'seconds');
+            console.log('[VideoPreviewModal] Actual video duration:', durationInSeconds, 'seconds');
             setActualDuration(durationInSeconds);
             
             // Set initial trim end to min of duration or MAX_TRIM_DURATION
             const initialTrimEnd = Math.min(durationInSeconds, MAX_TRIM_DURATION);
             setTrimEnd(initialTrimEnd);
+            setVideoLoadError(false);
           }
         } catch (error) {
-          console.error('VideoPreviewModal: Error getting video duration:', error);
+          console.error('[VideoPreviewModal] Error getting video duration:', error);
+          
+          // Only show error after multiple attempts
+          if (loadAttemptRef.current > 2) {
+            setVideoLoadError(true);
+            Alert.alert(
+              'Video Load Error',
+              'Unable to load video preview. The video may still be processing. Please try again in a moment.',
+              [
+                { text: 'Cancel', onPress: onCancel, style: 'cancel' },
+                { text: 'Retry', onPress: () => {
+                  loadAttemptRef.current = 0;
+                  setVideoLoadError(false);
+                  setIsVideoLoaded(false);
+                }}
+              ]
+            );
+          }
         }
       }
     };
 
-    loadVideo();
-  }, [videoUri]);
+    // Delay initial load slightly to ensure file is ready
+    const timer = setTimeout(loadVideo, 300);
+    return () => clearTimeout(timer);
+  }, [videoUri, videoLoadError]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -77,14 +121,14 @@ export default function VideoPreviewModal({
   };
 
   const togglePlayback = async () => {
-    if (!videoRef.current || !isVideoLoaded) {
-      console.log('VideoPreviewModal: Video not ready');
+    if (!videoRef.current || !isVideoLoaded || videoLoadError) {
+      console.log('[VideoPreviewModal] Video not ready for playback');
       return;
     }
 
     // Prevent multiple simultaneous operations
     if (isSeekingRef.current) {
-      console.log('VideoPreviewModal: Seek in progress, ignoring play press');
+      console.log('[VideoPreviewModal] Seek in progress, ignoring play press');
       return;
     }
 
@@ -94,22 +138,22 @@ export default function VideoPreviewModal({
         await videoRef.current.pauseAsync();
         setIsPlaying(false);
       } else {
-        // 1️⃣ ENFORCEMENT POINT: Before Play - Seek to trimStart if needed
+        // Before playing, check if position is within trim range
         const status = await videoRef.current.getStatusAsync();
         
         if (status.isLoaded) {
           const positionSeconds = (status.positionMillis || 0) / 1000;
           
-          console.log('VideoPreviewModal: Before play - Current position:', positionSeconds);
-          console.log('VideoPreviewModal: Before play - Trim range:', trimStart, '-', trimEnd);
+          console.log('[VideoPreviewModal] Before play - Current position:', positionSeconds);
+          console.log('[VideoPreviewModal] Before play - Trim range:', trimStart, '-', trimEnd);
           
           // If position is outside trim range, seek to trim start
           if (positionSeconds < trimStart || positionSeconds >= trimEnd) {
-            console.log('VideoPreviewModal: ⚠️ Position outside trim range, seeking to trim start');
+            console.log('[VideoPreviewModal] ⚠️ Position outside trim range, seeking to trim start');
             isSeekingRef.current = true;
             await videoRef.current.setPositionAsync(trimStart * 1000);
             isSeekingRef.current = false;
-            console.log('VideoPreviewModal: ✓ Seeked to trim start before play');
+            console.log('[VideoPreviewModal] ✓ Seeked to trim start before play');
           }
         }
         
@@ -118,13 +162,24 @@ export default function VideoPreviewModal({
         setIsPlaying(true);
       }
     } catch (err) {
-      console.error('VideoPreviewModal: Error toggling playback:', err);
+      console.error('[VideoPreviewModal] Error toggling playback:', err);
       isSeekingRef.current = false;
+      
+      // Show user-friendly error
+      Alert.alert(
+        'Playback Error',
+        'Unable to play video. Please try again or re-record.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
   const handlePlaybackStatusUpdate = async (status: AVPlaybackStatus) => {
     if (!status.isLoaded) {
+      if (status.error) {
+        console.error('[VideoPreviewModal] Video load error:', status.error);
+        setVideoLoadError(true);
+      }
       setIsVideoLoaded(false);
       return;
     }
@@ -132,7 +187,8 @@ export default function VideoPreviewModal({
     // Mark video as loaded
     if (!isVideoLoaded) {
       setIsVideoLoaded(true);
-      console.log('VideoPreviewModal: Video loaded and ready');
+      setVideoLoadError(false);
+      console.log('[VideoPreviewModal] Video loaded and ready');
     }
 
     // Update playing state
@@ -144,7 +200,7 @@ export default function VideoPreviewModal({
     // Update actual duration if we get it from playback status
     if (status.durationMillis && actualDuration === 0) {
       const durationInSeconds = status.durationMillis / 1000;
-      console.log('VideoPreviewModal: Duration from playback status:', durationInSeconds, 'seconds');
+      console.log('[VideoPreviewModal] Duration from playback status:', durationInSeconds, 'seconds');
       setActualDuration(durationInSeconds);
       
       // Update trim end if needed
@@ -157,10 +213,9 @@ export default function VideoPreviewModal({
       return;
     }
 
-    // 2️⃣ ENFORCEMENT POINT: Hard-stop playback at trimEnd
+    // Hard-stop playback at trimEnd
     if (status.isPlaying && positionSeconds >= trimEnd) {
-      console.log('VideoPreviewModal: 🛑 Reached trim end, stopping playback');
-      console.log('VideoPreviewModal: Position:', positionSeconds, 'Trim end:', trimEnd);
+      console.log('[VideoPreviewModal] 🛑 Reached trim end, stopping playback');
       
       try {
         isSeekingRef.current = true;
@@ -176,23 +231,22 @@ export default function VideoPreviewModal({
         setCurrentPosition(trimStart);
         
         isSeekingRef.current = false;
-        console.log('VideoPreviewModal: ✓ Stopped and reset to trim start');
+        console.log('[VideoPreviewModal] ✓ Stopped and reset to trim start');
       } catch (err) {
-        console.error('VideoPreviewModal: Error stopping at trim end:', err);
+        console.error('[VideoPreviewModal] Error stopping at trim end:', err);
         isSeekingRef.current = false;
       }
     }
 
-    // 3️⃣ ENFORCEMENT POINT: Prevent background looping past trim range
-    // If position goes outside trim range (e.g., from seeking), snap back
+    // Prevent background looping past trim range
     if (!status.isPlaying) {
       if (positionSeconds < trimStart - 0.1) {
-        console.log('VideoPreviewModal: ⚠️ Position below trim start, snapping back');
+        console.log('[VideoPreviewModal] ⚠️ Position below trim start, snapping back');
         isSeekingRef.current = true;
         await videoRef.current?.setPositionAsync(trimStart * 1000);
         isSeekingRef.current = false;
       } else if (positionSeconds > trimEnd + 0.1) {
-        console.log('VideoPreviewModal: ⚠️ Position above trim end, snapping back');
+        console.log('[VideoPreviewModal] ⚠️ Position above trim end, snapping back');
         isSeekingRef.current = true;
         await videoRef.current?.setPositionAsync(trimStart * 1000);
         isSeekingRef.current = false;
@@ -220,7 +274,6 @@ export default function VideoPreviewModal({
     console.log('[VideoPreviewModal] Trim range:', trimStart, '-', trimEnd);
     
     // Immediately call onConfirm to proceed with the flow
-    // The thumbnail generation will happen in the background
     onConfirm(videoUri, trimStart, trimEnd, null);
     
     // Generate thumbnail in background (don't await, don't block UI)
@@ -263,23 +316,55 @@ export default function VideoPreviewModal({
       <View style={styles.content}>
         {/* Video Player */}
         <View style={[styles.videoContainer, { width: videoWidth, height: videoHeight }]}>
-          <Video
-            ref={videoRef}
-            source={{ uri: videoUri }}
-            style={styles.video}
-            resizeMode={ResizeMode.CONTAIN}
-            isLooping={false} // IMPORTANT: Disable looping for hybrid mode
-            shouldPlay={false} // IMPORTANT: Don't auto-play, we control it manually
-            onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-          />
-          
-          <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
-            <MaterialIcons
-              name={isPlaying ? 'pause' : 'play-arrow'}
-              size={48}
-              color={colors.backgroundAlt}
-            />
-          </TouchableOpacity>
+          {videoLoadError ? (
+            <View style={styles.errorContainer}>
+              <MaterialIcons name="error-outline" size={48} color={colors.secondary} />
+              <Text style={styles.errorText}>Unable to load video</Text>
+              <TouchableOpacity 
+                style={styles.retryButton}
+                onPress={() => {
+                  loadAttemptRef.current = 0;
+                  setVideoLoadError(false);
+                  setIsVideoLoaded(false);
+                }}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <Video
+                ref={videoRef}
+                source={{ uri: videoUri }}
+                style={styles.video}
+                resizeMode={ResizeMode.CONTAIN}
+                isLooping={false}
+                shouldPlay={false}
+                onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+                onError={(error) => {
+                  console.error('[VideoPreviewModal] Video component error:', error);
+                  setVideoLoadError(true);
+                }}
+              />
+              
+              {!isVideoLoaded && !videoLoadError && (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={styles.loadingText}>Loading video...</Text>
+                </View>
+              )}
+              
+              {isVideoLoaded && (
+                <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
+                  <MaterialIcons
+                    name={isPlaying ? 'pause' : 'play-arrow'}
+                    size={48}
+                    color={colors.backgroundAlt}
+                  />
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </View>
 
         {/* Info and Controls */}
@@ -334,7 +419,7 @@ export default function VideoPreviewModal({
                       isSeekingRef.current = false;
                     }, 100);
                   } catch (err) {
-                    console.error('Error seeking on trim start change:', err);
+                    console.error('[VideoPreviewModal] Error seeking on trim start change:', err);
                     isSeekingRef.current = false;
                   }
                 }
@@ -372,10 +457,10 @@ export default function VideoPreviewModal({
           <TouchableOpacity 
             style={[
               styles.confirmButton,
-              !isValidTrim && styles.confirmButtonDisabled
+              (!isValidTrim || videoLoadError) && styles.confirmButtonDisabled
             ]} 
             onPress={handleConfirm}
-            disabled={!isValidTrim}
+            disabled={!isValidTrim || videoLoadError}
           >
             <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
             <Text style={styles.confirmButtonText}>Confirm</Text>
@@ -404,7 +489,7 @@ function DualHandleSlider({
   onStartChange,
   onEndChange,
 }: DualHandleSliderProps) {
-  const sliderWidth = screenWidth - 80; // Account for padding
+  const sliderWidth = screenWidth - 80;
   const [activeHandle, setActiveHandle] = useState<'start' | 'end' | null>(null);
 
   const getPositionFromValue = (value: number) => {
@@ -531,6 +616,46 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  loadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: colors.backgroundAlt,
+    fontWeight: '600',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 14,
+    color: colors.secondary,
+    marginTop: 12,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: colors.backgroundAlt,
+    fontSize: 14,
+    fontWeight: '600',
+  },
   playButton: {
     position: 'absolute',
     top: '50%',
@@ -562,12 +687,6 @@ const styles = StyleSheet.create({
   subtitleError: {
     color: colors.secondary,
     fontWeight: '600',
-  },
-  errorText: {
-    fontSize: 12,
-    color: colors.secondary,
-    marginBottom: 8,
-    textAlign: 'center',
   },
   trimSliderContainer: {
     width: '100%',
