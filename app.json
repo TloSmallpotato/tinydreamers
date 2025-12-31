@@ -1,4 +1,3 @@
-
 {
   "expo": {
     "name": "TinyDreamers",
@@ -19,8 +18,7 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app needs access to your camera to record videos of your child's learning moments.",
-        "NSMicrophoneUsageDescription": "This app needs access to your microphone to record audio with videos.",
-        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to save and load videos."
+        "NSMicrophoneUsageDescription": "This app needs access to your microphone to record audio with videos."
       }
     },
     "android": {
@@ -64,8 +62,7 @@
         {
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos and videos to upload moments."
         }
-      ],
-      "./modules/video-trimmer/app.plugin.js"
+      ]
     ],
     "scheme": "natively",
     "experiments": {
