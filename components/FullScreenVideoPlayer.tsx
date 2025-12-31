@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Modal, StatusBar, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Modal, StatusBar } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { colors } from '@/styles/commonStyles';
@@ -29,7 +29,6 @@ export default function FullScreenVideoPlayer({
   const [videoDuration, setVideoDuration] = useState(0);
   const [isVideoReady, setIsVideoReady] = useState(false); // Video is loaded AND seeked to trimStart
   const [showVideo, setShowVideo] = useState(false); // Controls whether to show video or thumbnail
-  const [isLoadingVideo, setIsLoadingVideo] = useState(false); // Loading state for video
   const isSeekingRef = useRef(false);
   const hasInitializedRef = useRef(false);
 
@@ -47,54 +46,6 @@ export default function FullScreenVideoPlayer({
     });
   }, [effectiveTrimStart, effectiveTrimEnd, trimStart, trimEnd, thumbnailUri]);
 
-  // 🔹 CRITICAL FIX: Prepare video BEFORE allowing any playback
-  // This runs once when the video first loads
-  const prepareVideo = async () => {
-    if (!videoRef.current || !visible || hasInitializedRef.current) {
-      return;
-    }
-
-    try {
-      console.log('[FullScreenVideoPlayer] 🎬 Preparing video...');
-      
-      // 1. Get current status
-      const status = await videoRef.current.getStatusAsync();
-      
-      if (!status.isLoaded) {
-        console.log('[FullScreenVideoPlayer] Video not loaded yet, waiting...');
-        return;
-      }
-
-      console.log('[FullScreenVideoPlayer] Video loaded, duration:', status.durationMillis / 1000, 'seconds');
-      
-      // Mark as initialized to prevent re-running
-      hasInitializedRef.current = true;
-
-      // 2. FORCE PAUSE (critical - prevents auto-buffering from 0)
-      await videoRef.current.pauseAsync();
-      console.log('[FullScreenVideoPlayer] ✓ Paused video');
-
-      // 3. SEEK TO TRIM START (before any frames are rendered)
-      isSeekingRef.current = true;
-      await videoRef.current.setPositionAsync(effectiveTrimStart * 1000);
-      isSeekingRef.current = false;
-      console.log('[FullScreenVideoPlayer] ✓ Seeked to trim start:', effectiveTrimStart, 'seconds');
-
-      // 4. NOW the video is ready for playback
-      setIsVideoReady(true);
-      setCurrentPosition(effectiveTrimStart);
-      setIsPlaying(false);
-      setIsLoadingVideo(false);
-      
-      console.log('[FullScreenVideoPlayer] ✅ Video ready for playback');
-    } catch (err) {
-      console.error('[FullScreenVideoPlayer] ❌ Error preparing video:', err);
-      isSeekingRef.current = false;
-      hasInitializedRef.current = false; // Allow retry
-      setIsLoadingVideo(false);
-    }
-  };
-
   // Reset initialization when modal closes
   useEffect(() => {
     if (!visible) {
@@ -104,20 +55,18 @@ export default function FullScreenVideoPlayer({
       setVideoDuration(0);
       setCurrentPosition(0);
       setShowVideo(false);
-      setIsLoadingVideo(false);
       console.log('[FullScreenVideoPlayer] Modal closed, reset state');
     }
   }, [visible]);
 
   // 1️⃣ ENFORCEMENT POINT: Handle thumbnail tap - load and play video
   const handleThumbnailTap = async () => {
-    if (isLoadingVideo || showVideo) return;
+    if (showVideo) return;
     
     console.log('[FullScreenVideoPlayer] Thumbnail tapped, loading video...');
-    setIsLoadingVideo(true);
     setShowVideo(true);
     
-    // The video will start loading and prepareVideo will be called via onPlaybackStatusUpdate
+    // The video will start loading and we'll seek to trimStart in onPlaybackStatusUpdate
   };
 
   // 2️⃣ ENFORCEMENT POINT: Before Play - Seek to trimStart if needed
@@ -184,9 +133,32 @@ export default function FullScreenVideoPlayer({
       setVideoDuration(durationSeconds);
     }
 
-    // 🔹 CRITICAL: Prepare video as soon as it's loaded
-    if (!hasInitializedRef.current && status.durationMillis) {
-      await prepareVideo();
+    // 🔹 CRITICAL: Seek to trimStart as soon as video is loaded (only once)
+    if (!hasInitializedRef.current && status.durationMillis && showVideo) {
+      hasInitializedRef.current = true;
+      
+      console.log('[FullScreenVideoPlayer] 🎬 Video loaded, seeking to trim start...');
+      
+      try {
+        // Pause first
+        await videoRef.current?.pauseAsync();
+        
+        // Seek to trim start
+        isSeekingRef.current = true;
+        await videoRef.current?.setPositionAsync(effectiveTrimStart * 1000);
+        isSeekingRef.current = false;
+        
+        // Mark as ready
+        setIsVideoReady(true);
+        setCurrentPosition(effectiveTrimStart);
+        setIsPlaying(false);
+        
+        console.log('[FullScreenVideoPlayer] ✅ Video ready at trim start:', effectiveTrimStart, 'seconds');
+      } catch (err) {
+        console.error('[FullScreenVideoPlayer] ❌ Error seeking to trim start:', err);
+        isSeekingRef.current = false;
+        hasInitializedRef.current = false; // Allow retry
+      }
     }
 
     // Update current position
@@ -340,13 +312,6 @@ export default function FullScreenVideoPlayer({
               onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
             />
 
-            {/* Show loading indicator while video is loading */}
-            {isLoadingVideo && !isVideoReady && (
-              <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color={colors.backgroundAlt} />
-              </View>
-            )}
-
             {/* Show play button when paused and video is ready */}
             {!isPlaying && isVideoReady && (
               <View style={styles.playButtonOverlay}>
@@ -400,12 +365,6 @@ const styles = StyleSheet.create({
   video: {
     width: '100%',
     height: '100%',
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
   playButtonOverlay: {
     ...StyleSheet.absoluteFillObject,
