@@ -3,13 +3,16 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 
 interface ToastNotificationProps {
   visible: boolean;
   message: string;
-  type?: 'info' | 'success' | 'warning' | 'error';
+  type?: 'info' | 'success' | 'warning' | 'error' | 'saving';
   duration?: number;
   onHide?: () => void;
+  showViewButton?: boolean;
+  onViewPress?: () => void;
 }
 
 export default function ToastNotification({
@@ -18,9 +21,12 @@ export default function ToastNotification({
   type = 'info',
   duration = 4000,
   onHide,
+  showViewButton = false,
+  onViewPress,
 }: ToastNotificationProps) {
   const translateY = useRef(new Animated.Value(-100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const gestureTranslateY = useRef(new Animated.Value(0)).current;
 
   const hideToast = useCallback(() => {
     Animated.parallel([
@@ -35,11 +41,12 @@ export default function ToastNotification({
         useNativeDriver: true,
       }),
     ]).start(() => {
+      gestureTranslateY.setValue(0);
       if (onHide) {
         onHide();
       }
     });
-  }, [translateY, opacity, onHide]);
+  }, [translateY, opacity, gestureTranslateY, onHide]);
 
   useEffect(() => {
     if (visible) {
@@ -57,16 +64,57 @@ export default function ToastNotification({
         }),
       ]).start();
 
-      // Auto hide after duration
-      const timer = setTimeout(() => {
-        hideToast();
-      }, duration);
+      // Only auto-hide if NOT in saving mode
+      if (type !== 'saving') {
+        const timer = setTimeout(() => {
+          hideToast();
+        }, duration);
 
-      return () => clearTimeout(timer);
+        return () => clearTimeout(timer);
+      }
     } else {
       hideToast();
     }
-  }, [visible, duration, hideToast, translateY, opacity]);
+  }, [visible, duration, hideToast, translateY, opacity, type]);
+
+  // Swipe up gesture to dismiss
+  const panGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      // Only allow upward swipes (negative translationY)
+      if (event.translationY < 0) {
+        gestureTranslateY.setValue(event.translationY);
+      }
+    })
+    .onEnd((event) => {
+      // If swiped up more than 50 pixels, dismiss
+      if (event.translationY < -50) {
+        Animated.parallel([
+          Animated.timing(gestureTranslateY, {
+            toValue: -200,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          gestureTranslateY.setValue(0);
+          if (onHide) {
+            onHide();
+          }
+        });
+      } else {
+        // Spring back to original position
+        Animated.spring(gestureTranslateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          damping: 15,
+          stiffness: 150,
+        }).start();
+      }
+    });
 
   const getIconName = () => {
     switch (type) {
@@ -76,6 +124,8 @@ export default function ToastNotification({
         return { ios: 'exclamationmark.triangle.fill', android: 'warning' };
       case 'error':
         return { ios: 'xmark.circle.fill', android: 'error' };
+      case 'saving':
+        return { ios: 'arrow.down.circle.fill', android: 'download' };
       default:
         return { ios: 'info.circle.fill', android: 'info' };
     }
@@ -89,6 +139,8 @@ export default function ToastNotification({
         return '#FF9800';
       case 'error':
         return '#F44336';
+      case 'saving':
+        return colors.buttonBlue;
       default:
         return colors.primary;
     }
@@ -101,34 +153,35 @@ export default function ToastNotification({
   const iconNames = getIconName();
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          backgroundColor: getBackgroundColor(),
-          transform: [{ translateY }],
-          opacity,
-        },
-      ]}
-    >
-      <View style={styles.content}>
-        <IconSymbol
-          ios_icon_name={iconNames.ios}
-          android_material_icon_name={iconNames.android}
-          size={24}
-          color={colors.backgroundAlt}
-        />
-        <Text style={styles.message}>{message}</Text>
-      </View>
-      <TouchableOpacity onPress={hideToast} style={styles.closeButton}>
-        <IconSymbol
-          ios_icon_name="xmark"
-          android_material_icon_name="close"
-          size={20}
-          color={colors.backgroundAlt}
-        />
-      </TouchableOpacity>
-    </Animated.View>
+    <GestureDetector gesture={panGesture}>
+      <Animated.View
+        style={[
+          styles.container,
+          {
+            backgroundColor: getBackgroundColor(),
+            transform: [
+              { translateY: Animated.add(translateY, gestureTranslateY) }
+            ],
+            opacity,
+          },
+        ]}
+      >
+        <View style={styles.content}>
+          <IconSymbol
+            ios_icon_name={iconNames.ios}
+            android_material_icon_name={iconNames.android}
+            size={24}
+            color={colors.backgroundAlt}
+          />
+          <Text style={styles.message}>{message}</Text>
+        </View>
+        {showViewButton && onViewPress && (
+          <TouchableOpacity onPress={onViewPress} style={styles.viewButton}>
+            <Text style={styles.viewButtonText}>View</Text>
+          </TouchableOpacity>
+        )}
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
@@ -160,8 +213,16 @@ const styles = StyleSheet.create({
     color: colors.backgroundAlt,
     lineHeight: 20,
   },
-  closeButton: {
-    padding: 4,
-    marginLeft: 8,
+  viewButton: {
+    backgroundColor: colors.backgroundAlt,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  viewButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
   },
 });

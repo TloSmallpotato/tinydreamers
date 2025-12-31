@@ -113,6 +113,7 @@ function CustomTabBar() {
 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'info' | 'success' | 'warning' | 'error' | 'saving'>('info');
   const [showToastViewButton, setShowToastViewButton] = useState(false);
   const [savedWordId, setSavedWordId] = useState<string | null>(null);
 
@@ -557,6 +558,7 @@ function CustomTabBar() {
       console.log('[iOS TabLayout] Video creation date:', videoCreationDate);
       
       setToastMessage('Video saving…');
+      setToastType('saving');
       setShowToastViewButton(false);
       setSavedWordId(null);
       setToastVisible(true);
@@ -634,6 +636,7 @@ function CustomTabBar() {
       
       setTimeout(() => {
         setToastMessage(`Video saved to "${wordName}"`);
+        setToastType('success');
         setShowToastViewButton(true);
         setSavedWordId(wordId);
         setToastVisible(true);
@@ -673,6 +676,7 @@ function CustomTabBar() {
     console.log('View now pressed for word:', savedWordId);
     
     if (savedWordId) {
+      setToastVisible(false);
       setTargetWordIdToOpen(savedWordId);
       router.push('/(tabs)/words');
     }
@@ -862,6 +866,7 @@ function CustomTabBar() {
       <ToastNotification
         visible={toastVisible}
         message={toastMessage}
+        type={toastType}
         showViewButton={showToastViewButton}
         onViewPress={handleViewNow}
         onHide={() => setToastVisible(false)}

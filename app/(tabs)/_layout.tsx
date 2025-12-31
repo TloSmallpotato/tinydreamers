@@ -122,6 +122,7 @@ function CustomTabBar() {
 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'info' | 'success' | 'warning' | 'error' | 'saving'>('info');
   const [showToastViewButton, setShowToastViewButton] = useState(false);
   const [savedWordId, setSavedWordId] = useState<string | null>(null);
 
@@ -214,15 +215,7 @@ function CustomTabBar() {
     try {
       const { data, error } = await supabase
         .from('user_words')
-        .select(`
-          id,
-          word_id,
-          color,
-          word_library (
-            word,
-            emoji
-          )
-        `)
+        .select('id, custom_word, custom_emoji, color')
         .eq('child_id', selectedChild.id)
         .order('created_at', { ascending: false });
 
@@ -231,8 +224,8 @@ function CustomTabBar() {
       // Transform data to match expected format
       const transformedWords = (data || []).map((uw: any) => ({
         id: uw.id,
-        word: uw.word_library.word,
-        emoji: uw.word_library.emoji || '⭐',
+        word: uw.custom_word,
+        emoji: uw.custom_emoji || '⭐',
         color: uw.color,
       }));
       
@@ -476,6 +469,7 @@ function CustomTabBar() {
       console.log('[TabLayout] Child ID:', selectedChild.id);
       
       setToastMessage('Video saving…');
+      setToastType('saving');
       setShowToastViewButton(false);
       setSavedWordId(null);
       setToastVisible(true);
@@ -483,15 +477,11 @@ function CustomTabBar() {
       // Get word name for toast message
       const { data: userWordData } = await supabase
         .from('user_words')
-        .select(`
-          word_library (
-            word
-          )
-        `)
+        .select('custom_word')
         .eq('id', wordId)
         .single();
       
-      const wordName = userWordData?.word_library?.word || 'word';
+      const wordName = userWordData?.custom_word || 'word';
       
       // 🔥 CRITICAL FIX: Upload thumbnail if available
       let uploadedThumbnailUrl: string | null = null;
@@ -547,6 +537,7 @@ function CustomTabBar() {
       
       setTimeout(() => {
         setToastMessage(`Video saved to "${wordName}"`);
+        setToastType('success');
         setShowToastViewButton(true);
         setSavedWordId(wordId);
         setToastVisible(true);
@@ -586,6 +577,7 @@ function CustomTabBar() {
     console.log('View now pressed for word:', savedWordId);
     
     if (savedWordId) {
+      setToastVisible(false);
       setTargetWordIdToOpen(savedWordId);
       router.push('/(tabs)/words');
     }
@@ -772,6 +764,7 @@ function CustomTabBar() {
       <ToastNotification
         visible={toastVisible}
         message={toastMessage}
+        type={toastType}
         showViewButton={showToastViewButton}
         onViewPress={handleViewNow}
         onHide={() => setToastVisible(false)}
