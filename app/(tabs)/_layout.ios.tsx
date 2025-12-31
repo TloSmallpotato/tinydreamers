@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
-import { View, TouchableOpacity, StyleSheet, Animated, Alert, Image, Text } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Animated, Alert, Image, Text, Dimensions } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors } from '@/styles/commonStyles';
 import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
@@ -116,9 +116,10 @@ function CustomTabBar() {
   const [showToastViewButton, setShowToastViewButton] = useState(false);
   const [savedWordId, setSavedWordId] = useState<string | null>(null);
 
-  // Store trim information
+  // Store trim information AND thumbnail URI
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
+  const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
 
   // Store original creation date for uploaded videos
   const [videoCreationDate, setVideoCreationDate] = useState<Date | null>(null);
@@ -497,29 +498,31 @@ function CustomTabBar() {
     clearRecordedVideo();
   };
 
-  const handleConfirmVideo = async (trimmedUri: string, startTime: number, endTime: number) => {
-    console.log('Video confirmed with trim:', { startTime, endTime });
-    console.log('isRecordingFromWordDetail:', isRecordingFromWordDetail);
-    console.log('targetWordId:', targetWordId);
-    console.log('videoCreationDate:', videoCreationDate);
+  const handleConfirmVideo = async (trimmedUri: string, startTime: number, endTime: number, thumbnailUriFromModal: string | null) => {
+    console.log('[iOS TabLayout] ✅ Video confirmed with trim:', { startTime, endTime, thumbnailUriFromModal });
+    console.log('[iOS TabLayout] isRecordingFromWordDetail:', isRecordingFromWordDetail);
+    console.log('[iOS TabLayout] targetWordId:', targetWordId);
+    console.log('[iOS TabLayout] videoCreationDate:', videoCreationDate);
     
-    // Store trim information
+    // 🔥 CRITICAL FIX: Store trim information AND thumbnail URI
     setTrimStart(startTime);
     setTrimEnd(endTime);
+    setThumbnailUri(thumbnailUriFromModal);
     
     if (isRecordingFromWordDetail && targetWordId) {
-      console.log('Method 2: Exiting preview and saving video in background');
+      console.log('[iOS TabLayout] Method 2: Exiting preview and saving video in background');
       
       if (previousRoute) {
-        console.log('Returning to previous route:', previousRoute);
+        console.log('[iOS TabLayout] Returning to previous route:', previousRoute);
         router.push(previousRoute as any);
       }
       
       clearRecordedVideo();
       
-      saveVideoToWord(targetWordId, trimmedUri, startTime, endTime, true);
+      // 🔥 CRITICAL FIX: Pass thumbnail URI to saveVideoToWord
+      saveVideoToWord(targetWordId, trimmedUri, startTime, endTime, thumbnailUriFromModal, true);
     } else {
-      console.log('Method 1: Showing word selection bottom sheet');
+      console.log('[iOS TabLayout] Method 1: Showing word selection bottom sheet');
       await fetchWords();
       selectWordSheetRef.current?.present();
     }
@@ -536,6 +539,7 @@ function CustomTabBar() {
     videoUri: string, 
     startTime: number, 
     endTime: number,
+    thumbnailUriParam: string | null,
     isMethod2: boolean = false
   ) => {
     if (!selectedChild) {
@@ -544,12 +548,13 @@ function CustomTabBar() {
     }
 
     try {
-      console.log('=== Starting video save process ===');
-      console.log('Video URI:', videoUri);
-      console.log('Trim range:', startTime, '-', endTime);
-      console.log('User Word ID:', wordId);
-      console.log('Child ID:', selectedChild.id);
-      console.log('Video creation date:', videoCreationDate);
+      console.log('[iOS TabLayout] === Starting video save process ===');
+      console.log('[iOS TabLayout] Video URI:', videoUri);
+      console.log('[iOS TabLayout] Trim range:', startTime, '-', endTime);
+      console.log('[iOS TabLayout] Thumbnail URI:', thumbnailUriParam);
+      console.log('[iOS TabLayout] User Word ID:', wordId);
+      console.log('[iOS TabLayout] Child ID:', selectedChild.id);
+      console.log('[iOS TabLayout] Video creation date:', videoCreationDate);
       
       setToastMessage('Video saving…');
       setShowToastViewButton(false);
@@ -564,44 +569,41 @@ function CustomTabBar() {
       
       const wordName = userWordData?.custom_word || 'word';
       
-      // Step 1: Try to generate thumbnail
-      console.log('Step 1: Attempting thumbnail generation...');
-      const thumbnailUri = await generateVideoThumbnail(videoUri);
-      
+      // 🔥 CRITICAL FIX: Upload thumbnail if available
       let uploadedThumbnailUrl: string | null = null;
       
-      if (thumbnailUri) {
-        console.log('Step 2: Uploading thumbnail to Supabase...');
-        uploadedThumbnailUrl = await uploadThumbnailToSupabase(thumbnailUri, selectedChild.id, supabase);
+      if (thumbnailUriParam) {
+        console.log('[iOS TabLayout] Step 1: Uploading thumbnail to Supabase...');
+        uploadedThumbnailUrl = await uploadThumbnailToSupabase(thumbnailUriParam, selectedChild.id, supabase);
         
         if (uploadedThumbnailUrl) {
-          console.log('✓ Thumbnail uploaded successfully:', uploadedThumbnailUrl);
+          console.log('[iOS TabLayout] ✅ Thumbnail uploaded successfully:', uploadedThumbnailUrl);
         } else {
-          console.warn('✗ Failed to upload thumbnail');
+          console.error('[iOS TabLayout] ❌ Failed to upload thumbnail');
         }
       } else {
-        console.log('ℹ No thumbnail generated (feature not implemented yet)');
+        console.warn('[iOS TabLayout] ⚠️ No thumbnail provided');
       }
       
       // Step 2: Upload video
-      console.log('Step 2: Uploading video to Supabase...');
+      console.log('[iOS TabLayout] Step 2: Uploading video to Supabase...');
       const uploadedVideoUrl = await uploadVideoToSupabase(videoUri, selectedChild.id, supabase);
       
       if (!uploadedVideoUrl) {
         throw new Error('Failed to upload video');
       }
       
-      console.log('✓ Video uploaded successfully:', uploadedVideoUrl);
+      console.log('[iOS TabLayout] ✅ Video uploaded successfully:', uploadedVideoUrl);
       
-      // Step 3: Save to database with trim information and creation date
-      console.log('Step 3: Saving to database with trim info and creation date...');
+      // Step 3: Save to database with trim information, thumbnail URL, and creation date
+      console.log('[iOS TabLayout] Step 3: Saving to database with trim info, thumbnail URL, and creation date...');
       const trimmedDuration = endTime - startTime;
       
       const momentData: any = {
         word_id: wordId,
         child_id: selectedChild.id,
         video_url: uploadedVideoUrl,
-        thumbnail_url: uploadedThumbnailUrl,
+        thumbnail_url: uploadedThumbnailUrl, // 🔥 CRITICAL: Save the uploaded thumbnail URL
         duration: trimmedDuration,
         trim_start: startTime,
         trim_end: endTime,
@@ -610,7 +612,7 @@ function CustomTabBar() {
       // Add original creation date if available
       if (videoCreationDate) {
         momentData.original_created_at = videoCreationDate.toISOString();
-        console.log('Including original creation date:', momentData.original_created_at);
+        console.log('[iOS TabLayout] Including original creation date:', momentData.original_created_at);
       }
       
       const { error: insertError } = await supabase
@@ -618,12 +620,12 @@ function CustomTabBar() {
         .insert(momentData);
 
       if (insertError) {
-        console.error('✗ Database insert error:', insertError);
+        console.error('[iOS TabLayout] ❌ Database insert error:', insertError);
         throw insertError;
       }
 
-      console.log('✓ Saved to database successfully');
-      console.log('=== Video save process complete ===');
+      console.log('[iOS TabLayout] ✅ Saved to database successfully');
+      console.log('[iOS TabLayout] === Video save process complete ===');
       
       // Clear the creation date after saving
       setVideoCreationDate(null);
@@ -638,30 +640,32 @@ function CustomTabBar() {
       }, 300);
       
     } catch (error) {
-      console.error('✗ Error in saveVideoToWord:', error);
+      console.error('[iOS TabLayout] ❌ Error in saveVideoToWord:', error);
       setToastVisible(false);
       Alert.alert('Error', 'Failed to save video. Please try again.');
     }
   };
 
   const handleSelectWord = async (wordId: string) => {
-    console.log('Word selected from bottom sheet:', wordId);
+    console.log('[iOS TabLayout] Word selected from bottom sheet:', wordId);
     
     const videoUriToSave = recordedVideoUri;
     const startTime = trimStart;
     const endTime = trimEnd;
+    const thumbnailUriToSave = thumbnailUri; // 🔥 CRITICAL: Use stored thumbnail URI
     
     selectWordSheetRef.current?.dismiss();
     
     if (previousRoute) {
-      console.log('Returning to previous route:', previousRoute);
+      console.log('[iOS TabLayout] Returning to previous route:', previousRoute);
       router.push(previousRoute as any);
     }
     
     clearRecordedVideo();
     
     if (videoUriToSave && selectedChild) {
-      await saveVideoToWord(wordId, videoUriToSave, startTime, endTime, false);
+      // 🔥 CRITICAL FIX: Pass the thumbnail URI
+      await saveVideoToWord(wordId, videoUriToSave, startTime, endTime, thumbnailUriToSave, false);
     }
   };
 
