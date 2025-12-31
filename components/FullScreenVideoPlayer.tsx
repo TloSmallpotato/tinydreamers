@@ -24,7 +24,9 @@ export default function FullScreenVideoPlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPosition, setCurrentPosition] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const isSeekingRef = useRef(false);
+  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Calculate effective trim range
   const effectiveTrimStart = trimStart || 0;
@@ -41,30 +43,60 @@ export default function FullScreenVideoPlayer({
 
   // Reset and seek to trim start when video becomes visible
   useEffect(() => {
-    if (visible && videoRef.current) {
+    if (visible && videoRef.current && isVideoLoaded) {
       console.log('[FullScreenVideoPlayer] Video became visible, seeking to trim start:', effectiveTrimStart);
       
       // Reset state
       setIsPlaying(false);
       setCurrentPosition(effectiveTrimStart);
       
-      // Seek to trim start
-      videoRef.current.setPositionAsync(effectiveTrimStart * 1000).then(() => {
-        console.log('[FullScreenVideoPlayer] ✓ Seeked to trim start');
-        // Auto-play after seeking
-        videoRef.current?.playAsync().then(() => {
-          console.log('[FullScreenVideoPlayer] ✓ Started playback');
-          setIsPlaying(true);
-        });
-      }).catch(err => {
-        console.error('[FullScreenVideoPlayer] Error seeking to trim start:', err);
-      });
+      // Clear any pending seeks
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current);
+      }
+      
+      // Debounce the seek operation
+      seekTimeoutRef.current = setTimeout(() => {
+        if (videoRef.current && isVideoLoaded) {
+          isSeekingRef.current = true;
+          videoRef.current.setPositionAsync(effectiveTrimStart * 1000)
+            .then(() => {
+              console.log('[FullScreenVideoPlayer] ✓ Seeked to trim start');
+              isSeekingRef.current = false;
+              // Auto-play after seeking
+              return videoRef.current?.playAsync();
+            })
+            .then(() => {
+              console.log('[FullScreenVideoPlayer] ✓ Started playback');
+              setIsPlaying(true);
+            })
+            .catch(err => {
+              console.error('[FullScreenVideoPlayer] Error seeking to trim start:', err);
+              isSeekingRef.current = false;
+            });
+        }
+      }, 100);
     }
-  }, [visible, effectiveTrimStart]);
+
+    return () => {
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current);
+      }
+    };
+  }, [visible, effectiveTrimStart, isVideoLoaded]);
 
   // 1️⃣ ENFORCEMENT POINT: Before Play - Seek to trimStart if needed
   const handlePlayPress = async () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || !isVideoLoaded) {
+      console.log('[FullScreenVideoPlayer] Video not ready');
+      return;
+    }
+
+    // Prevent multiple simultaneous operations
+    if (isSeekingRef.current) {
+      console.log('[FullScreenVideoPlayer] Seek in progress, ignoring play press');
+      return;
+    }
 
     try {
       if (isPlaying) {
@@ -85,7 +117,9 @@ export default function FullScreenVideoPlayer({
           // If position is outside trim range, seek to trim start
           if (positionSeconds < effectiveTrimStart || positionSeconds >= effectiveTrimEnd) {
             console.log('[FullScreenVideoPlayer] ⚠️ Position outside trim range, seeking to trim start');
+            isSeekingRef.current = true;
             await videoRef.current.setPositionAsync(effectiveTrimStart * 1000);
+            isSeekingRef.current = false;
             console.log('[FullScreenVideoPlayer] ✓ Seeked to trim start before play');
           }
         }
@@ -97,6 +131,7 @@ export default function FullScreenVideoPlayer({
       }
     } catch (err) {
       console.error('[FullScreenVideoPlayer] Error toggling playback:', err);
+      isSeekingRef.current = false;
     }
   };
 
@@ -104,7 +139,14 @@ export default function FullScreenVideoPlayer({
   const handlePlaybackStatusUpdate = async (status: AVPlaybackStatus) => {
     if (!status.isLoaded) {
       console.log('[FullScreenVideoPlayer] Status not loaded');
+      setIsVideoLoaded(false);
       return;
+    }
+
+    // Mark video as loaded
+    if (!isVideoLoaded) {
+      setIsVideoLoaded(true);
+      console.log('[FullScreenVideoPlayer] Video loaded and ready');
     }
 
     // Update duration if available
@@ -121,12 +163,19 @@ export default function FullScreenVideoPlayer({
     // Update playing state
     setIsPlaying(status.isPlaying);
 
+    // Skip enforcement if we're currently seeking
+    if (isSeekingRef.current) {
+      return;
+    }
+
     // CRITICAL: Hard-stop playback at trimEnd
     if (status.isPlaying && effectiveTrimEnd > 0 && positionSeconds >= effectiveTrimEnd) {
       console.log('[FullScreenVideoPlayer] 🛑 Reached trim end, stopping playback');
       console.log('[FullScreenVideoPlayer] Position:', positionSeconds, 'Trim end:', effectiveTrimEnd);
       
       try {
+        isSeekingRef.current = true;
+        
         // Pause playback
         await videoRef.current?.pauseAsync();
         
@@ -137,28 +186,34 @@ export default function FullScreenVideoPlayer({
         setIsPlaying(false);
         setCurrentPosition(effectiveTrimStart);
         
+        isSeekingRef.current = false;
         console.log('[FullScreenVideoPlayer] ✓ Stopped and reset to trim start');
       } catch (err) {
         console.error('[FullScreenVideoPlayer] Error stopping at trim end:', err);
+        isSeekingRef.current = false;
       }
     }
 
     // 3️⃣ ENFORCEMENT POINT: Prevent background looping past trim range
     // If position goes outside trim range (e.g., from seeking), snap back
-    if (!isSeekingRef.current && effectiveTrimEnd > 0) {
-      if (positionSeconds < effectiveTrimStart) {
+    if (!status.isPlaying && effectiveTrimEnd > 0) {
+      if (positionSeconds < effectiveTrimStart - 0.1) {
         console.log('[FullScreenVideoPlayer] ⚠️ Position below trim start, snapping back');
+        isSeekingRef.current = true;
         await videoRef.current?.setPositionAsync(effectiveTrimStart * 1000);
-      } else if (positionSeconds > effectiveTrimEnd) {
+        isSeekingRef.current = false;
+      } else if (positionSeconds > effectiveTrimEnd + 0.1) {
         console.log('[FullScreenVideoPlayer] ⚠️ Position above trim end, snapping back');
+        isSeekingRef.current = true;
         await videoRef.current?.setPositionAsync(effectiveTrimStart * 1000);
+        isSeekingRef.current = false;
       }
     }
   };
 
   // Handle manual seeking (if we add a scrubber in the future)
   const handleSeek = async (positionSeconds: number) => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || !isVideoLoaded || isSeekingRef.current) return;
 
     try {
       isSeekingRef.current = true;
@@ -187,6 +242,16 @@ export default function FullScreenVideoPlayer({
       isSeekingRef.current = false;
     }
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current);
+      }
+      isSeekingRef.current = false;
+    };
+  }, []);
 
   return (
     <Modal

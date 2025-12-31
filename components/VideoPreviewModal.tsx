@@ -29,6 +29,8 @@ export default function VideoPreviewModal({
   const [currentPosition, setCurrentPosition] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(Math.min(duration, MAX_TRIM_DURATION));
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const isSeekingRef = useRef(false);
   const insets = useSafeAreaInsets();
 
   // Calculate video container height to fit within safe area
@@ -74,7 +76,18 @@ export default function VideoPreviewModal({
   };
 
   const togglePlayback = async () => {
-    if (videoRef.current) {
+    if (!videoRef.current || !isVideoLoaded) {
+      console.log('VideoPreviewModal: Video not ready');
+      return;
+    }
+
+    // Prevent multiple simultaneous operations
+    if (isSeekingRef.current) {
+      console.log('VideoPreviewModal: Seek in progress, ignoring play press');
+      return;
+    }
+
+    try {
       if (isPlaying) {
         // Pause
         await videoRef.current.pauseAsync();
@@ -92,7 +105,9 @@ export default function VideoPreviewModal({
           // If position is outside trim range, seek to trim start
           if (positionSeconds < trimStart || positionSeconds >= trimEnd) {
             console.log('VideoPreviewModal: ⚠️ Position outside trim range, seeking to trim start');
+            isSeekingRef.current = true;
             await videoRef.current.setPositionAsync(trimStart * 1000);
+            isSeekingRef.current = false;
             console.log('VideoPreviewModal: ✓ Seeked to trim start before play');
           }
         }
@@ -101,12 +116,22 @@ export default function VideoPreviewModal({
         await videoRef.current.playAsync();
         setIsPlaying(true);
       }
+    } catch (err) {
+      console.error('VideoPreviewModal: Error toggling playback:', err);
+      isSeekingRef.current = false;
     }
   };
 
   const handlePlaybackStatusUpdate = async (status: AVPlaybackStatus) => {
     if (!status.isLoaded) {
+      setIsVideoLoaded(false);
       return;
+    }
+
+    // Mark video as loaded
+    if (!isVideoLoaded) {
+      setIsVideoLoaded(true);
+      console.log('VideoPreviewModal: Video loaded and ready');
     }
 
     // Update playing state
@@ -126,12 +151,19 @@ export default function VideoPreviewModal({
       setTrimEnd(initialTrimEnd);
     }
 
+    // Skip enforcement if we're currently seeking
+    if (isSeekingRef.current) {
+      return;
+    }
+
     // 2️⃣ ENFORCEMENT POINT: Hard-stop playback at trimEnd
     if (status.isPlaying && positionSeconds >= trimEnd) {
       console.log('VideoPreviewModal: 🛑 Reached trim end, stopping playback');
       console.log('VideoPreviewModal: Position:', positionSeconds, 'Trim end:', trimEnd);
       
       try {
+        isSeekingRef.current = true;
+        
         // Pause playback
         await videoRef.current?.pauseAsync();
         
@@ -142,21 +174,27 @@ export default function VideoPreviewModal({
         setIsPlaying(false);
         setCurrentPosition(trimStart);
         
+        isSeekingRef.current = false;
         console.log('VideoPreviewModal: ✓ Stopped and reset to trim start');
       } catch (err) {
         console.error('VideoPreviewModal: Error stopping at trim end:', err);
+        isSeekingRef.current = false;
       }
     }
 
     // 3️⃣ ENFORCEMENT POINT: Prevent background looping past trim range
     // If position goes outside trim range (e.g., from seeking), snap back
     if (!status.isPlaying) {
-      if (positionSeconds < trimStart) {
+      if (positionSeconds < trimStart - 0.1) {
         console.log('VideoPreviewModal: ⚠️ Position below trim start, snapping back');
+        isSeekingRef.current = true;
         await videoRef.current?.setPositionAsync(trimStart * 1000);
-      } else if (positionSeconds > trimEnd) {
+        isSeekingRef.current = false;
+      } else if (positionSeconds > trimEnd + 0.1) {
         console.log('VideoPreviewModal: ⚠️ Position above trim end, snapping back');
+        isSeekingRef.current = true;
         await videoRef.current?.setPositionAsync(trimStart * 1000);
+        isSeekingRef.current = false;
       }
     }
   };
@@ -265,6 +303,9 @@ export default function VideoPreviewModal({
               startValue={trimStart}
               endValue={trimEnd}
               onStartChange={async (value) => {
+                // Prevent seeking if already in progress
+                if (isSeekingRef.current) return;
+                
                 // Ensure trim start doesn't exceed trim end minus 0.1s
                 const newStart = Math.min(value, trimEnd - 0.1);
                 
@@ -275,8 +316,17 @@ export default function VideoPreviewModal({
                 setTrimStart(finalStart);
                 
                 // Update video position to new start
-                if (videoRef.current) {
-                  await videoRef.current.setPositionAsync(finalStart * 1000);
+                if (videoRef.current && isVideoLoaded) {
+                  try {
+                    isSeekingRef.current = true;
+                    await videoRef.current.setPositionAsync(finalStart * 1000);
+                    setTimeout(() => {
+                      isSeekingRef.current = false;
+                    }, 100);
+                  } catch (err) {
+                    console.error('Error seeking on trim start change:', err);
+                    isSeekingRef.current = false;
+                  }
                 }
               }}
               onEndChange={async (value) => {

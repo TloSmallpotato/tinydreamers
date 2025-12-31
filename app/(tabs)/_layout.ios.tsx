@@ -209,31 +209,28 @@ function CustomTabBar() {
     try {
       const { data, error } = await supabase
         .from('user_words')
-        .select(`
-          id,
-          word_id,
-          color,
-          word_library (
-            word,
-            emoji
-          )
-        `)
+        .select('id, custom_word, custom_emoji, color')
         .eq('child_id', selectedChild.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching words:', error);
+        throw error;
+      }
       
       // Transform data to match expected format
       const transformedWords = (data || []).map((uw: any) => ({
         id: uw.id,
-        word: uw.word_library.word,
-        emoji: uw.word_library.emoji || '⭐',
+        word: uw.custom_word,
+        emoji: uw.custom_emoji || '⭐',
         color: uw.color,
       }));
       
+      console.log('Fetched words:', transformedWords.length);
       setWords(transformedWords);
     } catch (error) {
       console.error('Error fetching words:', error);
+      Alert.alert('Error', 'Failed to load words. Please try again.');
     }
   };
 
@@ -318,21 +315,35 @@ function CustomTabBar() {
   const getVideoDuration = async (videoUri: string): Promise<number> => {
     try {
       console.log('Getting actual video duration from file...');
-      const { sound } = await Video.createAsync(
-        { uri: videoUri },
-        { shouldPlay: false }
-      );
       
-      const status = await sound.getStatusAsync();
-      if (status.isLoaded && status.durationMillis) {
-        const durationInSeconds = Math.round(status.durationMillis / 1000);
-        console.log('Actual video duration:', durationInSeconds, 'seconds');
-        await sound.unloadAsync();
-        return durationInSeconds;
-      }
+      // Create a temporary video component to get duration
+      const videoRef = React.createRef<Video>();
       
-      await sound.unloadAsync();
-      return 0;
+      return new Promise((resolve) => {
+        const checkDuration = async () => {
+          if (videoRef.current) {
+            try {
+              const status = await videoRef.current.getStatusAsync();
+              if (status.isLoaded && status.durationMillis) {
+                const durationInSeconds = Math.round(status.durationMillis / 1000);
+                console.log('Actual video duration:', durationInSeconds, 'seconds');
+                await videoRef.current.unloadAsync();
+                resolve(durationInSeconds);
+              } else {
+                resolve(0);
+              }
+            } catch (err) {
+              console.error('Error getting status:', err);
+              resolve(0);
+            }
+          } else {
+            resolve(0);
+          }
+        };
+
+        // Wait a bit for video to load
+        setTimeout(checkDuration, 500);
+      });
     } catch (error) {
       console.error('Error getting video duration:', error);
       return 0;
@@ -547,15 +558,11 @@ function CustomTabBar() {
       
       const { data: userWordData } = await supabase
         .from('user_words')
-        .select(`
-          word_library (
-            word
-          )
-        `)
+        .select('custom_word')
         .eq('id', wordId)
         .single();
       
-      const wordName = userWordData?.word_library?.word || 'word';
+      const wordName = userWordData?.custom_word || 'word';
       
       // Step 1: Try to generate thumbnail
       console.log('Step 1: Attempting thumbnail generation...');
