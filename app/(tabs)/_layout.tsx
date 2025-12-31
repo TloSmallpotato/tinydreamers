@@ -486,9 +486,9 @@ function CustomTabBar() {
       
       const wordName = userWordData?.word_library?.word || 'word';
       
-      // Step 1: Try to generate thumbnail
-      console.log('Step 1: Attempting thumbnail generation...');
-      const thumbnailUri = await generateVideoThumbnail(videoUri);
+      // Step 1: Generate thumbnail at trimStart
+      console.log('Step 1: Generating thumbnail at trim start:', startTime, 'seconds');
+      const thumbnailUri = await generateVideoThumbnail(videoUri, startTime);
       
       let uploadedThumbnailUrl: string | null = null;
       
@@ -502,11 +502,11 @@ function CustomTabBar() {
           console.warn('✗ Failed to upload thumbnail');
         }
       } else {
-        console.log('ℹ No thumbnail generated (feature not implemented yet)');
+        console.warn('✗ Failed to generate thumbnail');
       }
       
       // Step 2: Upload video
-      console.log('Step 2: Uploading video to Supabase...');
+      console.log('Step 3: Uploading video to Supabase...');
       const uploadedVideoUrl = await uploadVideoToSupabase(videoUri, selectedChild.id, supabase);
       
       if (!uploadedVideoUrl) {
@@ -516,7 +516,7 @@ function CustomTabBar() {
       console.log('✓ Video uploaded successfully:', uploadedVideoUrl);
       
       // Step 3: Save to database with trim information
-      console.log('Step 3: Saving to database with trim info...');
+      console.log('Step 4: Saving to database with trim info...');
       const trimmedDuration = endTime - startTime;
       
       const { error: insertError } = await supabase

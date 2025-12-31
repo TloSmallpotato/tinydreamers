@@ -116,6 +116,7 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
               id: moment.id,
               trim_start: moment.trim_start,
               trim_end: moment.trim_end,
+              has_thumbnail: !!moment.signedThumbnailUrl,
             });
           });
           
@@ -188,7 +189,8 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
       console.log('[WordDetail] Playing video:', moment.id);
       console.log('[WordDetail] Trim metadata:', { 
         trim_start: moment.trim_start, 
-        trim_end: moment.trim_end 
+        trim_end: moment.trim_end,
+        has_thumbnail: !!moment.signedThumbnailUrl,
       });
       
       // 🔹 CRITICAL FIX: Store the full moment object with trim metadata
@@ -764,11 +766,12 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
           </TouchableWithoutFeedback>
         </BottomSheetModal>
 
-        {/* 🔹 CRITICAL FIX: Pass trim metadata to FullScreenVideoPlayer */}
+        {/* 🔹 CRITICAL FIX: Pass trim metadata AND thumbnail URI to FullScreenVideoPlayer */}
         {selectedMoment && (
           <FullScreenVideoPlayer
             visible={showVideoPlayer}
             videoUri={selectedMoment.signedVideoUrl || selectedMoment.video_url}
+            thumbnailUri={selectedMoment.signedThumbnailUrl}
             onClose={handleCloseVideoPlayer}
             trimStart={selectedMoment.trim_start}
             trimEnd={selectedMoment.trim_end}

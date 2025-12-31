@@ -25,7 +25,7 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
+  const [selectedMoment, setSelectedMoment] = useState<Moment | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
 
   const fetchAllMoments = useCallback(async () => {
@@ -118,16 +118,21 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
 
   const handleMomentPress = (moment: Moment) => {
     console.log('AllMomentsBottomSheet: Moment pressed:', moment.id);
-    // Use signed URL if available, fallback to original URL
-    const videoUrl = moment.signedVideoUrl || moment.video_url;
-    setSelectedVideoUri(videoUrl);
+    console.log('AllMomentsBottomSheet: Trim metadata:', {
+      trim_start: moment.trim_start,
+      trim_end: moment.trim_end,
+      has_thumbnail: !!moment.signedThumbnailUrl,
+    });
+    
+    // Store the full moment object
+    setSelectedMoment(moment);
     setShowVideoPlayer(true);
   };
 
   const handleCloseVideoPlayer = () => {
     console.log('AllMomentsBottomSheet: Closing video player');
     setShowVideoPlayer(false);
-    setSelectedVideoUri(null);
+    setSelectedMoment(null);
   };
 
   const renderBackdrop = useCallback(
@@ -268,11 +273,15 @@ const AllMomentsBottomSheet = forwardRef<BottomSheetModal>((props, ref) => {
         {renderContent()}
       </BottomSheetModal>
 
-      {selectedVideoUri && (
+      {/* Pass trim metadata AND thumbnail URI to FullScreenVideoPlayer */}
+      {selectedMoment && (
         <FullScreenVideoPlayer
           visible={showVideoPlayer}
-          videoUri={selectedVideoUri}
+          videoUri={selectedMoment.signedVideoUrl || selectedMoment.video_url}
+          thumbnailUri={selectedMoment.signedThumbnailUrl}
           onClose={handleCloseVideoPlayer}
+          trimStart={selectedMoment.trim_start}
+          trimEnd={selectedMoment.trim_end}
         />
       )}
     </>

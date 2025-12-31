@@ -3,21 +3,27 @@ import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Platform } from 'react-native';
 
 /**
- * Generates a thumbnail from a video file using expo-video-thumbnails.
+ * Generates a thumbnail from a video file at a specific timestamp using expo-video-thumbnails.
  * This creates an actual image file that can be uploaded to Supabase.
  * 
  * @param videoUri - The URI of the video file
+ * @param timeInSeconds - The timestamp in seconds to extract the thumbnail from (default: 0)
  * @returns The URI of the generated thumbnail file, or null if generation failed
  */
-export async function generateVideoThumbnail(videoUri: string): Promise<string | null> {
+export async function generateVideoThumbnail(
+  videoUri: string,
+  timeInSeconds: number = 0
+): Promise<string | null> {
   try {
     console.log('[Thumbnail] Starting thumbnail generation for:', videoUri);
+    console.log('[Thumbnail] Extracting frame at:', timeInSeconds, 'seconds');
     
-    // Generate thumbnail at the first frame (time 0)
+    // Generate thumbnail at the specified timestamp
+    // Convert seconds to milliseconds for the API
     const { uri } = await VideoThumbnails.getThumbnailAsync(
       videoUri,
       {
-        time: 0, // Get thumbnail from the first frame
+        time: timeInSeconds * 1000, // Convert to milliseconds
         quality: 0.8, // Good quality (0-1 scale)
       }
     );
