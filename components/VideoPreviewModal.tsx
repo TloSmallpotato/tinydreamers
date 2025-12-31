@@ -62,9 +62,9 @@ export default function VideoPreviewModal({
         const initialTrimEnd = Math.min(durationInSeconds, MAX_TRIM_DURATION);
         setTrimEnd(initialTrimEnd);
         
-        // If video is longer than MAX_TRIM_DURATION, show a warning
+        // If video is longer than MAX_TRIM_DURATION, show a message
         if (durationInSeconds > MAX_TRIM_DURATION) {
-          console.log(`VideoPreviewModal: Video is ${durationInSeconds.toFixed(1)}s, auto-trimming to ${MAX_TRIM_DURATION}s`);
+          console.log(`VideoPreviewModal: Video is ${durationInSeconds.toFixed(1)}s, you can select any ${MAX_TRIM_DURATION}s segment`);
         }
       }
     };
@@ -207,8 +207,8 @@ export default function VideoPreviewModal({
           )}
           
           {actualDuration > MAX_TRIM_DURATION && (
-            <Text style={styles.warningText}>
-              ⚠️ Video is {formatTime(actualDuration)} long. Only the selected {MAX_TRIM_DURATION}s will be saved.
+            <Text style={styles.infoText}>
+              💡 Video is {formatTime(actualDuration)} long. Select any {MAX_TRIM_DURATION}s segment you want to keep.
             </Text>
           )}
           
@@ -224,36 +224,43 @@ export default function VideoPreviewModal({
               max={actualDuration}
               startValue={trimStart}
               endValue={trimEnd}
+              maxDuration={MAX_TRIM_DURATION}
               onStartChange={(value) => {
-                // Ensure trim start doesn't exceed trim end minus 0.1s
-                const newStart = Math.min(value, trimEnd - 0.1);
+                const newStart = Math.max(0, Math.min(value, actualDuration));
                 
-                // Ensure trim duration doesn't exceed MAX_TRIM_DURATION
-                // If moving start would make duration > MAX_TRIM_DURATION, also move end
+                // Calculate what the duration would be with this new start
                 const potentialDuration = trimEnd - newStart;
+                
+                // If duration would exceed max, adjust end to maintain max duration
                 if (potentialDuration > MAX_TRIM_DURATION) {
                   const adjustedEnd = newStart + MAX_TRIM_DURATION;
                   setTrimEnd(Math.min(adjustedEnd, actualDuration));
                 }
                 
-                setTrimStart(Math.max(0, newStart));
+                // Ensure start doesn't exceed end minus minimum duration
+                const minStart = Math.max(0, trimEnd - MAX_TRIM_DURATION);
+                const maxStart = trimEnd - 0.1;
+                setTrimStart(Math.max(minStart, Math.min(newStart, maxStart)));
                 
                 // Update video position to new start
-                player.currentTime = Math.max(0, newStart);
+                player.currentTime = Math.max(0, Math.min(newStart, maxStart));
               }}
               onEndChange={(value) => {
-                // Ensure trim end is at least 0.1s after trim start
-                const newEnd = Math.max(value, trimStart + 0.1);
+                const newEnd = Math.max(0, Math.min(value, actualDuration));
                 
-                // Ensure trim duration doesn't exceed MAX_TRIM_DURATION
-                // If moving end would make duration > MAX_TRIM_DURATION, also move start
+                // Calculate what the duration would be with this new end
                 const potentialDuration = newEnd - trimStart;
+                
+                // If duration would exceed max, adjust start to maintain max duration
                 if (potentialDuration > MAX_TRIM_DURATION) {
                   const adjustedStart = newEnd - MAX_TRIM_DURATION;
                   setTrimStart(Math.max(0, adjustedStart));
                 }
                 
-                setTrimEnd(Math.min(actualDuration, newEnd));
+                // Ensure end is at least minimum duration after start
+                const minEnd = trimStart + 0.1;
+                const maxEnd = Math.min(actualDuration, trimStart + MAX_TRIM_DURATION);
+                setTrimEnd(Math.max(minEnd, Math.min(newEnd, actualDuration)));
               }}
             />
             
@@ -264,7 +271,7 @@ export default function VideoPreviewModal({
           </View>
           
           <Text style={styles.hint}>
-            Drag circles to adjust trim points. Duration is limited to {MAX_TRIM_DURATION} seconds.
+            Drag the circles to select any {MAX_TRIM_DURATION}-second segment from your video.
           </Text>
         </View>
 
@@ -298,6 +305,7 @@ interface DualHandleSliderProps {
   max: number;
   startValue: number;
   endValue: number;
+  maxDuration: number;
   onStartChange: (value: number) => void;
   onEndChange: (value: number) => void;
 }
@@ -307,6 +315,7 @@ function DualHandleSlider({
   max,
   startValue,
   endValue,
+  maxDuration,
   onStartChange,
   onEndChange,
 }: DualHandleSliderProps) {
@@ -475,9 +484,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
-  warningText: {
+  infoText: {
     fontSize: 12,
-    color: '#FF9800',
+    color: colors.buttonBlue,
     marginBottom: 8,
     textAlign: 'center',
     fontWeight: '600',
