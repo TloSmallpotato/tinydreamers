@@ -1,134 +1,32 @@
 
-import React, { useRef, useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Modal, StatusBar } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEvent } from 'expo';
+import React, { useRef, useState } from 'react';
+import { View, StyleSheet, TouchableOpacity, Modal, StatusBar, Platform } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { colors } from '@/styles/commonStyles';
 
 interface FullScreenVideoPlayerProps {
   visible: boolean;
   videoUri: string;
-  trimStart?: number;
-  trimEnd?: number;
   onClose: () => void;
 }
 
 export default function FullScreenVideoPlayer({
   visible,
   videoUri,
-  trimStart = 0,
-  trimEnd,
   onClose,
 }: FullScreenVideoPlayerProps) {
-  const [videoDuration, setVideoDuration] = useState(0);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const videoRef = useRef<Video>(null);
+  const [isPlaying, setIsPlaying] = useState(true);
 
-  // Create video player
-  const player = useVideoPlayer(videoUri, (player) => {
-    player.loop = false;
-  });
-
-  // Listen to playing state changes
-  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
-
-  // Get video duration and initialize
-  useEffect(() => {
-    if (!visible) {
-      setIsInitialized(false);
-      return;
-    }
-
-    const checkDuration = () => {
-      if (player.duration > 0 && videoDuration === 0) {
-        const durationInSeconds = player.duration;
-        setVideoDuration(durationInSeconds);
-        console.log('FullScreenVideoPlayer: Video duration:', durationInSeconds, 'seconds');
-        console.log('FullScreenVideoPlayer: Trim range:', trimStart, '-', trimEnd || durationInSeconds);
+  const togglePlayback = async () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        await videoRef.current.pauseAsync();
+      } else {
+        await videoRef.current.playAsync();
       }
-    };
-
-    checkDuration();
-    const interval = setInterval(checkDuration, 100);
-
-    return () => clearInterval(interval);
-  }, [visible, player.duration, videoDuration, trimStart, trimEnd]);
-
-  // Initialize playback when modal opens
-  useEffect(() => {
-    if (visible && videoDuration > 0 && !isInitialized) {
-      console.log('FullScreenVideoPlayer: Initializing playback at trim start:', trimStart);
-      player.currentTime = trimStart;
-      player.play();
-      setIsInitialized(true);
-    }
-  }, [visible, videoDuration, trimStart, isInitialized]);
-
-  // Monitor playback position and enforce trim boundaries
-  useEffect(() => {
-    if (!visible || !isInitialized) return;
-
-    const interval = setInterval(() => {
-      const currentPosition = player.currentTime;
-      const effectiveTrimEnd = trimEnd || videoDuration;
-      
-      // Only enforce boundaries if we have valid trim times
-      if (effectiveTrimEnd > 0) {
-        // Check if we've reached or exceeded the trim end
-        if (currentPosition >= effectiveTrimEnd - 0.05) {
-          console.log('FullScreenVideoPlayer: Reached trim end at', currentPosition.toFixed(2), 's, looping to', trimStart, 's');
-          player.pause();
-          player.currentTime = trimStart;
-          
-          // Auto-play again to create seamless loop
-          setTimeout(() => {
-            player.play();
-          }, 50);
-          return;
-        }
-        
-        // If somehow we're before trim start (shouldn't happen, but safety check)
-        if (currentPosition < trimStart - 0.05) {
-          console.log('FullScreenVideoPlayer: Before trim start at', currentPosition.toFixed(2), 's, jumping to', trimStart, 's');
-          player.currentTime = trimStart;
-          return;
-        }
-        
-        // If we somehow jumped way past the trim end (e.g., user seeked), reset
-        if (currentPosition > effectiveTrimEnd + 0.5) {
-          console.log('FullScreenVideoPlayer: Way past trim end at', currentPosition.toFixed(2), 's, resetting to', trimStart, 's');
-          player.pause();
-          player.currentTime = trimStart;
-          
-          setTimeout(() => {
-            player.play();
-          }, 50);
-          return;
-        }
-      }
-    }, 50); // Check every 50ms for precise trimming
-
-    return () => clearInterval(interval);
-  }, [visible, isInitialized, player, trimStart, trimEnd, videoDuration]);
-
-  // Clean up when modal closes
-  useEffect(() => {
-    if (!visible) {
-      player.pause();
-      player.currentTime = 0;
-    }
-  }, [visible]);
-
-  const togglePlayback = () => {
-    if (isPlaying) {
-      player.pause();
-    } else {
-      // If at the end of trim range, restart from trim start
-      const effectiveTrimEnd = trimEnd || videoDuration;
-      if (player.currentTime >= effectiveTrimEnd - 0.1 || player.currentTime < trimStart) {
-        player.currentTime = trimStart;
-      }
-      player.play();
+      setIsPlaying(!isPlaying);
     }
   };
 
@@ -154,11 +52,18 @@ export default function FullScreenVideoPlayer({
           onPress={togglePlayback}
           activeOpacity={1}
         >
-          <VideoView
-            player={player}
+          <Video
+            ref={videoRef}
+            source={{ uri: videoUri }}
             style={styles.video}
-            contentFit="contain"
-            nativeControls={false}
+            resizeMode={ResizeMode.CONTAIN}
+            isLooping
+            shouldPlay={true}
+            onPlaybackStatusUpdate={(status) => {
+              if (status.isLoaded) {
+                setIsPlaying(status.isPlaying);
+              }
+            }}
           />
 
           {!isPlaying && (

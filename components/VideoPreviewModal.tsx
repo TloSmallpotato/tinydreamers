@@ -1,11 +1,10 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, Animated } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEvent } from 'expo';
+import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -24,25 +23,18 @@ export default function VideoPreviewModal({
   onConfirm,
   onCancel,
 }: VideoPreviewModalProps) {
+  const videoRef = useRef<Video>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [actualDuration, setActualDuration] = useState(duration);
   const [currentPosition, setCurrentPosition] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(Math.min(duration, MAX_TRIM_DURATION));
   const insets = useSafeAreaInsets();
 
-  // Create video player
-  const player = useVideoPlayer(videoUri, (player) => {
-    player.loop = false;
-    player.play();
-  });
-
-  // Listen to playing state changes
-  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
-
   // Calculate video container height to fit within safe area
   const topSafeArea = insets.top || 44;
   const bottomSafeArea = insets.bottom || 34;
-  const controlsHeight = 280;
+  const controlsHeight = 280; // Reduced since we removed preview button and merged sliders
   const buttonsHeight = 100;
   const padding = 40;
   
@@ -51,53 +43,28 @@ export default function VideoPreviewModal({
   const videoHeight = Math.min(videoWidth * (16 / 9), maxVideoHeight);
 
   useEffect(() => {
-    // Get actual duration from player
-    const checkDuration = () => {
-      if (player.duration > 0) {
-        const durationInSeconds = player.duration;
-        console.log('VideoPreviewModal: Actual video duration:', durationInSeconds, 'seconds');
-        setActualDuration(durationInSeconds);
-        
-        // Set initial trim end to min of duration or MAX_TRIM_DURATION
-        const initialTrimEnd = Math.min(durationInSeconds, MAX_TRIM_DURATION);
-        setTrimEnd(initialTrimEnd);
-        
-        // If video is longer than MAX_TRIM_DURATION, show a message
-        if (durationInSeconds > MAX_TRIM_DURATION) {
-          console.log(`VideoPreviewModal: Video is ${durationInSeconds.toFixed(1)}s, you can select any ${MAX_TRIM_DURATION}s segment`);
+    // Load the video to get actual duration
+    const loadVideo = async () => {
+      if (videoRef.current) {
+        try {
+          const status = await videoRef.current.getStatusAsync();
+          if (status.isLoaded && status.durationMillis) {
+            const durationInSeconds = status.durationMillis / 1000;
+            console.log('VideoPreviewModal: Actual video duration:', durationInSeconds, 'seconds');
+            setActualDuration(durationInSeconds);
+            
+            // Set initial trim end to min of duration or MAX_TRIM_DURATION
+            const initialTrimEnd = Math.min(durationInSeconds, MAX_TRIM_DURATION);
+            setTrimEnd(initialTrimEnd);
+          }
+        } catch (error) {
+          console.error('VideoPreviewModal: Error getting video duration:', error);
         }
       }
     };
 
-    // Check duration immediately and set up interval
-    checkDuration();
-    const interval = setInterval(checkDuration, 100);
-
-    return () => clearInterval(interval);
-  }, [player]);
-
-  // Monitor playback position
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const positionSeconds = player.currentTime;
-      setCurrentPosition(positionSeconds);
-
-      // Stop playback when reaching trim end
-      if (player.playing && positionSeconds >= trimEnd) {
-        player.pause();
-        player.currentTime = trimStart;
-      }
-
-      // Keep playback within trim range
-      if (positionSeconds < trimStart || positionSeconds > trimEnd) {
-        if (player.playing) {
-          player.currentTime = trimStart;
-        }
-      }
-    }, 50); // Update every 50ms for smooth tracking
-
-    return () => clearInterval(interval);
-  }, [player, trimStart, trimEnd]);
+    loadVideo();
+  }, [videoUri]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -106,15 +73,52 @@ export default function VideoPreviewModal({
     return `${mins}:${secs.toString().padStart(2, '0')}.${ms}`;
   };
 
-  const togglePlayback = () => {
-    if (isPlaying) {
-      player.pause();
-    } else {
-      // If at the end of trim range, restart from trim start
-      if (currentPosition >= trimEnd || currentPosition < trimStart) {
-        player.currentTime = trimStart;
+  const togglePlayback = async () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        await videoRef.current.pauseAsync();
+      } else {
+        // If at the end of trim range, restart from trim start
+        if (currentPosition >= trimEnd || currentPosition < trimStart) {
+          await videoRef.current.setPositionAsync(trimStart * 1000);
+        }
+        await videoRef.current.playAsync();
       }
-      player.play();
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handlePlaybackStatusUpdate = async (status: AVPlaybackStatus) => {
+    if (status.isLoaded) {
+      setIsPlaying(status.isPlaying);
+      
+      const positionSeconds = (status.positionMillis || 0) / 1000;
+      setCurrentPosition(positionSeconds);
+      
+      // Update actual duration if we get it from playback status
+      if (status.durationMillis && actualDuration === 0) {
+        const durationInSeconds = status.durationMillis / 1000;
+        console.log('VideoPreviewModal: Duration from playback status:', durationInSeconds, 'seconds');
+        setActualDuration(durationInSeconds);
+        
+        // Update trim end if needed
+        const initialTrimEnd = Math.min(durationInSeconds, MAX_TRIM_DURATION);
+        setTrimEnd(initialTrimEnd);
+      }
+
+      // Stop playback when reaching trim end
+      if (status.isPlaying && positionSeconds >= trimEnd) {
+        await videoRef.current?.pauseAsync();
+        await videoRef.current?.setPositionAsync(trimStart * 1000);
+        setIsPlaying(false);
+      }
+
+      // Keep playback within trim range
+      if (positionSeconds < trimStart || positionSeconds > trimEnd) {
+        if (status.isPlaying) {
+          await videoRef.current?.setPositionAsync(trimStart * 1000);
+        }
+      }
     }
   };
 
@@ -172,11 +176,14 @@ export default function VideoPreviewModal({
       <View style={styles.content}>
         {/* Video Player */}
         <View style={[styles.videoContainer, { width: videoWidth, height: videoHeight }]}>
-          <VideoView
-            player={player}
+          <Video
+            ref={videoRef}
+            source={{ uri: videoUri }}
             style={styles.video}
-            contentFit="contain"
-            nativeControls={false}
+            resizeMode={ResizeMode.CONTAIN}
+            isLooping={false}
+            shouldPlay={false}
+            onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
           />
           
           <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
@@ -206,12 +213,6 @@ export default function VideoPreviewModal({
             </Text>
           )}
           
-          {actualDuration > MAX_TRIM_DURATION && (
-            <Text style={styles.infoText}>
-              💡 Video is {formatTime(actualDuration)} long. Select any {MAX_TRIM_DURATION}s segment you want to keep.
-            </Text>
-          )}
-          
           {/* Dual Handle Trim Slider */}
           <View style={styles.trimSliderContainer}>
             <View style={styles.trimSliderLabels}>
@@ -224,43 +225,30 @@ export default function VideoPreviewModal({
               max={actualDuration}
               startValue={trimStart}
               endValue={trimEnd}
-              maxDuration={MAX_TRIM_DURATION}
-              onStartChange={(value) => {
-                const newStart = Math.max(0, Math.min(value, actualDuration));
+              onStartChange={async (value) => {
+                // Ensure trim start doesn't exceed trim end minus 0.1s
+                const newStart = Math.min(value, trimEnd - 0.1);
                 
-                // Calculate what the duration would be with this new start
-                const potentialDuration = trimEnd - newStart;
+                // Ensure trim duration doesn't exceed MAX_TRIM_DURATION
+                const maxAllowedStart = trimEnd - MAX_TRIM_DURATION;
+                const finalStart = Math.max(0, Math.max(newStart, maxAllowedStart));
                 
-                // If duration would exceed max, adjust end to maintain max duration
-                if (potentialDuration > MAX_TRIM_DURATION) {
-                  const adjustedEnd = newStart + MAX_TRIM_DURATION;
-                  setTrimEnd(Math.min(adjustedEnd, actualDuration));
-                }
-                
-                // Ensure start doesn't exceed end minus minimum duration
-                const minStart = Math.max(0, trimEnd - MAX_TRIM_DURATION);
-                const maxStart = trimEnd - 0.1;
-                setTrimStart(Math.max(minStart, Math.min(newStart, maxStart)));
+                setTrimStart(finalStart);
                 
                 // Update video position to new start
-                player.currentTime = Math.max(0, Math.min(newStart, maxStart));
-              }}
-              onEndChange={(value) => {
-                const newEnd = Math.max(0, Math.min(value, actualDuration));
-                
-                // Calculate what the duration would be with this new end
-                const potentialDuration = newEnd - trimStart;
-                
-                // If duration would exceed max, adjust start to maintain max duration
-                if (potentialDuration > MAX_TRIM_DURATION) {
-                  const adjustedStart = newEnd - MAX_TRIM_DURATION;
-                  setTrimStart(Math.max(0, adjustedStart));
+                if (videoRef.current) {
+                  await videoRef.current.setPositionAsync(finalStart * 1000);
                 }
+              }}
+              onEndChange={async (value) => {
+                // Ensure trim end is at least 0.1s after trim start
+                const newEnd = Math.max(value, trimStart + 0.1);
                 
-                // Ensure end is at least minimum duration after start
-                const minEnd = trimStart + 0.1;
-                const maxEnd = Math.min(actualDuration, trimStart + MAX_TRIM_DURATION);
-                setTrimEnd(Math.max(minEnd, Math.min(newEnd, actualDuration)));
+                // Ensure trim duration doesn't exceed MAX_TRIM_DURATION
+                const maxAllowedEnd = Math.min(newEnd, trimStart + MAX_TRIM_DURATION);
+                const finalEnd = Math.min(actualDuration, maxAllowedEnd);
+                
+                setTrimEnd(finalEnd);
               }}
             />
             
@@ -271,7 +259,7 @@ export default function VideoPreviewModal({
           </View>
           
           <Text style={styles.hint}>
-            Drag the circles to select any {MAX_TRIM_DURATION}-second segment from your video.
+            Drag circles to adjust trim points, then confirm
           </Text>
         </View>
 
@@ -305,7 +293,6 @@ interface DualHandleSliderProps {
   max: number;
   startValue: number;
   endValue: number;
-  maxDuration: number;
   onStartChange: (value: number) => void;
   onEndChange: (value: number) => void;
 }
@@ -315,7 +302,6 @@ function DualHandleSlider({
   max,
   startValue,
   endValue,
-  maxDuration,
   onStartChange,
   onEndChange,
 }: DualHandleSliderProps) {
@@ -483,13 +469,6 @@ const styles = StyleSheet.create({
     color: colors.secondary,
     marginBottom: 8,
     textAlign: 'center',
-  },
-  infoText: {
-    fontSize: 12,
-    color: colors.buttonBlue,
-    marginBottom: 8,
-    textAlign: 'center',
-    fontWeight: '600',
   },
   trimSliderContainer: {
     width: '100%',

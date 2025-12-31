@@ -351,7 +351,7 @@ export default function BooksScreen() {
   useEffect(() => {
     console.log('📚 Initial load - fetching books for child:', selectedChild?.id);
     fetchSavedBooks();
-  }, [fetchSavedBooks]);
+  }, [selectedChild?.id]);
 
   // Handle bookAdded parameter - ONLY refresh when coming back from adding a book
   useFocusEffect(

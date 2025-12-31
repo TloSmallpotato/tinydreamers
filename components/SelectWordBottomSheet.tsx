@@ -78,43 +78,78 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
       try {
         console.log('Adding word:', word);
         
-        // Check if user already has this word (case-insensitive)
-        const { data: existingUserWords, error: userWordCheckError } = await supabase
+        // First, check if the word exists in word_library (case-insensitive)
+        const { data: existingWords, error: searchError } = await supabase
+          .from('word_library')
+          .select('id, word, emoji')
+          .ilike('word', word);
+
+        if (searchError) {
+          console.error('Error searching word library:', searchError);
+          throw searchError;
+        }
+
+        let wordLibraryId: string;
+        let wordEmoji = emoji;
+
+        if (existingWords && existingWords.length > 0) {
+          // Word exists in library, use it
+          console.log('Word exists in library:', existingWords[0]);
+          wordLibraryId = existingWords[0].id;
+          wordEmoji = existingWords[0].emoji || emoji;
+        } else {
+          // Word doesn't exist, create it in word_library
+          console.log('Creating new word in library');
+          const { data: newWord, error: insertError } = await supabase
+            .from('word_library')
+            .insert({
+              word,
+              emoji,
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('Error inserting word to library:', insertError);
+            throw insertError;
+          }
+
+          wordLibraryId = newWord.id;
+        }
+
+        // Check if user already has this word
+        const { data: existingUserWord, error: userWordCheckError } = await supabase
           .from('user_words')
-          .select('id, custom_word')
-          .eq('child_id', selectedChild.id);
+          .select('id')
+          .eq('word_id', wordLibraryId)
+          .eq('child_id', selectedChild.id)
+          .maybeSingle();
 
         if (userWordCheckError) {
-          console.error('Error checking user words:', userWordCheckError);
+          console.error('Error checking user word:', userWordCheckError);
           throw userWordCheckError;
         }
 
-        // Check if word already exists (case-insensitive)
-        const wordExists = existingUserWords?.some(
-          (uw) => uw.custom_word.toLowerCase() === word.toLowerCase()
-        );
-
-        if (wordExists) {
+        if (existingUserWord) {
           Alert.alert('Word Already Added', 'This word is already in your list');
           addWordSheetRef.current?.dismiss();
           return;
         }
 
-        // Create user_word with custom fields directly
-        const { data: newUserWord, error: insertError } = await supabase
+        // Create user_word association
+        const { data: newUserWord, error: userWordError } = await supabase
           .from('user_words')
           .insert({
+            word_id: wordLibraryId,
             child_id: selectedChild.id,
             color,
-            custom_word: word,
-            custom_emoji: emoji,
           })
           .select()
           .single();
 
-        if (insertError) {
-          console.error('Error adding user word:', insertError);
-          throw insertError;
+        if (userWordError) {
+          console.error('Error adding user word:', userWordError);
+          throw userWordError;
         }
 
         console.log('Word added successfully, new user_word id:', newUserWord.id);
@@ -123,7 +158,7 @@ const SelectWordBottomSheet = forwardRef<BottomSheetModal, SelectWordBottomSheet
         const newWord: Word = {
           id: newUserWord.id,
           word,
-          emoji,
+          emoji: wordEmoji,
           color,
         };
         setLocalWords([...localWords, newWord]);

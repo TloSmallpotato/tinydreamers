@@ -75,9 +75,9 @@ export default function AdminAllBooksScreen() {
 
   useEffect(() => {
     checkAdminStatusAndFetchBooks();
-  }, [user, currentPage, sortBy, checkAdminStatusAndFetchBooks]);
+  }, [user, currentPage, sortBy]);
 
-  const checkAdminStatusAndFetchBooks = useCallback(async () => {
+  const checkAdminStatusAndFetchBooks = async () => {
     if (!user) {
       console.log('AdminAllBooks: No user, redirecting...');
       router.replace('/(tabs)/profile');
@@ -117,9 +117,9 @@ export default function AdminAllBooksScreen() {
       setIsAdmin(false);
       setLoading(false);
     }
-  }, [user, router, fetchBooks]);
+  };
 
-  const fetchBooks = useCallback(async () => {
+  const fetchBooks = async () => {
     try {
       console.log('AdminAllBooks: Fetching books, page:', currentPage, 'sort:', sortBy);
       
@@ -166,7 +166,7 @@ export default function AdminAllBooksScreen() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [currentPage, sortBy]);
+  };
 
   const onRefresh = useCallback(async () => {
     HapticFeedback.light();

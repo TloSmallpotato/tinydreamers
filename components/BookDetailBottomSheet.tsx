@@ -12,7 +12,6 @@ import * as Haptics from 'expo-haptics';
 import { isLikelyBlankImage, getFirstValidImageUrl } from '@/utils/imageValidation';
 import ValidatedImage from '@/components/ValidatedImage';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -250,7 +249,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         console.error('Error in deleteBook:', error);
         Alert.alert('Error', 'Failed to remove book');
       }
-    }, [cachedUserBook, ref, onRefresh, isAdminView, refreshStats, fetchProfileStats]);
+    }, [cachedUserBook, ref, onRefresh, isAdminView]);
 
     const handleDeleteBook = useCallback(() => {
       if (isAdminView) return;
@@ -415,10 +414,11 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
           return;
         }
 
-        // Launch image picker WITHOUT cropping
+        // Launch image picker
         const result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ['images'],
-          allowsEditing: false, // Remove cropping
+          allowsEditing: true,
+          aspect: [4, 5],
           quality: 0.9,
         });
 
@@ -432,27 +432,23 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
         const image = result.assets[0];
         console.log('📤 Uploading new book cover for:', cachedUserBook.book.title);
 
-        // Read the file as Base64 using expo-file-system (Expo-safe method)
-        const base64 = await FileSystem.readAsStringAsync(image.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        // Convert Base64 to ArrayBuffer
-        const arrayBuffer = decode(base64);
+        // Read the file as base64
+        const response = await fetch(image.uri);
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
         // Generate a unique filename
         const fileExt = image.uri.split('.').pop() || 'jpg';
         const fileName = `${cachedUserBook.book.id}_${Date.now()}.${fileExt}`;
-        const filePath = `covers/${fileName}`;
-
-        console.log('📤 Uploading to storage:', filePath);
+        const filePath = `book-covers/${fileName}`;
 
         // Upload to Supabase Storage
         const { error: uploadError } = await supabase.storage
           .from('book-covers')
-          .upload(filePath, arrayBuffer, {
+          .upload(filePath, decode(base64), {
             contentType: `image/${fileExt}`,
-            upsert: true, // Allow overwriting
+            upsert: false,
           });
 
         if (uploadError) {
@@ -468,7 +464,7 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
         console.log('✅ Cover uploaded successfully:', publicUrl);
 
-        // Update book in books_library table (this updates for everyone)
+        // Update book in database
         const { error: updateError } = await supabase
           .from('books_library')
           .update({
@@ -480,15 +476,15 @@ const BookDetailBottomSheet = forwardRef<BottomSheetModal, BookDetailBottomSheet
 
         if (updateError) {
           console.error('❌ Error updating book:', updateError);
-          Alert.alert('Error', 'Failed to update book cover in database. Please try again.');
+          Alert.alert('Error', 'Failed to update book cover. Please try again.');
           return;
         }
 
-        console.log('✅ Book cover updated successfully in books_library table');
+        console.log('✅ Book cover updated successfully');
         
         Alert.alert(
           'Success',
-          'Book cover has been updated successfully for all users!',
+          'Book cover has been updated successfully!',
           [{ 
             text: 'OK', 
             onPress: () => {

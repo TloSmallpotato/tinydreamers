@@ -20,6 +20,7 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { supabase } from '@/app/integrations/supabase/client';
 import { File } from 'expo-file-system';
 import { generateVideoThumbnail, uploadThumbnailToSupabase, uploadVideoToSupabase } from '@/utils/videoThumbnail';
+import { Video, AVPlaybackStatus } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 
 interface TabItem {
@@ -202,44 +203,39 @@ function CustomTabBar() {
     }
   }, [shouldOpenCamera, resetCameraTrigger, openCamera]);
 
-  const fetchWords = useCallback(async () => {
-    if (!selectedChild) {
-      console.log('[iOS TabLayout] No child selected, skipping word fetch');
-      return;
-    }
+  const fetchWords = async () => {
+    if (!selectedChild) return;
     
     try {
-      console.log('[iOS TabLayout] Fetching words for child:', selectedChild.id);
-      
-      // Query user_words directly - no word_library join needed
       const { data, error } = await supabase
         .from('user_words')
-        .select('*')
+        .select(`
+          id,
+          word_id,
+          color,
+          word_library (
+            word,
+            emoji
+          )
+        `)
         .eq('child_id', selectedChild.id)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('[iOS TabLayout] Error fetching words:', error);
-        throw error;
-      }
-      
-      console.log('[iOS TabLayout] Fetched user_words:', data?.length || 0);
+      if (error) throw error;
       
       // Transform data to match expected format
       const transformedWords = (data || []).map((uw: any) => ({
         id: uw.id,
-        word: uw.custom_word || '',
-        emoji: uw.custom_emoji || '⭐',
+        word: uw.word_library.word,
+        emoji: uw.word_library.emoji || '⭐',
         color: uw.color,
       }));
       
-      console.log('[iOS TabLayout] Transformed words:', transformedWords.length);
       setWords(transformedWords);
     } catch (error) {
-      console.error('[iOS TabLayout] Error fetching words:', error);
-      Alert.alert('Error', 'Failed to load words');
+      console.error('Error fetching words:', error);
     }
-  }, [selectedChild]);
+  };
 
   const getActiveTab = () => {
     if (pathname.includes('/books')) return 'books';
@@ -319,6 +315,30 @@ function CustomTabBar() {
     setIsCameraReady(true);
   };
 
+  const getVideoDuration = async (videoUri: string): Promise<number> => {
+    try {
+      console.log('Getting actual video duration from file...');
+      const { sound } = await Video.createAsync(
+        { uri: videoUri },
+        { shouldPlay: false }
+      );
+      
+      const status = await sound.getStatusAsync();
+      if (status.isLoaded && status.durationMillis) {
+        const durationInSeconds = Math.round(status.durationMillis / 1000);
+        console.log('Actual video duration:', durationInSeconds, 'seconds');
+        await sound.unloadAsync();
+        return durationInSeconds;
+      }
+      
+      await sound.unloadAsync();
+      return 0;
+    } catch (error) {
+      console.error('Error getting video duration:', error);
+      return 0;
+    }
+  };
+
   const startRecording = async () => {
     if (cameraRef.current && !isRecording) {
       try {
@@ -342,15 +362,14 @@ function CustomTabBar() {
         
         setIsRecording(false);
         
-        // Use the duration from the recorded video
-        // CameraView returns duration in milliseconds
-        const durationInSeconds = video.duration ? video.duration / 1000 : 0;
-        console.log('Video duration from recording:', durationInSeconds, 'seconds');
+        // Get actual video duration from the file
+        const actualDuration = await getVideoDuration(video.uri);
+        console.log('Setting video with actual duration:', actualDuration);
         
         // Set creation date to now for recorded videos
         setVideoCreationDate(new Date());
         
-        setRecordedVideo(video.uri, durationInSeconds);
+        setRecordedVideo(video.uri, actualDuration);
         setShowCamera(false);
         setIsCameraReady(false);
         
@@ -526,14 +545,17 @@ function CustomTabBar() {
       setSavedWordId(null);
       setToastVisible(true);
       
-      // Fetch the word name from user_words
       const { data: userWordData } = await supabase
         .from('user_words')
-        .select('custom_word')
+        .select(`
+          word_library (
+            word
+          )
+        `)
         .eq('id', wordId)
         .single();
       
-      const wordName = userWordData?.custom_word || 'word';
+      const wordName = userWordData?.word_library?.word || 'word';
       
       // Step 1: Try to generate thumbnail
       console.log('Step 1: Attempting thumbnail generation...');
