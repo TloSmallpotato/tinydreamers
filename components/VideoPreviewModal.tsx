@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -31,7 +31,6 @@ export default function VideoPreviewModal({
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(Math.min(duration, MAX_TRIM_DURATION));
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
-  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false);
   const isSeekingRef = useRef(false);
   const insets = useSafeAreaInsets();
 
@@ -217,52 +216,25 @@ export default function VideoPreviewModal({
       return;
     }
 
-    console.log('[VideoPreviewModal] ✅ Confirm clicked - generating thumbnail at trimStart:', trimStart);
+    console.log('[VideoPreviewModal] ✅ Confirm clicked - will generate thumbnail in background');
+    console.log('[VideoPreviewModal] Trim range:', trimStart, '-', trimEnd);
     
-    // Generate thumbnail at trimStart when user confirms
-    setIsGeneratingThumbnail(true);
+    // Immediately call onConfirm to proceed with the flow
+    // The thumbnail generation will happen in the background
+    onConfirm(videoUri, trimStart, trimEnd, null);
     
-    try {
-      const thumbnailUri = await generateVideoThumbnail(videoUri, trimStart);
-      
-      if (thumbnailUri) {
-        console.log('[VideoPreviewModal] ✅ Thumbnail generated successfully at trimStart:', trimStart);
-        console.log('[VideoPreviewModal] Thumbnail URI:', thumbnailUri);
-      } else {
-        console.error('[VideoPreviewModal] ❌ Failed to generate thumbnail');
-      }
-      
-      console.log('Confirming video with trim:', { 
-        trimStart, 
-        trimEnd, 
-        duration: trimmedDuration,
-        maxAllowed: MAX_TRIM_DURATION,
-        thumbnailUri,
+    // Generate thumbnail in background (don't await, don't block UI)
+    generateVideoThumbnail(videoUri, trimStart)
+      .then(thumbnailUri => {
+        if (thumbnailUri) {
+          console.log('[VideoPreviewModal] ✅ Thumbnail generated in background:', thumbnailUri);
+        } else {
+          console.warn('[VideoPreviewModal] ⚠️ Thumbnail generation returned null');
+        }
+      })
+      .catch(error => {
+        console.error('[VideoPreviewModal] ❌ Background thumbnail generation failed:', error);
       });
-      
-      // Pass the original URI, trim times, and thumbnail URI to parent
-      onConfirm(videoUri, trimStart, trimEnd, thumbnailUri);
-    } catch (error) {
-      console.error('[VideoPreviewModal] Error during thumbnail generation:', error);
-      Alert.alert(
-        'Thumbnail Generation Failed',
-        'Failed to generate video thumbnail. The video will be saved without a thumbnail.',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Continue Anyway',
-            onPress: () => {
-              onConfirm(videoUri, trimStart, trimEnd, null);
-            },
-          },
-        ]
-      );
-    } finally {
-      setIsGeneratingThumbnail(false);
-    }
   };
 
   const getTrimmedDuration = () => {
@@ -400,22 +372,13 @@ export default function VideoPreviewModal({
           <TouchableOpacity 
             style={[
               styles.confirmButton,
-              (!isValidTrim || isGeneratingThumbnail) && styles.confirmButtonDisabled
+              !isValidTrim && styles.confirmButtonDisabled
             ]} 
             onPress={handleConfirm}
-            disabled={!isValidTrim || isGeneratingThumbnail}
+            disabled={!isValidTrim}
           >
-            {isGeneratingThumbnail ? (
-              <>
-                <ActivityIndicator size="small" color={colors.backgroundAlt} />
-                <Text style={styles.confirmButtonText}>Generating...</Text>
-              </>
-            ) : (
-              <>
-                <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
-                <Text style={styles.confirmButtonText}>Confirm</Text>
-              </>
-            )}
+            <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
+            <Text style={styles.confirmButtonText}>Confirm</Text>
           </TouchableOpacity>
         </View>
       </View>
