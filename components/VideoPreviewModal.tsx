@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform, Alert, PanResponder, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/styles/commonStyles';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -31,10 +31,8 @@ export default function VideoPreviewModal({
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(Math.min(duration, MAX_TRIM_DURATION));
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
-  const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
   const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false);
   const isSeekingRef = useRef(false);
-  const lastThumbnailTrimStartRef = useRef<number>(0);
   const insets = useSafeAreaInsets();
 
   // Calculate video container height to fit within safe area
@@ -71,70 +69,6 @@ export default function VideoPreviewModal({
 
     loadVideo();
   }, [videoUri]);
-
-  // 🔹 NEW: Generate thumbnail when trimStart changes
-  useEffect(() => {
-    const regenerateThumbnail = async () => {
-      // Only regenerate if trimStart has actually changed (not initial load)
-      if (Math.abs(trimStart - lastThumbnailTrimStartRef.current) < 0.1) {
-        return;
-      }
-
-      console.log('[VideoPreviewModal] 🎬 trimStart changed to:', trimStart, 'seconds');
-      console.log('[VideoPreviewModal] Regenerating thumbnail...');
-
-      setIsGeneratingThumbnail(true);
-
-      try {
-        const newThumbnailUri = await generateVideoThumbnail(videoUri, trimStart);
-        
-        if (newThumbnailUri) {
-          console.log('[VideoPreviewModal] ✅ Thumbnail regenerated:', newThumbnailUri);
-          setThumbnailUri(newThumbnailUri);
-          lastThumbnailTrimStartRef.current = trimStart;
-        } else {
-          console.error('[VideoPreviewModal] ❌ Failed to regenerate thumbnail');
-        }
-      } catch (error) {
-        console.error('[VideoPreviewModal] Error regenerating thumbnail:', error);
-      } finally {
-        setIsGeneratingThumbnail(false);
-      }
-    };
-
-    // Debounce thumbnail generation to avoid too many calls while dragging
-    const timeoutId = setTimeout(() => {
-      regenerateThumbnail();
-    }, 500); // Wait 500ms after user stops dragging
-
-    return () => clearTimeout(timeoutId);
-  }, [trimStart, videoUri]);
-
-  // 🔹 NEW: Generate initial thumbnail on mount
-  useEffect(() => {
-    const generateInitialThumbnail = async () => {
-      console.log('[VideoPreviewModal] Generating initial thumbnail at trimStart:', trimStart);
-      setIsGeneratingThumbnail(true);
-
-      try {
-        const initialThumbnailUri = await generateVideoThumbnail(videoUri, trimStart);
-        
-        if (initialThumbnailUri) {
-          console.log('[VideoPreviewModal] ✅ Initial thumbnail generated:', initialThumbnailUri);
-          setThumbnailUri(initialThumbnailUri);
-          lastThumbnailTrimStartRef.current = trimStart;
-        } else {
-          console.error('[VideoPreviewModal] ❌ Failed to generate initial thumbnail');
-        }
-      } catch (error) {
-        console.error('[VideoPreviewModal] Error generating initial thumbnail:', error);
-      } finally {
-        setIsGeneratingThumbnail(false);
-      }
-    };
-
-    generateInitialThumbnail();
-  }, [videoUri]); // Only run once when component mounts
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -267,7 +201,7 @@ export default function VideoPreviewModal({
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const trimmedDuration = trimEnd - trimStart;
     
     if (trimmedDuration < 0.1) {
@@ -283,16 +217,51 @@ export default function VideoPreviewModal({
       return;
     }
 
-    console.log('Confirming video with trim:', { 
-      trimStart, 
-      trimEnd, 
-      duration: trimmedDuration,
-      maxAllowed: MAX_TRIM_DURATION,
-      thumbnailUri,
-    });
+    console.log('[VideoPreviewModal] Confirm clicked - generating thumbnail at trimStart:', trimStart);
     
-    // Pass the original URI, trim times, and thumbnail URI to parent
-    onConfirm(videoUri, trimStart, trimEnd, thumbnailUri);
+    // Generate thumbnail at trimStart when user confirms
+    setIsGeneratingThumbnail(true);
+    
+    try {
+      const thumbnailUri = await generateVideoThumbnail(videoUri, trimStart);
+      
+      if (thumbnailUri) {
+        console.log('[VideoPreviewModal] ✅ Thumbnail generated successfully:', thumbnailUri);
+      } else {
+        console.error('[VideoPreviewModal] ❌ Failed to generate thumbnail');
+      }
+      
+      console.log('Confirming video with trim:', { 
+        trimStart, 
+        trimEnd, 
+        duration: trimmedDuration,
+        maxAllowed: MAX_TRIM_DURATION,
+        thumbnailUri,
+      });
+      
+      // Pass the original URI, trim times, and thumbnail URI to parent
+      onConfirm(videoUri, trimStart, trimEnd, thumbnailUri);
+    } catch (error) {
+      console.error('[VideoPreviewModal] Error during thumbnail generation:', error);
+      Alert.alert(
+        'Thumbnail Generation Failed',
+        'Failed to generate video thumbnail. The video will be saved without a thumbnail.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Continue Anyway',
+            onPress: () => {
+              onConfirm(videoUri, trimStart, trimEnd, null);
+            },
+          },
+        ]
+      );
+    } finally {
+      setIsGeneratingThumbnail(false);
+    }
   };
 
   const getTrimmedDuration = () => {
@@ -338,13 +307,6 @@ export default function VideoPreviewModal({
               color={colors.backgroundAlt}
             />
           </TouchableOpacity>
-
-          {/* 🔹 NEW: Show thumbnail generation indicator */}
-          {isGeneratingThumbnail && (
-            <View style={styles.thumbnailGeneratingOverlay}>
-              <Text style={styles.thumbnailGeneratingText}>Updating thumbnail...</Text>
-            </View>
-          )}
         </View>
 
         {/* Info and Controls */}
@@ -437,13 +399,22 @@ export default function VideoPreviewModal({
           <TouchableOpacity 
             style={[
               styles.confirmButton,
-              !isValidTrim && styles.confirmButtonDisabled
+              (!isValidTrim || isGeneratingThumbnail) && styles.confirmButtonDisabled
             ]} 
             onPress={handleConfirm}
-            disabled={!isValidTrim}
+            disabled={!isValidTrim || isGeneratingThumbnail}
           >
-            <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
-            <Text style={styles.confirmButtonText}>Confirm</Text>
+            {isGeneratingThumbnail ? (
+              <>
+                <ActivityIndicator size="small" color={colors.backgroundAlt} />
+                <Text style={styles.confirmButtonText}>Generating...</Text>
+              </>
+            ) : (
+              <>
+                <MaterialIcons name="check" size={24} color={colors.backgroundAlt} />
+                <Text style={styles.confirmButtonText}>Confirm</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -607,22 +578,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  thumbnailGeneratingOverlay: {
-    position: 'absolute',
-    bottom: 16,
-    left: 16,
-    right: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  thumbnailGeneratingText: {
-    color: colors.backgroundAlt,
-    fontSize: 12,
-    fontWeight: '600',
   },
   infoContainer: {
     alignItems: 'center',
