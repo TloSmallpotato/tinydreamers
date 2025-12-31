@@ -417,8 +417,8 @@ function CustomTabBar() {
     clearRecordedVideo();
   };
 
-  const handleConfirmVideo = async (trimmedUri: string, startTime: number, endTime: number) => {
-    console.log('Video confirmed with trim:', { startTime, endTime });
+  const handleConfirmVideo = async (trimmedUri: string, startTime: number, endTime: number, thumbnailUri: string | null) => {
+    console.log('Video confirmed with trim:', { startTime, endTime, thumbnailUri });
     console.log('isRecordingFromWordDetail:', isRecordingFromWordDetail);
     console.log('targetWordId:', targetWordId);
     
@@ -436,7 +436,7 @@ function CustomTabBar() {
       
       clearRecordedVideo();
       
-      saveVideoToWord(targetWordId, trimmedUri, startTime, endTime, true);
+      saveVideoToWord(targetWordId, trimmedUri, startTime, endTime, thumbnailUri, true);
     } else {
       console.log('Method 1: Showing word selection bottom sheet');
       await fetchWords();
@@ -454,6 +454,7 @@ function CustomTabBar() {
     videoUri: string, 
     startTime: number, 
     endTime: number,
+    thumbnailUri: string | null,
     isMethod2: boolean = false
   ) => {
     if (!selectedChild) {
@@ -465,6 +466,7 @@ function CustomTabBar() {
       console.log('=== Starting video save process ===');
       console.log('Video URI:', videoUri);
       console.log('Trim range:', startTime, '-', endTime);
+      console.log('Thumbnail URI:', thumbnailUri);
       console.log('User Word ID:', wordId);
       console.log('Child ID:', selectedChild.id);
       
@@ -486,14 +488,11 @@ function CustomTabBar() {
       
       const wordName = userWordData?.word_library?.word || 'word';
       
-      // Step 1: Generate thumbnail at trimStart
-      console.log('Step 1: Generating thumbnail at trim start:', startTime, 'seconds');
-      const thumbnailUri = await generateVideoThumbnail(videoUri, startTime);
-      
+      // Step 1: Upload thumbnail if available
       let uploadedThumbnailUrl: string | null = null;
       
       if (thumbnailUri) {
-        console.log('Step 2: Uploading thumbnail to Supabase...');
+        console.log('Step 1: Uploading thumbnail to Supabase...');
         uploadedThumbnailUrl = await uploadThumbnailToSupabase(thumbnailUri, selectedChild.id, supabase);
         
         if (uploadedThumbnailUrl) {
@@ -502,11 +501,11 @@ function CustomTabBar() {
           console.warn('✗ Failed to upload thumbnail');
         }
       } else {
-        console.warn('✗ Failed to generate thumbnail');
+        console.warn('✗ No thumbnail provided');
       }
       
       // Step 2: Upload video
-      console.log('Step 3: Uploading video to Supabase...');
+      console.log('Step 2: Uploading video to Supabase...');
       const uploadedVideoUrl = await uploadVideoToSupabase(videoUri, selectedChild.id, supabase);
       
       if (!uploadedVideoUrl) {
@@ -516,7 +515,7 @@ function CustomTabBar() {
       console.log('✓ Video uploaded successfully:', uploadedVideoUrl);
       
       // Step 3: Save to database with trim information
-      console.log('Step 4: Saving to database with trim info...');
+      console.log('Step 3: Saving to database with trim info...');
       const trimmedDuration = endTime - startTime;
       
       const { error: insertError } = await supabase
@@ -572,7 +571,9 @@ function CustomTabBar() {
     clearRecordedVideo();
     
     if (videoUriToSave && selectedChild) {
-      await saveVideoToWord(wordId, videoUriToSave, startTime, endTime, false);
+      // Note: We don't have the thumbnail URI here since it's generated in VideoPreviewModal
+      // This is a limitation of the current flow - we'll need to store it somewhere if needed
+      await saveVideoToWord(wordId, videoUriToSave, startTime, endTime, null, false);
     }
   };
 
