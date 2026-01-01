@@ -2,7 +2,7 @@
 {
   "expo": {
     "name": "TinyDreamers",
-    "slug": "TinyDreamers",
+    "slug": "tinydreamers-app-clean-v2",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/3e1ea99a-f17a-42c3-b801-1361ce0bce92.png",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.smallpotato.tinydreamers",
+      "bundleIdentifier": "com.smallpotato.tinydreamersappclean",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app needs access to your camera to record videos of your child's learning moments.",
@@ -28,7 +28,7 @@
         "backgroundColor": "#E8B4D9"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.smallpotato.tinydreamers",
+      "package": "com.smallpotato.tinydreamersappclean",
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO"
