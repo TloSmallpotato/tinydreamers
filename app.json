@@ -22,9 +22,6 @@
         "NSMicrophoneUsageDescription": "This app needs access to your microphone to record audio with videos.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photos and videos to upload moments.",
         "NSPhotoLibraryAddUsageDescription": "This app needs to save photos and videos to your library."
-      },
-      "entitlements": {
-        "com.apple.developer.usernotifications.time-sensitive": false
       }
     },
     "android": {
@@ -82,5 +79,6 @@
         "projectId": "3e6ce51d-1a8a-4662-a934-565586a23105"
       }
     }
-  }
+  },
+  "scheme": "TinyDreamers"
 }
