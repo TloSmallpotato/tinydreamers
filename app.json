@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/3e1ea99a-f17a-42c3-b801-1361ce0bce92.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/3e1ea99a-f17a-42c3-b801-1361ce0bce92.png",
       "resizeMode": "contain",
