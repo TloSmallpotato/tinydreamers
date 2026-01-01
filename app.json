@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "TinyDreamers",
@@ -15,6 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
+      "buildNumber": "18",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app needs access to your camera to record videos of your child's learning moments.",
@@ -28,6 +30,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Natively",
+      "versionCode": 18,
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO"
