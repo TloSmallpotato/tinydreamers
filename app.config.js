@@ -26,7 +26,7 @@ export default ({ config }) => ({
   },
   ios: {
     supportsTablet: true,
-    bundleIdentifier: "com.smallpotato.tinydreamers",
+    bundleIdentifier: "com.smallpotato.tinydreamersappclean",
     buildNumber: "1",
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
@@ -35,7 +35,7 @@ export default ({ config }) => ({
     }
   },
   android: {
-    package: "com.smallpotato.tinydreamers",
+    package: "com.smallpotato.tinydreamersappclean",
     adaptiveIcon: {
       foregroundImage: "./assets/images/3e1ea99a-f17a-42c3-b801-1361ce0bce92.png",
       backgroundColor: "#E8B4D9"
