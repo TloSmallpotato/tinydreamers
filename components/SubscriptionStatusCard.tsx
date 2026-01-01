@@ -5,6 +5,7 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from './IconSymbol';
 import { HapticFeedback } from '@/utils/haptics';
 import { useSubscription, QUOTA_LIMITS } from '@/contexts/SubscriptionContext';
+import { useAuth } from '@/contexts/AuthContext';
 import Constants from 'expo-constants';
 
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -20,6 +21,8 @@ export default function SubscriptionStatusCard() {
     showPaywall,
     showCustomerCenter,
   } = useSubscription();
+  
+  const { userRole, roleLoading } = useAuth();
 
   const handleUpgrade = async () => {
     console.log('========================================');
@@ -42,6 +45,12 @@ export default function SubscriptionStatusCard() {
     HapticFeedback.medium();
     await showCustomerCenter();
   };
+
+  // Check if user is admin
+  const isAdmin = userRole === 'admin';
+
+  // Log for debugging
+  console.log('SubscriptionStatusCard: roleLoading:', roleLoading, 'userRole:', userRole, 'isAdmin:', isAdmin, 'isSubscribed:', isSubscribed);
 
   if (isSubscribed) {
     return (
@@ -104,6 +113,20 @@ export default function SubscriptionStatusCard() {
     );
   }
 
+  // Only show Free Plan module to admins
+  // If not admin and role is loaded, don't render anything
+  if (!roleLoading && !isAdmin) {
+    console.log('SubscriptionStatusCard: User is not admin, hiding Free Plan module');
+    return null;
+  }
+
+  // If role is still loading, don't render to avoid flashing
+  if (roleLoading) {
+    console.log('SubscriptionStatusCard: Role still loading, not rendering yet');
+    return null;
+  }
+
+  // Only admins will see this section
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -122,7 +145,7 @@ export default function SubscriptionStatusCard() {
             color={colors.secondary}
           />
           <Text style={styles.expoGoWarningText}>
-            Subscriptions don't work in Expo Go. Create a development build to test.
+            Subscriptions don&apos;t work in Expo Go. Create a development build to test.
           </Text>
         </View>
       )}
