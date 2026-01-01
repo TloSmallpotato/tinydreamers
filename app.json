@@ -1,4 +1,3 @@
-
 {
   "expo": {
     "name": "TinyDreamers",
@@ -72,5 +71,6 @@
     "extra": {
       "router": {}
     }
-  }
+  },
+  "scheme": "TinyDreamers"
 }
