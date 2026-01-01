@@ -126,11 +126,43 @@ export default function ProfileAvatar({
             onError={handleImageError}
           />
         )}
+
+        {/* Placeholder overlay - clipped to shape */}
+        {showPlaceholder && !isUploading && (
+          <>
+            <Rect
+              width={originalWidth}
+              height={originalHeight}
+              fill="rgba(0, 0, 0, 0.2)"
+              mask="url(#customMask)"
+            />
+          </>
+        )}
+
+        {/* Loading overlay - clipped to shape */}
+        {(isUploading || (imageLoading && signedUrl)) && (
+          <Rect
+            width={originalWidth}
+            height={originalHeight}
+            fill="rgba(0, 0, 0, 0.3)"
+            mask="url(#customMask)"
+          />
+        )}
+
+        {/* Error overlay - clipped to shape */}
+        {imageError && !isUploading && imageUrl && (
+          <Rect
+            width={originalWidth}
+            height={originalHeight}
+            fill="rgba(0, 0, 0, 0.3)"
+            mask="url(#customMask)"
+          />
+        )}
       </Svg>
 
-      {/* Placeholder overlay */}
+      {/* Placeholder content (positioned on top of SVG) */}
       {showPlaceholder && !isUploading && (
-        <View style={[styles.overlay, { width: scaledWidth, height: scaledHeight }]}>
+        <View style={[styles.overlay, { width: scaledWidth, height: scaledHeight }]} pointerEvents="none">
           <View style={styles.placeholder}>
             <IconSymbol 
               ios_icon_name="camera.fill" 
@@ -145,10 +177,10 @@ export default function ProfileAvatar({
         </View>
       )}
 
-      {/* Loading indicator */}
+      {/* Loading indicator (positioned on top of SVG) */}
       {(isUploading || (imageLoading && signedUrl)) && (
-        <View style={[styles.overlay, { width: scaledWidth, height: scaledHeight }]}>
-          <View style={styles.loadingOverlay}>
+        <View style={[styles.overlay, { width: scaledWidth, height: scaledHeight }]} pointerEvents="none">
+          <View style={styles.loadingContent}>
             <ActivityIndicator size="large" color={colors.backgroundAlt} />
             <Text style={[styles.loadingText, { fontSize: size * 0.08 }]}>
               {isUploading ? 'Uploading...' : 'Loading...'}
@@ -157,10 +189,10 @@ export default function ProfileAvatar({
         </View>
       )}
 
-      {/* Error indicator */}
+      {/* Error indicator (positioned on top of SVG) */}
       {imageError && !isUploading && imageUrl && (
-        <View style={[styles.overlay, { width: scaledWidth, height: scaledHeight }]}>
-          <View style={styles.errorOverlay}>
+        <View style={[styles.overlay, { width: scaledWidth, height: scaledHeight }]} pointerEvents="none">
+          <View style={styles.errorContent}>
             <IconSymbol 
               ios_icon_name="exclamationmark.triangle.fill" 
               android_material_icon_name="error" 
@@ -211,24 +243,22 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
-  loadingOverlay: {
+  loadingContent: {
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   loadingText: {
     fontWeight: '600',
     color: colors.backgroundAlt,
     marginTop: 8,
   },
-  errorOverlay: {
+  errorContent: {
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     padding: 12,
   },
   errorText: {
