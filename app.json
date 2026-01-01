@@ -23,7 +23,9 @@
         "NSPhotoLibraryUsageDescription": "This app needs access to your photos and videos to upload moments.",
         "NSPhotoLibraryAddUsageDescription": "This app needs to save photos and videos to your library."
       },
-      "entitlements": {}
+      "entitlements": {
+        "com.apple.developer.usernotifications.time-sensitive": false
+      }
     },
     "android": {
       "adaptiveIcon": {
