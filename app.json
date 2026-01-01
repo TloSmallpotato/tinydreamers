@@ -1,8 +1,7 @@
-
 {
   "expo": {
     "name": "TinyDreamers",
-    "slug": "tinydreamers-app-clean-v2",
+    "slug": "TinyDreamers",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/3e1ea99a-f17a-42c3-b801-1361ce0bce92.png",
@@ -72,5 +71,6 @@
     "extra": {
       "router": {}
     }
-  }
+  },
+  "scheme": "TinyDreamers"
 }
