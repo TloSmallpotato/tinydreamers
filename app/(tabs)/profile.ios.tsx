@@ -10,7 +10,6 @@ import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
-import SettingsBottomSheet from '@/components/SettingsBottomSheet';
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import SubscriptionStatusCard from '@/components/SubscriptionStatusCard';
@@ -60,7 +59,6 @@ export default function ProfileScreen() {
   const { userRole, roleLoading } = useAuth();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
-  const settingsRef = useRef<BottomSheetModal>(null);
 
   const [stats, setStats] = useState<ProfileStats>({
     totalWords: 0,
@@ -440,9 +438,9 @@ export default function ProfileScreen() {
 
   const handleOpenSettings = () => {
     try {
-      console.log('ProfileScreen (iOS): Settings button pressed - opening settings bottom sheet');
+      console.log('ProfileScreen (iOS): Settings button pressed - navigating to settings page');
       HapticFeedback.medium();
-      settingsRef.current?.present();
+      router.push('/(tabs)/settings');
     } catch (err) {
       console.error('ProfileScreen (iOS): Error opening settings:', err);
     }
@@ -895,8 +893,6 @@ export default function ProfileScreen() {
         ref={addChildRef}
         onAddChild={handleAddChild}
       />
-
-      <SettingsBottomSheet ref={settingsRef} />
 
       {selectedMoment && (
         <FullScreenVideoPlayer
