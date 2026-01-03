@@ -444,7 +444,7 @@ export default function ProfileScreen() {
     try {
       console.log('ProfileScreen: Settings button pressed - navigating to settings page');
       HapticFeedback.medium();
-      router.push('/(tabs)/settings');
+      router.push('/settings');
     } catch (err) {
       console.error('ProfileScreen: Error opening settings:', err);
     }

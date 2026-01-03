@@ -440,7 +440,7 @@ export default function ProfileScreen() {
     try {
       console.log('ProfileScreen (iOS): Settings button pressed - navigating to settings page');
       HapticFeedback.medium();
-      router.push('/(tabs)/settings');
+      router.push('/settings');
     } catch (err) {
       console.error('ProfileScreen (iOS): Error opening settings:', err);
     }

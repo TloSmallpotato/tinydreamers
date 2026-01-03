@@ -21,7 +21,7 @@ export default function SettingsScreen() {
   const [email, setEmail] = useState('');
 
   useEffect(() => {
-    console.log('Settings screen mounted');
+    console.log('Settings screen mounted (iOS)');
     if (selectedChild) {
       setChildName(selectedChild.name);
       setBirthDate(new Date(selectedChild.birth_date));
@@ -187,8 +187,6 @@ export default function SettingsScreen() {
                       mode="date"
                       display="spinner"
                       onChange={(event, selectedDate) => {
-                        // Note: The date wheel itself provides native iOS haptic feedback
-                        // This is built into the iOS DateTimePicker component
                         setShowDatePicker(Platform.OS === 'ios');
                         if (selectedDate) {
                           HapticFeedback.selection();
