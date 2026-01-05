@@ -1,6 +1,5 @@
-
 # TinyDreamers
 
-<!-- This is a React Native + Expo mobile app for parents to track their children's reading progress and vocabulary development -->
+This app was built using [Natively.dev](https://natively.dev) - a platform for creating mobile apps.
 
-<!-- Additional comment added as requested -->
+Made with 💙 for creativity.
