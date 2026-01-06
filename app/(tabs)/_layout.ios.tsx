@@ -12,8 +12,6 @@ import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import { useWordNavigation } from '@/contexts/WordNavigationContext';
 import { useAddNavigation } from '@/contexts/AddNavigationContext';
-import { useStats } from '@/contexts/StatsContext';
-import { useProfileStats } from '@/contexts/ProfileStatsContext';
 import SelectWordBottomSheet from '@/components/SelectWordBottomSheet';
 import VideoPreviewModal from '@/components/VideoPreviewModal';
 import ToastNotification from '@/components/ToastNotification';
@@ -110,8 +108,6 @@ function CustomTabBar() {
   const { shouldOpenCamera, resetCameraTrigger } = useCameraTrigger();
   const { setTargetWordIdToOpen } = useWordNavigation();
   const { triggerBookSearch } = useAddNavigation();
-  const { refreshStats } = useStats();
-  const { fetchProfileStats } = useProfileStats();
   const [words, setWords] = useState<any[]>([]);
   const selectWordSheetRef = useRef<BottomSheetModal>(null);
 
@@ -127,16 +123,6 @@ function CustomTabBar() {
 
   // Store original creation date for uploaded videos
   const [videoCreationDate, setVideoCreationDate] = useState<Date | null>(null);
-
-  // 🔄 Unified refresh function that updates both contexts
-  const refreshAllStats = useCallback(async () => {
-    console.log('🔄 [iOS TabLayout] Refreshing all profile stats...');
-    await Promise.all([
-      refreshStats(),      // Refresh StatsContext
-      fetchProfileStats(), // Refresh ProfileStatsContext
-    ]);
-    console.log('✅ [iOS TabLayout] All stats refreshed');
-  }, [refreshStats, fetchProfileStats]);
 
   useEffect(() => {
     if (!showCamera && !recordedVideoUri) {
@@ -667,10 +653,6 @@ function CustomTabBar() {
       
       // Clear the creation date after saving
       setVideoCreationDate(null);
-      
-      // 🔄 CRITICAL FIX: Refresh ALL stats using unified refresh function
-      console.log('📊 [iOS TabLayout] Refreshing all profile stats after moment addition');
-      await refreshAllStats();
       
       setToastVisible(false);
       

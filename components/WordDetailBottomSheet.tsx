@@ -63,16 +63,6 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
     const { setTargetWord, setIsRecordingFromWordDetail } = useVideoRecording();
     const { triggerCamera } = useCameraTrigger();
 
-    // 🔄 Unified refresh function that updates both contexts
-    const refreshAllStats = useCallback(async () => {
-      console.log('🔄 [WordDetail] Refreshing all profile stats...');
-      await Promise.all([
-        refreshStats(),      // Refresh StatsContext
-        fetchProfileStats(), // Refresh ProfileStatsContext
-      ]);
-      console.log('✅ [WordDetail] All stats refreshed');
-    }, [refreshStats, fetchProfileStats]);
-
     const updateWordStatus = useCallback(async (field: 'is_spoken' | 'is_recognised' | 'is_recorded', value: boolean) => {
       if (!word) return;
 
@@ -337,12 +327,11 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
         console.log('[WordDetail] Moment deleted successfully');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
-        // Refresh moments list
         await fetchMoments();
         
-        // 🔄 CRITICAL FIX: Refresh ALL stats using unified refresh function
-        console.log('📊 [WordDetail] Refreshing all profile stats after moment deletion');
-        await refreshAllStats();
+        // Silently refresh profile stats in the background
+        console.log('📊 Silently refreshing profile stats after moment deletion');
+        refreshStats();
         
         Alert.alert('Success', 'Video deleted successfully');
       } catch (error) {
@@ -520,9 +509,12 @@ const WordDetailBottomSheet = forwardRef<BottomSheetModal, WordDetailBottomSheet
         // Refresh the words list
         onRefresh();
 
-        // 🔄 CRITICAL FIX: Refresh ALL stats using unified refresh function
-        console.log('📊 [WordDetail] Refreshing all profile stats after word deletion');
-        await refreshAllStats();
+        // Silently refresh profile stats in the background (now awaited)
+        console.log('📊 Silently refreshing profile stats after word deletion');
+        await Promise.all([
+          refreshStats(),
+          fetchProfileStats(),
+        ]);
 
         Alert.alert('Success', 'Word and all associated videos deleted successfully');
       } catch (error) {
