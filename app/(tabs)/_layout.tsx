@@ -11,6 +11,8 @@ import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import { useWordNavigation } from '@/contexts/WordNavigationContext';
 import { useAddNavigation } from '@/contexts/AddNavigationContext';
+import { useStats } from '@/contexts/StatsContext';
+import { useProfileStats } from '@/contexts/ProfileStatsContext';
 import SelectWordBottomSheet from '@/components/SelectWordBottomSheet';
 import VideoPreviewModal from '@/components/VideoPreviewModal';
 import ToastNotification from '@/components/ToastNotification';
@@ -117,6 +119,8 @@ function CustomTabBar() {
   const { shouldOpenCamera, resetCameraTrigger } = useCameraTrigger();
   const { setTargetWordIdToOpen } = useWordNavigation();
   const { triggerBookSearch } = useAddNavigation();
+  const { refreshStats } = useStats();
+  const { fetchProfileStats } = useProfileStats();
   const [words, setWords] = useState<any[]>([]);
   const selectWordSheetRef = useRef<BottomSheetModal>(null);
 
@@ -130,6 +134,16 @@ function CustomTabBar() {
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
   const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
+
+  // 🔄 Unified refresh function that updates both contexts
+  const refreshAllStats = useCallback(async () => {
+    console.log('🔄 [TabLayout] Refreshing all profile stats...');
+    await Promise.all([
+      refreshStats(),      // Refresh StatsContext
+      fetchProfileStats(), // Refresh ProfileStatsContext
+    ]);
+    console.log('✅ [TabLayout] All stats refreshed');
+  }, [refreshStats, fetchProfileStats]);
 
   useEffect(() => {
     if (!showCamera && !recordedVideoUri) {
@@ -532,6 +546,10 @@ function CustomTabBar() {
 
       console.log('[TabLayout] ✅ Saved to database successfully');
       console.log('[TabLayout] === Video save process complete ===');
+      
+      // 🔄 CRITICAL FIX: Refresh ALL stats using unified refresh function
+      console.log('📊 [TabLayout] Refreshing all profile stats after moment addition');
+      await refreshAllStats();
       
       setToastVisible(false);
       
