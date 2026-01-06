@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
@@ -8,6 +8,9 @@ import { colors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useProfileStats } from '@/contexts/ProfileStatsContext';
+import { useAuth } from '@/contexts/AuthContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
 import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
@@ -16,10 +19,8 @@ import SubscriptionStatusCard from '@/components/SubscriptionStatusCard';
 import UpgradePromptModal from '@/components/UpgradePromptModal';
 import { supabase } from '@/app/integrations/supabase/client';
 import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
-import { processMomentsWithSignedUrls } from '@/utils/videoStorage';
-import { useSubscription } from '@/contexts/SubscriptionContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { HapticFeedback } from '@/utils/haptics';
+import { processMomentsWithSignedUrls, getSignedVideoUrl } from '@/utils/videoStorage';
 
 interface ProfileStats {
   totalWords: number;
@@ -56,6 +57,7 @@ export default function ProfileScreen() {
   const { children, selectedChild, selectChild, addChild, updateChild, refreshChildren, loading: childLoading } = useChild();
   const { triggerCamera } = useCameraTrigger();
   const { canAddChild, refreshUsage } = useSubscription();
+  const { fetchProfileStats } = useProfileStats();
   const { userRole, roleLoading } = useAuth();
   const childSelectorRef = useRef<BottomSheetModal>(null);
   const addChildRef = useRef<BottomSheetModal>(null);
@@ -75,17 +77,14 @@ export default function ProfileScreen() {
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const [selectedMoment, setSelectedMoment] = useState<Moment | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [thumbnailErrors, setThumbnailErrors] = useState<Set<string>>(new Set());
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
 
   // Check if user is admin
   const isAdmin = userRole === 'admin';
-
-  // Log role status for debugging
-  useEffect(() => {
-    console.log('ProfileScreen (iOS): Role status - roleLoading:', roleLoading, 'userRole:', userRole, 'isAdmin:', isAdmin);
-  }, [roleLoading, userRole, isAdmin]);
 
   // Update local avatar URL when selectedChild changes
   useEffect(() => {
@@ -97,7 +96,7 @@ export default function ProfileScreen() {
     }
   }, [selectedChild?.avatar_url]);
 
-  // Fetch profile data function with improved logic
+  // Fetch profile data function with improved logic - NOW FETCHES TOTAL COUNTS DIRECTLY
   const fetchProfileData = useCallback(async (forceRefresh: boolean = false) => {
     if (!selectedChild) {
       console.log('ProfileScreen (iOS): No selected child, skipping fetch');
@@ -122,16 +121,23 @@ export default function ProfileScreen() {
       const startOfWeekISO = startOfWeek.toISOString();
       console.log('ProfileScreen (iOS): Start of week (Monday):', startOfWeekISO);
 
+      // ✅ FIX: Fetch total counts directly from database instead of using profileStats context
       const [
         totalWordsResult,
-        wordsThisWeekResult,
         totalBooksResult,
+        wordsThisWeekResult,
         booksThisWeekResult,
         momentsThisWeekResult,
         momentsDataResult,
       ] = await Promise.allSettled([
+        // NEW: Get total words count
         supabase
           .from('user_words')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id),
+        // NEW: Get total books count
+        supabase
+          .from('user_books')
           .select('*', { count: 'exact', head: true })
           .eq('child_id', selectedChild.id),
         supabase
@@ -139,10 +145,6 @@ export default function ProfileScreen() {
           .select('*', { count: 'exact', head: true })
           .eq('child_id', selectedChild.id)
           .gte('created_at', startOfWeekISO),
-        supabase
-          .from('user_books')
-          .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id),
         supabase
           .from('user_books')
           .select('*', { count: 'exact', head: true })
@@ -161,16 +163,17 @@ export default function ProfileScreen() {
           .limit(5),
       ]);
 
+      // Extract total counts from direct database queries
       const totalWordsCount = totalWordsResult.status === 'fulfilled' && !totalWordsResult.value.error
         ? totalWordsResult.value.count || 0
         : 0;
 
-      const wordsThisWeekCount = wordsThisWeekResult.status === 'fulfilled' && !wordsThisWeekResult.value.error
-        ? wordsThisWeekResult.value.count || 0
-        : 0;
-
       const totalBooksCount = totalBooksResult.status === 'fulfilled' && !totalBooksResult.value.error
         ? totalBooksResult.value.count || 0
+        : 0;
+
+      const wordsThisWeekCount = wordsThisWeekResult.status === 'fulfilled' && !wordsThisWeekResult.value.error
+        ? wordsThisWeekResult.value.count || 0
         : 0;
 
       const booksThisWeekCount = booksThisWeekResult.status === 'fulfilled' && !booksThisWeekResult.value.error
@@ -188,11 +191,11 @@ export default function ProfileScreen() {
       if (totalWordsResult.status === 'rejected') {
         console.error('ProfileScreen (iOS): Error fetching total words:', totalWordsResult.reason);
       }
-      if (wordsThisWeekResult.status === 'rejected') {
-        console.error('ProfileScreen (iOS): Error fetching words this week:', wordsThisWeekResult.reason);
-      }
       if (totalBooksResult.status === 'rejected') {
         console.error('ProfileScreen (iOS): Error fetching total books:', totalBooksResult.reason);
+      }
+      if (wordsThisWeekResult.status === 'rejected') {
+        console.error('ProfileScreen (iOS): Error fetching words this week:', wordsThisWeekResult.reason);
       }
       if (booksThisWeekResult.status === 'rejected') {
         console.error('ProfileScreen (iOS): Error fetching books this week:', booksThisWeekResult.reason);
@@ -207,6 +210,7 @@ export default function ProfileScreen() {
       console.log('ProfileScreen (iOS): Profile data fetched successfully');
       console.log('ProfileScreen (iOS): Stats - Total Words:', totalWordsCount, 'Words This Week:', wordsThisWeekCount, 'Total Books:', totalBooksCount, 'Books This Week:', booksThisWeekCount, 'Moments:', momentsThisWeekCount);
 
+      // ✅ FIX: Use freshly fetched total counts instead of stale profileStats
       setStats({
         totalWords: totalWordsCount,
         totalBooks: totalBooksCount,
@@ -218,11 +222,15 @@ export default function ProfileScreen() {
 
       // Generate signed URLs for moments
       if (momentsData && momentsData.length > 0) {
-        console.log('ProfileScreen (iOS): Generating signed URLs for moments...');
+        console.log('ProfileScreen (iOS): Generating signed URLs for', momentsData.length, 'moments...');
         const momentsWithSignedUrls = await processMomentsWithSignedUrls(momentsData);
         setMoments(momentsWithSignedUrls);
-        console.log('ProfileScreen (iOS): ✓ Signed URLs generated');
+        console.log('ProfileScreen (iOS): ✓ Signed URLs generated for all moments');
+        
+        // Reset thumbnail errors when fetching new data
+        setThumbnailErrors(new Set());
       } else {
+        console.log('ProfileScreen (iOS): No moments to display');
         setMoments([]);
       }
     } catch (err) {
@@ -251,6 +259,19 @@ export default function ProfileScreen() {
       setMoments([]);
     }
   }, [selectedChild, childLoading, fetchProfileData]);
+
+  // Pull to refresh handler
+  const onRefresh = useCallback(async () => {
+    HapticFeedback.light();
+    setRefreshing(true);
+    await Promise.all([
+      fetchProfileData(true),
+      fetchProfileStats(),
+      refreshUsage(),
+    ]);
+    setRefreshing(false);
+    HapticFeedback.success();
+  }, [fetchProfileData, fetchProfileStats, refreshUsage]);
 
   // Debounced fetch function to prevent excessive API calls
   const debouncedFetchProfileData = useCallback(() => {
@@ -288,7 +309,11 @@ export default function ProfileScreen() {
         },
         (payload) => {
           console.log('ProfileScreen (iOS): user_words change detected:', payload.eventType, payload);
+          // ✅ FIX: Call debouncedFetchProfileData to refetch Profile's own data
           debouncedFetchProfileData();
+          // Also update context for other screens
+          fetchProfileStats();
+          refreshUsage();
         }
       )
       .subscribe((status, err) => {
@@ -311,7 +336,11 @@ export default function ProfileScreen() {
         },
         (payload) => {
           console.log('ProfileScreen (iOS): user_books change detected:', payload.eventType, payload);
+          // ✅ FIX: Call debouncedFetchProfileData to refetch Profile's own data
           debouncedFetchProfileData();
+          // Also update context for other screens
+          fetchProfileStats();
+          refreshUsage();
         }
       )
       .subscribe((status, err) => {
@@ -334,6 +363,7 @@ export default function ProfileScreen() {
         },
         (payload) => {
           console.log('ProfileScreen (iOS): moments change detected:', payload.eventType, payload);
+          // ✅ FIX: Call debouncedFetchProfileData to refetch Profile's own data
           debouncedFetchProfileData();
         }
       )
@@ -359,7 +389,7 @@ export default function ProfileScreen() {
       supabase.removeChannel(booksChannel);
       supabase.removeChannel(momentsChannel);
     };
-  }, [selectedChild, debouncedFetchProfileData]);
+  }, [selectedChild, debouncedFetchProfileData, fetchProfileStats, refreshUsage]);
 
   const calculateAge = (birthDate: string) => {
     try {
@@ -369,6 +399,12 @@ export default function ProfileScreen() {
       let years = today.getFullYear() - birth.getFullYear();
       let months = today.getMonth() - birth.getMonth();
       
+      // If the current day is before the birth day in the month, subtract one month
+      if (today.getDate() < birth.getDate()) {
+        months--;
+      }
+      
+      // If months is negative, adjust years and months
       if (months < 0) {
         years--;
         months += 12;
@@ -384,6 +420,7 @@ export default function ProfileScreen() {
   const handleOpenChildSelector = () => {
     try {
       console.log('ProfileScreen (iOS): Opening child selector bottom sheet');
+      HapticFeedback.medium();
       childSelectorRef.current?.present();
     } catch (err) {
       console.error('ProfileScreen (iOS): Error opening child selector:', err);
@@ -393,6 +430,7 @@ export default function ProfileScreen() {
   const handleSelectChild = (childId: string) => {
     try {
       console.log('ProfileScreen (iOS): Selecting child:', childId);
+      HapticFeedback.selection();
       selectChild(childId);
       childSelectorRef.current?.dismiss();
     } catch (err) {
@@ -486,10 +524,27 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleMomentPress = (moment: Moment) => {
+  const handleMomentPress = async (moment: Moment) => {
     console.log('ProfileScreen (iOS): Moment pressed:', moment.id);
     console.log('ProfileScreen (iOS): Trim metadata:', { trim_start: moment.trim_start, trim_end: moment.trim_end });
     HapticFeedback.medium();
+    
+    // Use signed URL if available, fallback to original URL
+    let videoUrl = moment.signedVideoUrl || moment.video_url;
+    
+    // If we don't have a signed URL, try to generate one now
+    if (!moment.signedVideoUrl) {
+      console.log('ProfileScreen (iOS): No signed URL available, generating fresh one...');
+      const freshSignedUrl = await getSignedVideoUrl(moment.video_url);
+      if (freshSignedUrl) {
+        console.log('ProfileScreen (iOS): ✓ Fresh signed URL generated');
+        videoUrl = freshSignedUrl;
+      } else {
+        console.error('ProfileScreen (iOS): ✗ Failed to generate fresh signed URL');
+        Alert.alert('Error', 'Unable to play video. Please try refreshing the page.');
+        return;
+      }
+    }
     
     // Store the full moment object with trim metadata
     setSelectedMoment(moment);
@@ -500,6 +555,11 @@ export default function ProfileScreen() {
     console.log('ProfileScreen (iOS): Closing video player');
     setShowVideoPlayer(false);
     setSelectedMoment(null);
+  };
+
+  const handleThumbnailError = (momentId: string) => {
+    console.error('ProfileScreen (iOS): Thumbnail failed to load for moment:', momentId);
+    setThumbnailErrors(prev => new Set(prev).add(momentId));
   };
 
   const handleChangeAvatar = async () => {
@@ -533,8 +593,8 @@ export default function ProfileScreen() {
       setLocalAvatarUrl(imageUri);
       setUploadingAvatar(true);
 
-      // Step 3: Get old avatar URL before uploading new one
-      const oldAvatarUrl = selectedChild.avatar_url;
+      // Step 3: Get old avatar path before uploading new one
+      const oldAvatarPath = selectedChild.avatar_url;
 
       // Step 4: Upload to Supabase Storage
       const uploadResult = await uploadProfileAvatar(selectedChild.id, imageUri);
@@ -543,15 +603,15 @@ export default function ProfileScreen() {
         console.error('ProfileScreen (iOS): Upload failed:', uploadResult.error);
         Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image');
         HapticFeedback.error();
-        // Revert to old avatar URL on failure
-        setLocalAvatarUrl(oldAvatarUrl || null);
+        // Revert to old avatar path on failure
+        setLocalAvatarUrl(oldAvatarPath || null);
         setUploadingAvatar(false);
         return;
       }
 
-      console.log('ProfileScreen (iOS): Upload successful, URL:', uploadResult.url);
+      console.log('ProfileScreen (iOS): Upload successful, storage path:', uploadResult.url);
 
-      // Step 5: Update database with new avatar URL
+      // Step 5: Update database with new avatar storage path
       const { error: updateError } = await supabase
         .from('children')
         .update({ 
@@ -564,22 +624,22 @@ export default function ProfileScreen() {
         console.error('ProfileScreen (iOS): Database update failed:', updateError);
         Alert.alert('Update Failed', 'Failed to save profile photo');
         HapticFeedback.error();
-        // Revert to old avatar URL on failure
-        setLocalAvatarUrl(oldAvatarUrl || null);
+        // Revert to old avatar path on failure
+        setLocalAvatarUrl(oldAvatarPath || null);
         setUploadingAvatar(false);
         return;
       }
 
       console.log('ProfileScreen (iOS): Database updated successfully');
 
-      // Step 6: Update local state with server URL immediately
+      // Step 6: Update local state with storage path immediately
       setLocalAvatarUrl(uploadResult.url);
 
       // Step 7: Delete old avatar if it exists and is different
-      if (oldAvatarUrl && oldAvatarUrl !== uploadResult.url) {
-        console.log('ProfileScreen (iOS): Deleting old avatar:', oldAvatarUrl);
+      if (oldAvatarPath && oldAvatarPath !== uploadResult.url) {
+        console.log('ProfileScreen (iOS): Deleting old avatar:', oldAvatarPath);
         // Don't await this - let it happen in background
-        deleteProfileAvatar(oldAvatarUrl).catch(err => {
+        deleteProfileAvatar(oldAvatarPath).catch(err => {
           console.error('ProfileScreen (iOS): Error deleting old avatar:', err);
         });
       }
@@ -602,7 +662,7 @@ export default function ProfileScreen() {
     } catch (err) {
       console.error('ProfileScreen (iOS): Error changing avatar:', err);
       setUploadingAvatar(false);
-      // Revert to context avatar URL on error
+      // Revert to context avatar path on error
       setLocalAvatarUrl(selectedChild?.avatar_url || null);
       HapticFeedback.error();
       Alert.alert('Error', 'Failed to update profile photo. Please try again.');
@@ -635,7 +695,13 @@ export default function ProfileScreen() {
             />
             <Text style={styles.errorText}>Failed to load profile</Text>
             <Text style={styles.errorSubtext}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => fetchProfileData(true)}>
+            <TouchableOpacity 
+              style={styles.retryButton} 
+              onPress={() => {
+                HapticFeedback.medium();
+                fetchProfileData(true);
+              }}
+            >
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -651,6 +717,14 @@ export default function ProfileScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
         >
           <View style={styles.header}>
             <View style={styles.headerSpacer} />
@@ -791,6 +865,7 @@ export default function ProfileScreen() {
                   {moments.map((moment, index) => {
                     // Use signed thumbnail URL if available, fallback to original URL
                     const thumbnailUrl = moment.signedThumbnailUrl || moment.thumbnail_url;
+                    const hasThumbnailError = thumbnailErrors.has(moment.id);
                     
                     return (
                       <TouchableOpacity
@@ -799,10 +874,11 @@ export default function ProfileScreen() {
                         onPress={() => handleMomentPress(moment)}
                         activeOpacity={0.8}
                       >
-                        {thumbnailUrl ? (
+                        {thumbnailUrl && !hasThumbnailError ? (
                           <Image 
                             source={{ uri: thumbnailUrl }}
                             style={styles.momentImage}
+                            onError={() => handleThumbnailError(moment.id)}
                           />
                         ) : (
                           <View style={styles.momentPlaceholder}>
@@ -812,6 +888,9 @@ export default function ProfileScreen() {
                               size={48} 
                               color={colors.backgroundAlt} 
                             />
+                            {hasThumbnailError && (
+                              <Text style={styles.thumbnailErrorText}>Thumbnail unavailable</Text>
+                            )}
                           </View>
                         )}
                         <View style={styles.playIconOverlay}>
@@ -873,7 +952,10 @@ export default function ProfileScreen() {
                   <Text style={styles.analyticsPercent}>51%</Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.findOutButton} onPress={handleFindOutMore}>
+              <TouchableOpacity 
+                style={styles.findOutButton}
+                onPress={handleFindOutMore}
+              >
                 <Text style={styles.findOutButtonText}>Find out more</Text>
               </TouchableOpacity>
             </View>
@@ -1142,6 +1224,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.cardPurple,
+  },
+  thumbnailErrorText: {
+    fontSize: 10,
+    color: colors.backgroundAlt,
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 8,
   },
   playIconOverlay: {
     position: 'absolute',
