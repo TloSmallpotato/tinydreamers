@@ -4,83 +4,81 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { useChild } from './ChildContext';
 
 interface ProfileStatsContextType {
-  profileStats: {
-    words: number;
+  stats: {
     books: number;
+    words: number;
   };
   fetchProfileStats: () => Promise<void>;
 }
 
-const ProfileStatsContext = createContext<ProfileStatsContextType | undefined>(undefined);
+const ProfileStatsContext = createContext<ProfileStatsContextType | null>(null);
 
-export function ProfileStatsProvider({ children }: { children: React.ReactNode }) {
+const getStartOfWeek = (): Date => {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
+export const ProfileStatsProvider = ({ children }: { children: React.ReactNode }) => {
   const { selectedChild } = useChild();
-  const [profileStats, setProfileStats] = useState({
-    words: 0,
-    books: 0,
-  });
+  const [stats, setStats] = useState({ books: 0, words: 0 });
 
-  // Always fetch fresh data from database - NO CACHING
   const fetchProfileStats = useCallback(async () => {
-    if (!selectedChild?.id) {
-      console.log('⚠️ No selected child - resetting stats to 0');
-      setProfileStats({ words: 0, books: 0 });
+    if (!selectedChild) {
+      console.log('ProfileStatsContext: No child selected, resetting stats');
+      setStats({ books: 0, words: 0 });
       return;
     }
-    
-    console.log('🔄 Fetching fresh profile stats from database for child:', selectedChild.id);
-    
-    try {
-      // Fetch words count - using count query for performance
-      const { count: wordsCount, error: wordsError } = await supabase
-        .from('user_words')
-        .select('*', { count: 'exact', head: true })
-        .eq('child_id', selectedChild.id);
-      
-      // Fetch books count - using count query for performance
-      const { count: booksCount, error: booksError } = await supabase
-        .from('user_books')
-        .select('*', { count: 'exact', head: true })
-        .eq('child_id', selectedChild.id);
-      
-      if (wordsError) {
-        console.error('❌ Error fetching words count:', wordsError);
-        throw wordsError;
-      }
-      if (booksError) {
-        console.error('❌ Error fetching books count:', booksError);
-        throw booksError;
-      }
-      
-      const newStats = {
-        words: wordsCount || 0,
-        books: booksCount || 0,
-      };
-      
-      console.log('✅ Profile stats updated:', newStats);
-      setProfileStats(newStats);
-    } catch (error) {
-      console.error('❌ Error in fetchProfileStats:', error);
-    }
-  }, [selectedChild?.id]);
 
-  // Fetch stats when selected child changes
+    try {
+      console.log('ProfileStatsContext: Fetching stats for child:', selectedChild.id);
+
+      const [booksResult, wordsResult] = await Promise.allSettled([
+        supabase
+          .from('user_books')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id),
+        supabase
+          .from('user_words')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id),
+      ]);
+
+      const bookCount = booksResult.status === 'fulfilled' && !booksResult.value.error
+        ? booksResult.value.count || 0
+        : 0;
+
+      const wordCount = wordsResult.status === 'fulfilled' && !wordsResult.value.error
+        ? wordsResult.value.count || 0
+        : 0;
+
+      console.log('ProfileStatsContext: Stats fetched - Books:', bookCount, 'Words:', wordCount);
+      setStats({ books: bookCount, words: wordCount });
+    } catch (error) {
+      console.error('ProfileStatsContext: Error fetching stats:', error);
+    }
+  }, [selectedChild]);
+
+  // Fetch initial stats when selected child changes
   useEffect(() => {
-    console.log('📊 Selected child changed - fetching profile stats');
     fetchProfileStats();
-  }, [selectedChild?.id, fetchProfileStats]);
+  }, [fetchProfileStats]);
 
   return (
-    <ProfileStatsContext.Provider value={{ profileStats, fetchProfileStats }}>
+    <ProfileStatsContext.Provider value={{ stats, fetchProfileStats }}>
       {children}
     </ProfileStatsContext.Provider>
   );
-}
+};
 
-export function useProfileStats() {
+export const useProfileStats = () => {
   const context = useContext(ProfileStatsContext);
-  if (context === undefined) {
+  if (context === null) {
     throw new Error('useProfileStats must be used within a ProfileStatsProvider');
   }
   return context;
-}
+};

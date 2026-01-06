@@ -2,25 +2,25 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Image, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { colors } from '@/styles/commonStyles';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
+import { IconSymbol } from '@/components/IconSymbol';
 import { useChild } from '@/contexts/ChildContext';
-import { useProfileStats } from '@/contexts/ProfileStatsContext';
 import { useCameraTrigger } from '@/contexts/CameraTriggerContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
-import { supabase } from '@/app/integrations/supabase/client';
-import { HapticFeedback } from '@/utils/haptics';
-import { processMomentsWithSignedUrls, getSignedVideoUrl } from '@/utils/videoStorage';
-import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
-import { IconSymbol } from '@/components/IconSymbol';
-import ProfileAvatar from '@/components/ProfileAvatar';
+import { useProfileStats } from '@/contexts/ProfileStatsContext';
+import { useAuth } from '@/contexts/AuthContext';
 import ChildSelectorBottomSheet from '@/components/ChildSelectorBottomSheet';
 import AddChildBottomSheet from '@/components/AddChildBottomSheet';
+import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
+import ProfileAvatar from '@/components/ProfileAvatar';
 import SubscriptionStatusCard from '@/components/SubscriptionStatusCard';
 import UpgradePromptModal from '@/components/UpgradePromptModal';
-import FullScreenVideoPlayer from '@/components/FullScreenVideoPlayer';
+import { supabase } from '@/app/integrations/supabase/client';
+import { pickProfileImage, uploadProfileAvatar, deleteProfileAvatar } from '@/utils/profileAvatarUpload';
+import { HapticFeedback } from '@/utils/haptics';
+import { processMomentsWithSignedUrls, getSignedVideoUrl } from '@/utils/videoStorage';
 
 interface ProfileStats {
   totalWords: number;
@@ -42,27 +42,29 @@ interface Moment {
   signedThumbnailUrl?: string | null;
 }
 
-const getStartOfWeek = () => {
+const getStartOfWeek = (): Date => {
   const now = new Date();
   const dayOfWeek = now.getDay();
-  const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const monday = new Date(now);
-  monday.setDate(now.getDate() - diff);
+  monday.setDate(now.getDate() + diff);
   monday.setHours(0, 0, 0, 0);
-  return monday.toISOString();
+  return monday;
 };
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user } = useAuth();
-  const { selectedChild, children: childrenList, loading: childLoading, selectChild, addChild } = useChild();
-  const { profileStats, fetchProfileStats } = useProfileStats();
-  const { refreshUsage } = useSubscription();
+  const { children, selectedChild, selectChild, addChild, updateChild, refreshChildren, loading: childLoading } = useChild();
   const { triggerCamera } = useCameraTrigger();
-  
+  const { canAddChild, refreshUsage } = useSubscription();
+  const { stats: profileStats, fetchProfileStats } = useProfileStats();
+  const { userRole, roleLoading } = useAuth();
+  const childSelectorRef = useRef<BottomSheetModal>(null);
+  const addChildRef = useRef<BottomSheetModal>(null);
+
   const [stats, setStats] = useState<ProfileStats>({
-    totalWords: 0,
-    totalBooks: 0,
+    totalWords: profileStats.words,
+    totalBooks: profileStats.books,
     wordsThisWeek: 0,
     booksThisWeek: 0,
     momentsThisWeek: 0,
@@ -70,142 +72,168 @@ export default function ProfileScreen() {
   });
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
   const [selectedMoment, setSelectedMoment] = useState<Moment | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [thumbnailErrors, setThumbnailErrors] = useState<Set<string>>(new Set());
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const lastFetchTimeRef = useRef<number>(0);
 
-  const childSelectorRef = useRef<BottomSheetModal>(null);
-  const addChildRef = useRef<BottomSheetModal>(null);
+  // Check if user is admin
+  const isAdmin = userRole === 'admin';
 
-  // Update avatar when selected child changes
+  // Update local avatar URL when selectedChild changes
   useEffect(() => {
     if (selectedChild?.avatar_url) {
-      setAvatarUrl(selectedChild.avatar_url);
+      console.log('ProfileScreen: Updating local avatar URL from context:', selectedChild.avatar_url);
+      setLocalAvatarUrl(selectedChild.avatar_url);
     } else {
-      setAvatarUrl(null);
+      setLocalAvatarUrl(null);
     }
   }, [selectedChild?.avatar_url]);
 
-  // Fetch profile data from database
-  const fetchProfileData = useCallback(async (forceRefresh = false) => {
+  // Fetch profile data function with improved logic
+  const fetchProfileData = useCallback(async (forceRefresh: boolean = false) => {
     if (!selectedChild) {
+      console.log('ProfileScreen: No selected child, skipping fetch');
+      return;
+    }
+
+    // Prevent excessive fetches (minimum 200ms between fetches unless forced)
+    const now = Date.now();
+    if (!forceRefresh && now - lastFetchTimeRef.current < 200) {
+      console.log('ProfileScreen: Skipping fetch - too soon since last fetch');
+      return;
+    }
+
+    lastFetchTimeRef.current = now;
+
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('ProfileScreen: Fetching profile data for child:', selectedChild.id);
+
+      const startOfWeek = getStartOfWeek();
+      const startOfWeekISO = startOfWeek.toISOString();
+      console.log('ProfileScreen: Start of week (Monday):', startOfWeekISO);
+
+      const [
+        wordsThisWeekResult,
+        booksThisWeekResult,
+        momentsThisWeekResult,
+        momentsDataResult,
+      ] = await Promise.allSettled([
+        supabase
+          .from('user_words')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id)
+          .gte('created_at', startOfWeekISO),
+        supabase
+          .from('user_books')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id)
+          .gte('created_at', startOfWeekISO),
+        supabase
+          .from('moments')
+          .select('*', { count: 'exact', head: true })
+          .eq('child_id', selectedChild.id)
+          .gte('created_at', startOfWeekISO),
+        supabase
+          .from('moments')
+          .select('id, video_url, thumbnail_url, created_at, trim_start, trim_end')
+          .eq('child_id', selectedChild.id)
+          .order('created_at', { ascending: false })
+          .limit(5),
+      ]);
+
+      const wordsThisWeekCount = wordsThisWeekResult.status === 'fulfilled' && !wordsThisWeekResult.value.error
+        ? wordsThisWeekResult.value.count || 0
+        : 0;
+
+      const booksThisWeekCount = booksThisWeekResult.status === 'fulfilled' && !booksThisWeekResult.value.error
+        ? booksThisWeekResult.value.count || 0
+        : 0;
+
+      const momentsThisWeekCount = momentsThisWeekResult.status === 'fulfilled' && !momentsThisWeekResult.value.error
+        ? momentsThisWeekResult.value.count || 0
+        : 0;
+
+      const momentsData = momentsDataResult.status === 'fulfilled' && !momentsDataResult.value.error
+        ? momentsDataResult.value.data || []
+        : [];
+
+      if (wordsThisWeekResult.status === 'rejected') {
+        console.error('ProfileScreen: Error fetching words this week:', wordsThisWeekResult.reason);
+      }
+      if (booksThisWeekResult.status === 'rejected') {
+        console.error('ProfileScreen: Error fetching books this week:', booksThisWeekResult.reason);
+      }
+      if (momentsThisWeekResult.status === 'rejected') {
+        console.error('ProfileScreen: Error fetching moments this week:', momentsThisWeekResult.reason);
+      }
+      if (momentsDataResult.status === 'rejected') {
+        console.error('ProfileScreen: Error fetching moments:', momentsDataResult.reason);
+      }
+
+      console.log('ProfileScreen: Profile data fetched successfully');
+      console.log('ProfileScreen: Stats - Total Words:', profileStats.words, 'Words This Week:', wordsThisWeekCount, 'Total Books:', profileStats.books, 'Books This Week:', booksThisWeekCount, 'Moments:', momentsThisWeekCount);
+
       setStats({
-        totalWords: 0,
-        totalBooks: 0,
+        totalWords: profileStats.words,
+        totalBooks: profileStats.books,
+        wordsThisWeek: wordsThisWeekCount,
+        booksThisWeek: booksThisWeekCount,
+        momentsThisWeek: momentsThisWeekCount,
+        newWordsThisWeek: wordsThisWeekCount,
+      });
+
+      // Generate signed URLs for moments
+      if (momentsData && momentsData.length > 0) {
+        console.log('ProfileScreen: Generating signed URLs for', momentsData.length, 'moments...');
+        const momentsWithSignedUrls = await processMomentsWithSignedUrls(momentsData);
+        setMoments(momentsWithSignedUrls);
+        console.log('ProfileScreen: ✓ Signed URLs generated for all moments');
+        
+        // Reset thumbnail errors when fetching new data
+        setThumbnailErrors(new Set());
+      } else {
+        console.log('ProfileScreen: No moments to display');
+        setMoments([]);
+      }
+    } catch (err) {
+      console.error('ProfileScreen: Unexpected error fetching profile data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load profile data');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedChild]);
+
+  // Initial data fetch when selectedChild changes
+  useEffect(() => {
+    if (selectedChild) {
+      console.log('ProfileScreen: Selected child changed, fetching data...');
+      fetchProfileData(true);
+    } else if (!childLoading && !selectedChild) {
+      setLoading(false);
+      setStats({
+        totalWords: profileStats.words,
+        totalBooks: profileStats.books,
         wordsThisWeek: 0,
         booksThisWeek: 0,
         momentsThisWeek: 0,
         newWordsThisWeek: 0,
       });
       setMoments([]);
-      setLoading(false);
-      return;
     }
-
-    try {
-      if (forceRefresh) {
-        console.log('🔄 Force refreshing profile data');
-      }
-      setLoading(true);
-
-      const startOfWeek = getStartOfWeek();
-
-      // Fetch total counts directly from database (not from context)
-      const [
-        { count: totalWordsCount },
-        { count: totalBooksCount },
-        { count: wordsThisWeekCount },
-        { count: booksThisWeekCount },
-        { count: momentsThisWeekCount },
-        { data: momentsData }
-      ] = await Promise.all([
-        supabase
-          .from('user_words')
-          .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id),
-        supabase
-          .from('user_books')
-          .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id),
-        supabase
-          .from('user_words')
-          .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id)
-          .gte('created_at', startOfWeek),
-        supabase
-          .from('user_books')
-          .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id)
-          .gte('created_at', startOfWeek),
-        supabase
-          .from('moments')
-          .select('*', { count: 'exact', head: true })
-          .eq('child_id', selectedChild.id)
-          .gte('created_at', startOfWeek),
-        supabase
-          .from('moments')
-          .select('*')
-          .eq('child_id', selectedChild.id)
-          .order('created_at', { ascending: false })
-          .limit(6)
-      ]);
-
-      // Update stats with fresh data from database
-      setStats({
-        totalWords: totalWordsCount || 0,
-        totalBooks: totalBooksCount || 0,
-        wordsThisWeek: wordsThisWeekCount || 0,
-        booksThisWeek: booksThisWeekCount || 0,
-        momentsThisWeek: momentsThisWeekCount || 0,
-        newWordsThisWeek: wordsThisWeekCount || 0,
-      });
-
-      // Process moments with signed URLs
-      if (momentsData) {
-        const processedMoments = await processMomentsWithSignedUrls(momentsData);
-        setMoments(processedMoments);
-      }
-
-      console.log('✅ Profile data refreshed:', {
-        totalWords: totalWordsCount,
-        totalBooks: totalBooksCount,
-        wordsThisWeek: wordsThisWeekCount,
-        booksThisWeek: booksThisWeekCount,
-        momentsThisWeek: momentsThisWeekCount,
-      });
-    } catch (error) {
-      console.error('❌ Error fetching profile data:', error);
-      Alert.alert('Error', 'Failed to load profile data');
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedChild]);
-
-  // Initial load - fetch data when component mounts or child changes
-  useEffect(() => {
-    console.log('📊 Initial load - fetching profile data for child:', selectedChild?.id);
-    fetchProfileData();
-  }, [selectedChild, childLoading, fetchProfileData]);
-
-  // 🔥 NEW: Refetch data whenever the Profile tab comes into focus
-  // This replaces the unreliable Supabase subscriptions
-  useFocusEffect(
-    useCallback(() => {
-      console.log('📊 Profile tab focused - refreshing data');
-      if (selectedChild) {
-        fetchProfileData(true); // Force refresh
-        fetchProfileStats(); // Also refresh the context stats
-        refreshUsage(); // Refresh subscription usage
-      }
-    }, [selectedChild, fetchProfileData, fetchProfileStats, refreshUsage])
-  );
+  }, [selectedChild, childLoading, fetchProfileData, profileStats]);
 
   // Pull to refresh handler
   const onRefresh = useCallback(async () => {
-    console.log('🔄 Pull to refresh triggered');
-    HapticFeedback.impact('light');
+    HapticFeedback.light();
     setRefreshing(true);
     await Promise.all([
       fetchProfileData(true),
@@ -216,151 +244,432 @@ export default function ProfileScreen() {
     HapticFeedback.success();
   }, [fetchProfileData, fetchProfileStats, refreshUsage]);
 
-  const calculateAge = (birthDate: string) => {
-    const birth = new Date(birthDate);
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--;
+  // Debounced fetch function to prevent excessive API calls
+  const debouncedFetchProfileData = useCallback(() => {
+    // Clear any existing timeout
+    if (fetchDebounceRef.current) {
+      clearTimeout(fetchDebounceRef.current);
     }
-    return age;
+
+    // Set a new timeout with shorter delay for better responsiveness
+    fetchDebounceRef.current = setTimeout(() => {
+      console.log('ProfileScreen: Debounced fetch triggered');
+      fetchProfileData(false);
+    }, 300);
+  }, [fetchProfileData]);
+
+  // Set up real-time subscriptions for stats updates
+  useEffect(() => {
+    if (!selectedChild) {
+      console.log('ProfileScreen: No selected child, skipping subscriptions');
+      return;
+    }
+
+    console.log('ProfileScreen: Setting up real-time subscriptions for child:', selectedChild.id);
+
+    // Subscribe to user_words changes
+    const wordsChannel = supabase
+      .channel(`profile_words_${selectedChild.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_words',
+          filter: `child_id=eq.${selectedChild.id}`,
+        },
+        (payload) => {
+          console.log('ProfileScreen: user_words change detected:', payload.eventType, payload);
+          debouncedFetchProfileData();
+          fetchProfileStats();
+          refreshUsage();
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('ProfileScreen: user_words subscription status:', status);
+        if (err) {
+          console.error('ProfileScreen: user_words subscription error:', err);
+        }
+      });
+
+    // Subscribe to user_books changes
+    const booksChannel = supabase
+      .channel(`profile_books_${selectedChild.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_books',
+          filter: `child_id=eq.${selectedChild.id}`,
+        },
+        (payload) => {
+          console.log('ProfileScreen: user_books change detected:', payload.eventType, payload);
+          debouncedFetchProfileData();
+          fetchProfileStats();
+          refreshUsage();
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('ProfileScreen: user_books subscription status:', status);
+        if (err) {
+          console.error('ProfileScreen: user_books subscription error:', err);
+        }
+      });
+
+    // Subscribe to moments changes
+    const momentsChannel = supabase
+      .channel(`profile_moments_${selectedChild.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'moments',
+          filter: `child_id=eq.${selectedChild.id}`,
+        },
+        (payload) => {
+          console.log('ProfileScreen: moments change detected:', payload.eventType, payload);
+          debouncedFetchProfileData();
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('ProfileScreen: moments subscription status:', status);
+        if (err) {
+          console.error('ProfileScreen: moments subscription error:', err);
+        }
+      });
+
+    // Cleanup subscriptions on unmount or when selectedChild changes
+    return () => {
+      console.log('ProfileScreen: Cleaning up subscriptions');
+      
+      // Clear debounce timeout
+      if (fetchDebounceRef.current) {
+        clearTimeout(fetchDebounceRef.current);
+        fetchDebounceRef.current = null;
+      }
+
+      // Unsubscribe from all channels
+      supabase.removeChannel(wordsChannel);
+      supabase.removeChannel(booksChannel);
+      supabase.removeChannel(momentsChannel);
+    };
+  }, [selectedChild, debouncedFetchProfileData, fetchProfileStats, refreshUsage]);
+
+  const calculateAge = (birthDate: string) => {
+    try {
+      const birth = new Date(birthDate);
+      const today = new Date();
+      
+      let years = today.getFullYear() - birth.getFullYear();
+      let months = today.getMonth() - birth.getMonth();
+      
+      // If the current day is before the birth day in the month, subtract one month
+      if (today.getDate() < birth.getDate()) {
+        months--;
+      }
+      
+      // If months is negative, adjust years and months
+      if (months < 0) {
+        years--;
+        months += 12;
+      }
+      
+      return `${years}y ${months}m`;
+    } catch (err) {
+      console.error('ProfileScreen: Error calculating age:', err);
+      return '';
+    }
   };
 
   const handleOpenChildSelector = () => {
-    HapticFeedback.impact('medium');
-    childSelectorRef.current?.present();
+    try {
+      console.log('ProfileScreen: Opening child selector bottom sheet');
+      HapticFeedback.medium();
+      childSelectorRef.current?.present();
+    } catch (err) {
+      console.error('ProfileScreen: Error opening child selector:', err);
+    }
   };
 
-  const handleSelectChild = async (childId: string) => {
-    HapticFeedback.impact('light');
-    await selectChild(childId);
-    childSelectorRef.current?.dismiss();
+  const handleSelectChild = (childId: string) => {
+    try {
+      console.log('ProfileScreen: Selecting child:', childId);
+      HapticFeedback.selection();
+      selectChild(childId);
+      childSelectorRef.current?.dismiss();
+    } catch (err) {
+      console.error('ProfileScreen: Error selecting child:', err);
+    }
   };
 
   const handleOpenAddChild = () => {
-    HapticFeedback.impact('medium');
-    childSelectorRef.current?.dismiss();
-    setTimeout(() => {
-      addChildRef.current?.present();
-    }, 300);
+    try {
+      console.log('ProfileScreen: Opening add child bottom sheet');
+      
+      // Check quota before opening
+      if (!canAddChild) {
+        console.log('ProfileScreen: Child limit reached, showing upgrade modal');
+        HapticFeedback.warning();
+        setShowUpgradeModal(true);
+        childSelectorRef.current?.dismiss();
+        return;
+      }
+      
+      HapticFeedback.medium();
+      childSelectorRef.current?.dismiss();
+      setTimeout(() => {
+        addChildRef.current?.present();
+      }, 300);
+    } catch (err) {
+      console.error('ProfileScreen: Error opening add child sheet:', err);
+    }
   };
 
   const handleAddChild = async (name: string, birthDate: Date) => {
     try {
+      console.log('ProfileScreen: Adding child:', name, birthDate);
       await addChild(name, birthDate);
+      await refreshUsage();
       HapticFeedback.success();
       addChildRef.current?.dismiss();
-    } catch (error) {
-      console.error('Error adding child:', error);
+    } catch (err) {
+      console.error('ProfileScreen: Error adding child:', err);
       HapticFeedback.error();
-      Alert.alert('Error', 'Failed to add child');
     }
   };
 
   const handleOpenSettings = () => {
-    HapticFeedback.impact('medium');
-    router.push('/settings');
-  };
-
-  const handleOpenAdminPanel = () => {
-    HapticFeedback.impact('medium');
-    router.push('/admin-panel');
-  };
-
-  const handleRecordMoment = () => {
-    HapticFeedback.impact('medium');
-    triggerCamera();
-  };
-
-  const handleViewMoreMoments = () => {
-    HapticFeedback.impact('medium');
-    router.push('/all-moments');
-  };
-
-  const handleFindOutMore = () => {
-    HapticFeedback.impact('medium');
-    router.push('/milestones');
-  };
-
-  const handleMomentPress = async (moment: Moment) => {
-    HapticFeedback.impact('medium');
-    
     try {
-      let videoUrl = moment.signedVideoUrl;
-      
-      if (!videoUrl) {
-        console.log('Generating signed URL for moment:', moment.id);
-        videoUrl = await getSignedVideoUrl(moment.video_url);
-      }
-      
-      if (!videoUrl) {
-        Alert.alert('Error', 'Unable to load video');
-        return;
-      }
-      
-      setSelectedMoment({ ...moment, signedVideoUrl: videoUrl });
-      setShowVideoPlayer(true);
-    } catch (error) {
-      console.error('Error loading moment video:', error);
-      Alert.alert('Error', 'Failed to load video');
+      console.log('ProfileScreen: Settings button pressed - navigating to settings page');
+      HapticFeedback.medium();
+      router.push('/settings');
+    } catch (err) {
+      console.error('ProfileScreen: Error opening settings:', err);
     }
   };
 
+  const handleOpenAdminPanel = () => {
+    try {
+      console.log('ProfileScreen: Admin panel button pressed');
+      HapticFeedback.medium();
+      router.push('/admin-panel');
+    } catch (err) {
+      console.error('ProfileScreen: Error opening admin panel:', err);
+    }
+  };
+
+  const handleRecordMoment = () => {
+    try {
+      console.log('ProfileScreen: Record button pressed - triggering camera');
+      HapticFeedback.medium();
+      triggerCamera();
+    } catch (err) {
+      console.error('ProfileScreen: Error triggering camera:', err);
+    }
+  };
+
+  const handleViewMoreMoments = () => {
+    try {
+      console.log('ProfileScreen: View more moments pressed - navigating to all moments page');
+      HapticFeedback.medium();
+      router.push('/all-moments');
+    } catch (err) {
+      console.error('ProfileScreen: Error navigating to all moments page:', err);
+    }
+  };
+
+  const handleFindOutMore = () => {
+    try {
+      console.log('ProfileScreen: Find out more pressed - navigating to milestones page');
+      HapticFeedback.medium();
+      router.push('/milestones');
+    } catch (err) {
+      console.error('ProfileScreen: Error navigating to milestones page:', err);
+    }
+  };
+
+  const handleMomentPress = async (moment: Moment) => {
+    console.log('ProfileScreen: Moment pressed:', moment.id);
+    console.log('ProfileScreen: Trim metadata:', { trim_start: moment.trim_start, trim_end: moment.trim_end });
+    HapticFeedback.medium();
+    
+    // Use signed URL if available, fallback to original URL
+    let videoUrl = moment.signedVideoUrl || moment.video_url;
+    
+    // If we don't have a signed URL, try to generate one now
+    if (!moment.signedVideoUrl) {
+      console.log('ProfileScreen: No signed URL available, generating fresh one...');
+      const freshSignedUrl = await getSignedVideoUrl(moment.video_url);
+      if (freshSignedUrl) {
+        console.log('ProfileScreen: ✓ Fresh signed URL generated');
+        videoUrl = freshSignedUrl;
+      } else {
+        console.error('ProfileScreen: ✗ Failed to generate fresh signed URL');
+        Alert.alert('Error', 'Unable to play video. Please try refreshing the page.');
+        return;
+      }
+    }
+    
+    // Store the full moment object with trim metadata
+    setSelectedMoment(moment);
+    setShowVideoPlayer(true);
+  };
+
   const handleCloseVideoPlayer = () => {
+    console.log('ProfileScreen: Closing video player');
     setShowVideoPlayer(false);
     setSelectedMoment(null);
   };
 
   const handleThumbnailError = (momentId: string) => {
-    console.log('Thumbnail failed to load for moment:', momentId);
+    console.error('ProfileScreen: Thumbnail failed to load for moment:', momentId);
     setThumbnailErrors(prev => new Set(prev).add(momentId));
   };
 
   const handleChangeAvatar = async () => {
     if (!selectedChild) {
-      Alert.alert('Error', 'Please select a child first');
+      console.log('ProfileScreen: No selected child for avatar change');
+      Alert.alert('No Child Selected', 'Please select a child first');
+      HapticFeedback.warning();
+      return;
+    }
+
+    if (uploadingAvatar) {
+      console.log('ProfileScreen: Avatar upload already in progress');
       return;
     }
 
     try {
-      HapticFeedback.impact('medium');
+      console.log('ProfileScreen: Starting avatar change process');
+      HapticFeedback.medium();
       
-      const result = await pickProfileImage();
-      if (!result) return;
-
-      // Delete old avatar if exists
-      if (selectedChild.avatar_url) {
-        await deleteProfileAvatar(selectedChild.avatar_url);
+      // Step 1: Pick image
+      const imageUri = await pickProfileImage();
+      
+      if (!imageUri) {
+        console.log('ProfileScreen: No image selected');
+        return;
       }
 
-      // Upload new avatar
-      const newAvatarUrl = await uploadProfileAvatar(result.uri, selectedChild.id);
+      console.log('ProfileScreen: Image selected:', imageUri);
       
-      // Update database
-      const { error } = await supabase
+      // Step 2: Show local image immediately for instant feedback
+      setLocalAvatarUrl(imageUri);
+      setUploadingAvatar(true);
+
+      // Step 3: Get old avatar path before uploading new one
+      const oldAvatarPath = selectedChild.avatar_url;
+
+      // Step 4: Upload to Supabase Storage
+      const uploadResult = await uploadProfileAvatar(selectedChild.id, imageUri);
+
+      if (!uploadResult.success || !uploadResult.url) {
+        console.error('ProfileScreen: Upload failed:', uploadResult.error);
+        Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image');
+        HapticFeedback.error();
+        // Revert to old avatar path on failure
+        setLocalAvatarUrl(oldAvatarPath || null);
+        setUploadingAvatar(false);
+        return;
+      }
+
+      console.log('ProfileScreen: Upload successful, storage path:', uploadResult.url);
+
+      // Step 5: Update database with new avatar storage path
+      const { error: updateError } = await supabase
         .from('children')
-        .update({ avatar_url: newAvatarUrl })
+        .update({ 
+          avatar_url: uploadResult.url,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', selectedChild.id);
 
-      if (error) throw error;
+      if (updateError) {
+        console.error('ProfileScreen: Database update failed:', updateError);
+        Alert.alert('Update Failed', 'Failed to save profile photo');
+        HapticFeedback.error();
+        // Revert to old avatar path on failure
+        setLocalAvatarUrl(oldAvatarPath || null);
+        setUploadingAvatar(false);
+        return;
+      }
 
-      setAvatarUrl(newAvatarUrl);
+      console.log('ProfileScreen: Database updated successfully');
+
+      // Step 6: Update local state with storage path immediately
+      setLocalAvatarUrl(uploadResult.url);
+
+      // Step 7: Delete old avatar if it exists and is different
+      if (oldAvatarPath && oldAvatarPath !== uploadResult.url) {
+        console.log('ProfileScreen: Deleting old avatar:', oldAvatarPath);
+        // Don't await this - let it happen in background
+        deleteProfileAvatar(oldAvatarPath).catch(err => {
+          console.error('ProfileScreen: Error deleting old avatar:', err);
+        });
+      }
+
+      // Step 8: Refresh children data in context
+      console.log('ProfileScreen: Refreshing children data in context...');
+      await refreshChildren();
+
+      // Step 9: Re-select the child to get updated data from context
+      if (selectedChild?.id) {
+        console.log('ProfileScreen: Re-selecting child to update context reference...');
+        selectChild(selectedChild.id);
+      }
+
+      setUploadingAvatar(false);
+      
+      console.log('ProfileScreen: Avatar change complete!');
       HapticFeedback.success();
-      Alert.alert('Success', 'Profile photo updated!');
-    } catch (error) {
-      console.error('Error changing avatar:', error);
+      Alert.alert('Success', 'Profile photo updated successfully!');
+    } catch (err) {
+      console.error('ProfileScreen: Error changing avatar:', err);
+      setUploadingAvatar(false);
+      // Revert to context avatar path on error
+      setLocalAvatarUrl(selectedChild?.avatar_url || null);
       HapticFeedback.error();
-      Alert.alert('Error', 'Failed to update profile photo');
+      Alert.alert('Error', 'Failed to update profile photo. Please try again.');
     }
   };
 
-  if (loading && !selectedChild) {
+  if (childLoading || loading) {
     return (
       <View style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <ActivityIndicator size="large" color={colors.buttonBlue} />
+            <Text style={styles.loadingText}>Loading profile...</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={styles.errorContainer}>
+            <IconSymbol 
+              ios_icon_name="exclamationmark.triangle.fill" 
+              android_material_icon_name="error" 
+              size={48} 
+              color={colors.textSecondary} 
+            />
+            <Text style={styles.errorText}>Failed to load profile</Text>
+            <Text style={styles.errorSubtext}>{error}</Text>
+            <TouchableOpacity 
+              style={styles.retryButton} 
+              onPress={() => {
+                HapticFeedback.medium();
+                fetchProfileData(true);
+              }}
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
           </View>
         </SafeAreaView>
       </View>
@@ -383,160 +692,246 @@ export default function ProfileScreen() {
             />
           }
         >
-          {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={handleOpenSettings} style={styles.settingsButton}>
-              <IconSymbol
-                ios_icon_name="gearshape.fill"
-                android_material_icon_name="settings"
-                size={24}
-                color={colors.text}
+            <View style={styles.headerSpacer} />
+            <Image 
+              source={require('@/assets/images/862eb74f-238b-4288-b27c-da2725bda49c.png')}
+              style={styles.appLogo}
+              resizeMode="contain"
+            />
+            <TouchableOpacity style={styles.settingsButton} onPress={handleOpenSettings}>
+              <IconSymbol 
+                ios_icon_name="gearshape.fill" 
+                android_material_icon_name="settings" 
+                size={24} 
+                color={colors.primary} 
               />
             </TouchableOpacity>
-            
-            {user?.email === 'admin@natively.app' && (
-              <TouchableOpacity onPress={handleOpenAdminPanel} style={styles.adminButton}>
-                <IconSymbol
-                  ios_icon_name="shield.fill"
-                  android_material_icon_name="admin-panel-settings"
-                  size={24}
-                  color={colors.accent}
-                />
-              </TouchableOpacity>
-            )}
           </View>
 
-          {/* Profile Section */}
           <View style={styles.profileSection}>
-            <TouchableOpacity onPress={handleChangeAvatar} activeOpacity={0.7}>
-              <ProfileAvatar
-                avatarUrl={avatarUrl}
-                name={selectedChild?.name || 'Select Child'}
-                size={100}
-              />
+            <ProfileAvatar 
+              imageUrl={localAvatarUrl}
+              size={180}
+              onPress={handleChangeAvatar}
+              isUploading={uploadingAvatar}
+            />
+            <TouchableOpacity style={styles.profileInfo} onPress={handleOpenChildSelector}>
+              <Text style={styles.profileName}>
+                {selectedChild?.name || 'Add a child'}
+              </Text>
+              <View style={styles.ageDropdown}>
+                <IconSymbol 
+                  ios_icon_name="chevron.down" 
+                  android_material_icon_name="arrow-drop-down" 
+                  size={20} 
+                  color={colors.primary} 
+                />
+              </View>
             </TouchableOpacity>
-            
-            <TouchableOpacity onPress={handleOpenChildSelector} style={styles.nameContainer}>
-              <Text style={styles.name}>{selectedChild?.name || 'Select a child'}</Text>
-              <IconSymbol
-                ios_icon_name="chevron.down"
-                android_material_icon_name="expand-more"
-                size={20}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
-            
-            {selectedChild?.birth_date && (
-              <Text style={styles.age}>{calculateAge(selectedChild.birth_date)} years old</Text>
+            {selectedChild && selectedChild.birth_date && (
+              <Text style={styles.ageText}>{calculateAge(selectedChild.birth_date)}</Text>
             )}
           </View>
 
-          {/* Subscription Status */}
           <SubscriptionStatusCard />
 
-          {/* Stats Grid */}
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{stats.totalWords}</Text>
-              <Text style={styles.statLabel}>Total Words</Text>
+          {/* Admin Panel Button - Only show after role is loaded and user is admin */}
+          {!roleLoading && isAdmin && (
+            <TouchableOpacity 
+              style={styles.adminPanelButton}
+              onPress={handleOpenAdminPanel}
+              activeOpacity={0.7}
+            >
+              <View style={styles.adminPanelIconContainer}>
+                <IconSymbol 
+                  ios_icon_name="shield.fill" 
+                  android_material_icon_name="admin-panel-settings" 
+                  size={24} 
+                  color={colors.backgroundAlt} 
+                />
+              </View>
+              <Text style={styles.adminPanelButtonText}>Admin Panel</Text>
+              <IconSymbol 
+                ios_icon_name="chevron.right" 
+                android_material_icon_name="chevron-right" 
+                size={20} 
+                color={colors.backgroundAlt} 
+              />
+            </TouchableOpacity>
+          )}
+
+          {stats.newWordsThisWeek > 0 && (
+            <View style={styles.achievementBanner}>
+              <IconSymbol 
+                ios_icon_name="star.fill" 
+                android_material_icon_name="star" 
+                size={20} 
+                color={colors.accent} 
+              />
+              <Text style={styles.achievementText}>
+                {selectedChild?.name || 'Your child'} learned {stats.newWordsThisWeek} new {stats.newWordsThisWeek === 1 ? 'word' : 'words'} this week!
+              </Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{stats.totalBooks}</Text>
-              <Text style={styles.statLabel}>Total Books</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{stats.wordsThisWeek}</Text>
-              <Text style={styles.statLabel}>Words This Week</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{stats.booksThisWeek}</Text>
-              <Text style={styles.statLabel}>Books This Week</Text>
+          )}
+
+          <View style={styles.statsSection}>
+            <Text style={styles.sectionTitle}>This week</Text>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { backgroundColor: colors.buttonBlue }]}>
+                <Text style={styles.statNumber}>{stats.wordsThisWeek}</Text>
+                <Text style={styles.statLabel}>new {stats.wordsThisWeek === 1 ? 'word' : 'words'}</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.cardPink }]}>
+                <Text style={styles.statNumberBlue}>{stats.booksThisWeek}</Text>
+                <Text style={styles.statLabelBlue}>new {stats.booksThisWeek === 1 ? 'book' : 'books'}</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
+                <Text style={styles.statNumber}>{stats.momentsThisWeek}</Text>
+                <Text style={styles.statLabel}>new {stats.momentsThisWeek === 1 ? 'moment' : 'moments'}</Text>
+              </View>
             </View>
           </View>
 
-          {/* Moments Section */}
-          <View style={styles.momentsSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Recent Moments</Text>
-              {moments.length > 0 && (
-                <TouchableOpacity onPress={handleViewMoreMoments}>
-                  <Text style={styles.viewMore}>View All</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {moments.length === 0 ? (
-              <View style={styles.emptyMoments}>
-                <IconSymbol
-                  ios_icon_name="video.fill"
-                  android_material_icon_name="videocam"
-                  size={48}
-                  color={colors.textSecondary}
-                />
-                <Text style={styles.emptyText}>No moments yet</Text>
-                <TouchableOpacity style={styles.recordButton} onPress={handleRecordMoment}>
-                  <Text style={styles.recordButtonText}>Record First Moment</Text>
-                </TouchableOpacity>
+          <View style={styles.statsSection}>
+            <Text style={styles.sectionTitle}>All time</Text>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { backgroundColor: colors.cardGreen }]}>
+                <Text style={styles.statNumber}>{stats.totalWords}</Text>
+                <Text style={styles.statLabel}>total words learnt</Text>
+                <View style={styles.statIcon}>
+                  <IconSymbol 
+                    ios_icon_name="text.bubble.fill" 
+                    android_material_icon_name="chat-bubble" 
+                    size={24} 
+                    color={colors.backgroundAlt} 
+                  />
+                </View>
               </View>
+              <View style={[styles.statCard, { backgroundColor: colors.accent }]}>
+                <Text style={styles.statNumberBlue}>{stats.totalBooks}</Text>
+                <Text style={styles.statLabelBlue}>total books</Text>
+                <View style={styles.statIcon}>
+                  <IconSymbol 
+                    ios_icon_name="book.fill" 
+                    android_material_icon_name="menu-book" 
+                    size={24} 
+                    color="#3330AF" 
+                  />
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.momentsSection}>
+            <Text style={styles.sectionTitle}>Moments</Text>
+            {moments.length > 0 ? (
+              <>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.momentsScroll}>
+                  {moments.map((moment, index) => {
+                    // Use signed thumbnail URL if available, fallback to original URL
+                    const thumbnailUrl = moment.signedThumbnailUrl || moment.thumbnail_url;
+                    const hasThumbnailError = thumbnailErrors.has(moment.id);
+                    
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.momentCard}
+                        onPress={() => handleMomentPress(moment)}
+                        activeOpacity={0.8}
+                      >
+                        {thumbnailUrl && !hasThumbnailError ? (
+                          <Image 
+                            source={{ uri: thumbnailUrl }}
+                            style={styles.momentImage}
+                            onError={() => handleThumbnailError(moment.id)}
+                          />
+                        ) : (
+                          <View style={styles.momentPlaceholder}>
+                            <IconSymbol 
+                              ios_icon_name="video.fill" 
+                              android_material_icon_name="videocam" 
+                              size={48} 
+                              color={colors.backgroundAlt} 
+                            />
+                            {hasThumbnailError && (
+                              <Text style={styles.thumbnailErrorText}>Thumbnail unavailable</Text>
+                            )}
+                          </View>
+                        )}
+                        <View style={styles.playIconOverlay}>
+                          <View style={styles.playIconCircle}>
+                            <IconSymbol 
+                              ios_icon_name="play.fill" 
+                              android_material_icon_name="play-arrow" 
+                              size={20} 
+                              color={colors.backgroundAlt} 
+                            />
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                <TouchableOpacity style={styles.viewMoreButton} onPress={handleViewMoreMoments}>
+                  <Text style={styles.viewMoreText}>View more</Text>
+                </TouchableOpacity>
+              </>
             ) : (
-              <View style={styles.momentsGrid}>
-                {moments.map((moment, index) => (
-                  <TouchableOpacity
-                    key={`${moment.id}-${index}`}
-                    style={styles.momentCard}
-                    onPress={() => handleMomentPress(moment)}
-                    activeOpacity={0.7}
-                  >
-                    {moment.signedThumbnailUrl && !thumbnailErrors.has(moment.id) ? (
-                      <Image
-                        source={{ uri: moment.signedThumbnailUrl }}
-                        style={styles.momentThumbnail}
-                        onError={() => handleThumbnailError(moment.id)}
-                      />
-                    ) : (
-                      <View style={[styles.momentThumbnail, styles.momentPlaceholder]}>
-                        <IconSymbol
-                          ios_icon_name="play.circle.fill"
-                          android_material_icon_name="play-circle-filled"
-                          size={32}
-                          color={colors.backgroundAlt}
-                        />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
+              <View style={styles.emptyMomentsContainer}>
+                <IconSymbol 
+                  ios_icon_name="video.slash" 
+                  android_material_icon_name="videocam-off" 
+                  size={48} 
+                  color={colors.textSecondary} 
+                />
+                <Text style={styles.emptyMomentsText}>No moments yet</Text>
+                <Text style={styles.emptyMomentsSubtext}>Start recording to capture special moments!</Text>
               </View>
             )}
           </View>
 
-          {/* Milestones CTA */}
-          <TouchableOpacity style={styles.milestonesCard} onPress={handleFindOutMore}>
-            <View style={styles.milestonesContent}>
-              <IconSymbol
-                ios_icon_name="star.fill"
-                android_material_icon_name="star"
-                size={32}
-                color={colors.accent}
-              />
-              <View style={styles.milestonesText}>
-                <Text style={styles.milestonesTitle}>Milestones</Text>
-                <Text style={styles.milestonesSubtitle}>Track your child&apos;s progress</Text>
-              </View>
+          <View style={styles.suggestionsSection}>
+            <Text style={styles.sectionTitle}>Suggestions</Text>
+            <View style={styles.suggestionCard}>
+              <Text style={styles.suggestionText}>Capture a special moment today!</Text>
+              <TouchableOpacity style={styles.recordButton} onPress={handleRecordMoment}>
+                <Text style={styles.recordButtonText}>Record</Text>
+              </TouchableOpacity>
             </View>
-            <IconSymbol
-              ios_icon_name="chevron.right"
-              android_material_icon_name="chevron-right"
-              size={24}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
+          </View>
+
+          <View style={styles.analyticsSection}>
+            <Text style={styles.sectionTitle}>Milestones</Text>
+            <View style={styles.analyticsCard}>
+              <View style={styles.analyticsRow}>
+                <View style={[styles.analyticsDot, { backgroundColor: colors.backgroundAlt }]}>
+                  <Text style={styles.analyticsPercent}>51%</Text>
+                </View>
+                <View style={[styles.analyticsDot, { backgroundColor: colors.secondary }]}>
+                  <Text style={styles.analyticsPercent}>51%</Text>
+                </View>
+                <View style={[styles.analyticsDot, { backgroundColor: colors.cardGreen }]}>
+                  <Text style={styles.analyticsPercent}>51%</Text>
+                </View>
+                <View style={[styles.analyticsDot, { backgroundColor: colors.buttonBlue }]}>
+                  <Text style={styles.analyticsPercent}>51%</Text>
+                </View>
+              </View>
+              <TouchableOpacity 
+                style={styles.findOutButton}
+                onPress={handleFindOutMore}
+              >
+                <Text style={styles.findOutButtonText}>Find out more</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </ScrollView>
       </SafeAreaView>
 
-      {/* Bottom Sheets */}
       <ChildSelectorBottomSheet
         ref={childSelectorRef}
-        children={childrenList}
+        childrenList={children}
         selectedChildId={selectedChild?.id || null}
         onSelectChild={handleSelectChild}
         onAddChild={handleOpenAddChild}
@@ -547,17 +942,21 @@ export default function ProfileScreen() {
         onAddChild={handleAddChild}
       />
 
-      {/* Video Player */}
-      {showVideoPlayer && selectedMoment && (
+      {selectedMoment && (
         <FullScreenVideoPlayer
-          videoUri={selectedMoment.signedVideoUrl || ''}
+          visible={showVideoPlayer}
+          videoUri={selectedMoment.signedVideoUrl || selectedMoment.video_url}
           onClose={handleCloseVideoPlayer}
           trimStart={selectedMoment.trim_start}
           trimEnd={selectedMoment.trim_end}
         />
       )}
 
-      <UpgradePromptModal />
+      <UpgradePromptModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        quotaType="child"
+      />
     </View>
   );
 }
@@ -582,152 +981,327 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginTop: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.primary,
+    marginTop: 16,
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: colors.buttonBlue,
+    borderRadius: 24,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    marginTop: 24,
+  },
+  retryButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    gap: 12,
+    marginBottom: 24,
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  appLogo: {
+    height: 40,
+    width: 200,
   },
   settingsButton: {
-    padding: 8,
-  },
-  adminButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
   },
   profileSection: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  nameContainer: {
+  profileInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginTop: 16,
   },
-  name: {
+  profileName: {
     fontSize: 28,
-    fontWeight: '700',
-    color: colors.text,
+    fontWeight: '800',
+    color: colors.primary,
   },
-  age: {
+  ageDropdown: {
+    width: 24,
+    height: 24,
+  },
+  ageText: {
     fontSize: 16,
-    color: colors.textSecondary,
+    fontWeight: '600',
+    color: colors.primary,
     marginTop: 4,
   },
-  statsGrid: {
+  adminPanelButton: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 32,
-  },
-  statCard: {
-    flex: 1,
-    minWidth: '47%',
-    backgroundColor: colors.backgroundAlt,
+    alignItems: 'center',
+    backgroundColor: colors.buttonBlue,
     borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
+    padding: 16,
+    marginBottom: 24,
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.15)',
+    elevation: 4,
   },
-  statValue: {
-    fontSize: 32,
+  adminPanelIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  adminPanelButtonText: {
+    flex: 1,
+    fontSize: 16,
     fontWeight: '700',
-    color: colors.primary,
-    marginBottom: 4,
+    color: colors.backgroundAlt,
   },
-  statLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  momentsSection: {
-    marginBottom: 32,
-  },
-  sectionHeader: {
+  achievementBanner: {
+    backgroundColor: colors.cardPurple,
+    borderRadius: 16,
+    padding: 16,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 24,
+  },
+  achievementText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    flex: 1,
+  },
+  statsSection: {
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: colors.text,
-  },
-  viewMore: {
-    fontSize: 14,
-    fontWeight: '600',
     color: colors.primary,
+    marginBottom: 12,
   },
-  emptyMoments: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginTop: 12,
-    marginBottom: 20,
-  },
-  recordButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  recordButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.backgroundAlt,
-  },
-  momentsGrid: {
+  statsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 12,
   },
-  momentCard: {
-    width: '31%',
-    aspectRatio: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
+  statCard: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 16,
+    minHeight: 100,
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
-  momentThumbnail: {
+  statNumber: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: colors.backgroundAlt,
+    marginBottom: 4,
+  },
+  statNumberBlue: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#3330AF',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.backgroundAlt,
+    lineHeight: 16,
+  },
+  statLabelBlue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3330AF',
+    lineHeight: 16,
+  },
+  statIcon: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+  },
+  momentsSection: {
+    marginBottom: 24,
+  },
+  momentsScroll: {
+    marginBottom: 12,
+  },
+  momentCard: {
+    width: 160,
+    height: 240,
+    borderRadius: 16,
+    marginRight: 12,
+    overflow: 'hidden',
+    backgroundColor: colors.cardPurple,
+    position: 'relative',
+  },
+  momentImage: {
     width: '100%',
     height: '100%',
   },
   momentPlaceholder: {
-    backgroundColor: colors.primary,
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.cardPurple,
+  },
+  thumbnailErrorText: {
+    fontSize: 10,
+    color: colors.backgroundAlt,
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+  },
+  playIconOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  playIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyMomentsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 16,
+  },
+  emptyMomentsText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.primary,
+    marginTop: 12,
+  },
+  emptyMomentsSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  viewMoreButton: {
+    backgroundColor: colors.buttonBlue,
+    borderRadius: 24,
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  milestonesCard: {
+  viewMoreText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
+  },
+  suggestionsSection: {
+    marginBottom: 24,
+  },
+  suggestionCard: {
+    backgroundColor: colors.accent,
+    borderRadius: 16,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.backgroundAlt,
+  },
+  suggestionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.primary,
+    flex: 1,
+    marginRight: 12,
+  },
+  recordButton: {
+    backgroundColor: colors.buttonBlue,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  recordButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
+  },
+  analyticsSection: {
+    marginBottom: 24,
+  },
+  analyticsCard: {
+    backgroundColor: colors.cardPink,
     borderRadius: 16,
     padding: 20,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
   },
-  milestonesContent: {
+  analyticsRow: {
     flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  analyticsDot: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
-    gap: 16,
+    justifyContent: 'center',
   },
-  milestonesText: {
-    gap: 4,
-  },
-  milestonesTitle: {
-    fontSize: 18,
+  analyticsPercent: {
+    fontSize: 16,
     fontWeight: '700',
-    color: colors.text,
+    color: colors.primary,
   },
-  milestonesSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
+  findOutButton: {
+    backgroundColor: colors.secondary,
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  findOutButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.backgroundAlt,
   },
 });
