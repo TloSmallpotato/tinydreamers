@@ -34,6 +34,12 @@ export default function UpgradePromptModal({ visible, onClose, quotaType }: Upgr
   const { showPaywall } = useSubscription();
   const message = QUOTA_MESSAGES[quotaType];
 
+  // Safety check: if message is undefined, don't render the modal
+  if (!message) {
+    console.error('UpgradePromptModal: Invalid quotaType:', quotaType);
+    return null;
+  }
+
   const handleUpgrade = async () => {
     HapticFeedback.medium();
     onClose();
