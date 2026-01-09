@@ -48,6 +48,9 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
       onAddChild();
     };
 
+    // Safely handle undefined or null childrenList
+    const safeChildrenList = childrenList || [];
+
     return (
       <BottomSheetModal
         ref={ref}
@@ -68,7 +71,7 @@ const ChildSelectorBottomSheet = forwardRef<BottomSheetModal, ChildSelectorBotto
           <Text style={styles.title}>Select Child</Text>
           
           <View style={styles.childrenList}>
-            {childrenList.map((child) => (
+            {safeChildrenList.map((child) => (
               <TouchableOpacity
                 key={child.id}
                 style={[
